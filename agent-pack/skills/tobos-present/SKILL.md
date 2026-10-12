@@ -13,11 +13,11 @@ Tobos hosts presentations that you write as code: one Svelte 5 file per scene, w
 
 ```sh
 npm i -g @tobos/cli               # the `tobos` command; needs Node 22.18+ and git
-tobos login you@example.com       # e-mails the person a 6-digit code (and signs them up if new: tell them it accepts the terms)
-tobos login --code 123456         # the code they read to you from the mail
+tobos login you@example.com       # e-mails the person a 6-digit code (and signs them up if new)
+tobos login --code 123456         # the code they paste to you from the mail
 ```
 
-Ask the person for their e-mail address first, and tell them a code is on its way. Only they can read it; never guess or reuse one. It works for 10 minutes. In CI, set `TOBOS_TOKEN` instead.
+Ask the person for their e-mail address first, then for the code in one line: it's in their e-mail, maybe in spam, and using it accepts https://tobos.ai/terms. Only they can read it; never guess or reuse one. It works for 10 minutes. In CI, set `TOBOS_TOKEN` instead.
 
 ## Start or continue a deck
 
@@ -29,9 +29,9 @@ tobos clone account/deck          # or clone an existing one
 
 Then **read the deck's `AGENTS.md`**. It, `.tobos/FORMAT.md` and `master/GUIDE.md` are the instructions for everything that follows: the loop (`check` → `render` → look → `push`), the format, the slide master's layouts and rules.
 
-## Before you start building
+## Follow the person
 
-Ask the person what the talk is for, who it's for and how long it is, unless they've said. A story comes before slides: agree the parts and what each scene shows, then build scene by scene, and show them renders as you go.
+They decide what to make and how much you do: some build a deck one scene at a time, some want all of it at once. Do what they ask, at the size they ask. Don't ask what a talk is about, who it's for or how long it runs, and don't propose an outline they didn't ask for.
 
 ## Commands
 
@@ -41,6 +41,7 @@ Ask the person what the talk is for, who it's for and how long it is, unless the
 | `tobos push -m "…"`                                      | upload media, commit, push; the server checks it again |
 | `tobos render scene/beat` · `scene` · `--all` · `--film` | PNGs of beats; pushes what changed first               |
 | `tobos open [scene/beat] [--presenter]`                  | the deck in a browser; pushes what changed first       |
+| `tobos open` (outside a deck)                            | Tobos in the browser, logged in: decks and templates   |
 | `tobos export pdf`                                       | a PDF of every beat                                    |
 
 Every command takes `--json`. Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in.

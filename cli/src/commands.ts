@@ -42,8 +42,7 @@ interface DeckInfo {
  * since an agent may read the mail for them. The same words for every address, so the answer
  * doesn't tell whether an account exists.
  */
-const TERMS_NOTICE =
-  'Tell the person: if this address has no Tobos account yet, the code creates one, and using it accepts the terms (https://tobos.ai/terms). How Tobos handles their data: https://tobos.ai/privacy';
+const TERMS_NOTICE = 'If the address is new, using the code accepts https://tobos.ai/terms.';
 
 export async function login(out: Output, args: Args) {
   const server = ((args.values.server as string) || settings().server).replace(/\/$/, '');
@@ -61,7 +60,7 @@ export async function login(out: Output, args: Args) {
     out.result(
       { sent: email, next: 'tobos login --code <code>', terms: TERMS_NOTICE },
       () =>
-        `Sent a 6-digit code to ${email}; it works for 10 minutes. Ask the person for it, then run:\n\n  tobos login --code <code>\n\n${TERMS_NOTICE}`,
+        `Sent a 6-digit code to ${email}; it works for 10 minutes. Ask the person for it in one line: check the inbox, or spam, and paste the code here. ${TERMS_NOTICE} Then run:\n\n  tobos login --code <code>`,
     );
     return;
   }
@@ -374,13 +373,26 @@ async function deckName(args: Args): Promise<string> {
 
 export async function open(out: Output, args: Args) {
   const position = args.positionals[0];
+  if (!position && typeof args.values.deck !== 'string' && !(await findDeck().catch(() => null)))
+    return openApp(out, args);
   const view = args.values.presenter ? 'presenter' : undefined;
   const name = await deckName(args);
   const { pushed } = await pushIfChanged(out, name);
   const { url } = await viewUrl(name, view, 12);
   const full = position ? `${url}#${position}` : url;
-  const opened = !args.values.print && openUrl(full);
+  const opened = !args.values.print && (await openUrl(full));
   out.result({ url: full, opened, pushed }, () => full);
+}
+
+/** Outside a deck: Tobos itself, the person's decks and templates, logged in as this CLI. */
+async function openApp(out: Output, args: Args) {
+  const { url } = await api<{ url: string }>('/api/login/browser', { method: 'POST' });
+  const opened = !args.values.print && (await openUrl(url));
+  out.result({ url, opened }, () =>
+    opened
+      ? 'Opened Tobos in the browser, logged in.'
+      : `${url}\nThis link logs a browser in once, within 10 minutes.`,
+  );
 }
 
 // ─── Exports and rendering ──────────────────────────────────────────────────
