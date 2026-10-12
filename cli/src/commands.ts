@@ -149,7 +149,7 @@ export async function clone(out: Output, args: Args) {
 }
 
 /**
- * A new deck, its master copied from a template (Tobos standard unless `--from` names one), or
+ * A new deck, its master copied from a template (the account's default unless `--from` names one), or
  * with `--template` a new template: a copy of all of the one it starts from.
  */
 export async function create(out: Output, args: Args) {
