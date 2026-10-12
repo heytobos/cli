@@ -1,0 +1,21 @@
+{
+  "name": "tobos-cli",
+  "private": true,
+  "type": "module",
+  "license": "FSL-1.1-ALv2",
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "pnpm --filter @tobos/cli build",
+    "check": "pnpm format:check && pnpm -r typecheck && pnpm -r test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.9.9",
+    "prettier-plugin-svelte": "^4.1.1",
+    "typescript": "^6.0.3"
+  }
+}

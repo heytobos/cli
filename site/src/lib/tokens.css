@@ -1,0 +1,26 @@
+/*
+ * The Tobos look as tokens: colour, type and motion. tobos.ai uses them, and the app imports this
+ * file (`@tobos/site/tokens.css`) so both read the same values. The faces are in fonts/fonts.css.
+ * BRAND.md describes the look.
+ */
+:root {
+  /* Ink, from text down to hairlines */
+  --ink: #121a2c;
+  --ink-2: #474f62;
+  --ink-3: #6e7586; /* the lightest text that still reads: 4.6:1 on white */
+  --grey: #a5abb8;
+  --line: rgba(18, 26, 44, 0.11);
+  /* Shadows are the ink at an alpha: rgba(var(--sh), .2) */
+  --sh: 18, 26, 44;
+  /* Navy for marks and fills, its tint for highlighted rows, and the one red */
+  --blue: #1d3768;
+  --blue-soft: #edf0f6;
+  --pop: #ef4423;
+
+  --sans: 'Hanken Grotesk', system-ui, sans-serif;
+  --mono: 'Geist Mono', ui-monospace, monospace;
+
+  /* Things arrive on this curve, and reveals take this long */
+  --ease: cubic-bezier(0.22, 0.61, 0.24, 1);
+  --t: 0.9s;
+}

@@ -1,0 +1,39 @@
+{
+  "title": "Same problem",
+  "chapters": [
+    {
+      "id": "opening",
+      "title": "Opening",
+      "scenes": [
+        {
+          "id": "title",
+          "title": "Title"
+        },
+        {
+          "id": "question",
+          "title": "The question"
+        }
+      ]
+    },
+    {
+      "id": "tokens",
+      "title": "Tokens",
+      "scenes": [
+        {
+          "id": "tokens",
+          "title": "Text becomes numbers"
+        }
+      ]
+    },
+    {
+      "id": "media",
+      "title": "Media",
+      "scenes": [
+        {
+          "id": "clip",
+          "title": "A clip"
+        }
+      ]
+    }
+  ]
+}

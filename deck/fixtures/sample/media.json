@@ -1,0 +1,12 @@
+{
+  "clip.webm": {
+    "hash": "94dd619954480ce8ba4c8b9308bd7dcf02159436bcd9dad6229f5edb51b464da",
+    "size": 16590,
+    "type": "video/webm"
+  },
+  "scan.png": {
+    "hash": "6401030ebbca6be3c487836bb67fed74504e5472ca7b05c3cd85dc91d8b6ecce",
+    "size": 19706,
+    "type": "image/png"
+  }
+}

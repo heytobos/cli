@@ -1,0 +1,25 @@
+{
+  "name": "@tobos/standard",
+  "version": "1.0.0",
+  "private": true,
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "description": "The product template, tobos/standard: a deck whose master/ new decks copy, and whose scenes show it off.",
+  "scripts": {
+    "build": "node fonts.ts",
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings --threshold warning",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tobos/present": "workspace:*",
+    "gsap": "^3.15.0",
+    "svelte": "^5.57.2"
+  },
+  "devDependencies": {
+    "@tobos/deck": "workspace:*",
+    "@tobos/site": "workspace:*",
+    "@types/node": "^24.19.1",
+    "svelte-check": "^4.7.6",
+    "vitest": "^5.0.3"
+  }
+}

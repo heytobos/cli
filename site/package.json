@@ -1,0 +1,11 @@
+{
+  "name": "@tobos/site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "tobos.ai's tokens and typefaces, which the engine and Tobos standard use. The site itself is not in this repository.",
+  "exports": {
+    "./tokens.css": "./src/lib/tokens.css",
+    "./fonts.css": "./src/lib/fonts/fonts.css"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "@tobos/cli",
+  "version": "0.1.0",
+  "description": "The command line of Tobos: https://tobos.ai",
+  "type": "module",
+  "license": "FSL-1.1-ALv2",
+  "homepage": "https://tobos.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/heytobos/cli.git",
+    "directory": "cli"
+  },
+  "bin": {
+    "tobos": "dist/tobos.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "node build.ts",
+    "typecheck": "tsc -p .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "playwright-core": "^1.63.0"
+  },
+  "devDependencies": {
+    "@tobos/deck": "workspace:*",
+    "@types/node": "^24.19.1",
+    "esbuild": "^0.28.2",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.3"
+  }
+}

@@ -1,0 +1,8 @@
+packages:
+  - cli
+  - deck
+  - present
+  - site
+  - templates/*
+allowBuilds:
+  esbuild: true

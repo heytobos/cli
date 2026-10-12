@@ -1,0 +1,59 @@
+# Stages @tobos/cli on npm, by hand (Actions → Publish CLI → Run workflow), from main. A version
+# already on npm is refused: raise it in cli/package.json upstream first. npm trusts this workflow
+# by OIDC (trusted publishing), so there is no token, and only to stage: the version goes live
+# once a maintainer approves it with 2FA (npmjs.com → @tobos/cli → Staged Packages, or
+# `npm stage approve <id>`). Built here, from this repo's own commit, so npm can attest it
+# (provenance). Approve before the server deploy that announces the version.
+name: Publish CLI
+
+on: workflow_dispatch
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-cli
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Only from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Publish from main, not $GITHUB_REF." >&2
+          exit 1
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      # A runner's cached Node 24 may bundle an npm older than 11.15, which can't stage.
+      - run: npm i -g npm@^11.15.0 && npm --version
+      - name: A version npm doesn't have yet
+        run: |
+          VERSION=$(node -p "require('./cli/package.json').version")
+          if npm view "@tobos/cli@$VERSION" version >/dev/null 2>&1; then
+            echo "@tobos/cli $VERSION is on npm already: raise the version in cli/package.json." >&2
+            exit 1
+          fi
+          echo "Staging @tobos/cli $VERSION."
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
+      # pnpm packs, so workspace: versions are written out; npm stages, for trusted publishing.
+      - run: pnpm pack --pack-destination "$RUNNER_TEMP"
+        working-directory: cli
+      - name: Installs and runs
+        run: |
+          npm i -g "$RUNNER_TEMP"/tobos-cli-*.tgz
+          test "$(tobos version)" = "$(node -p "require('./cli/package.json').version")"
+      - run: npm stage publish "$RUNNER_TEMP"/tobos-cli-*.tgz --access public --provenance

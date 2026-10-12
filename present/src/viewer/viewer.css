@@ -1,0 +1,88 @@
+/*
+ * The viewer page around the stage: the stage's fixed size, its scaling to the screen, showing
+ * and hiding, and black bars where the screen isn't 16:9. The stage's look is the deck's master's.
+ */
+
+/* The presenter's faces, tobos.ai's own, under names no deck's master uses. A browser fetches a
+   face only when text uses it, so the audience's page never loads them. */
+@font-face {
+  font-family: 'Tobos Sans';
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./fonts/hanken-grotesk-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Tobos Mono';
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./fonts/geist-mono-latin.woff2') format('woff2');
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+#tobos {
+  position: fixed;
+  inset: 0;
+}
+.tobos-letterbox {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.tobos-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: 0 0;
+  overflow: hidden;
+  contain: strict;
+}
+.tobos-layer {
+  position: absolute;
+  inset: 0;
+}
+.tobos-no-cursor,
+.tobos-no-cursor * {
+  cursor: none !important;
+}
+
+/* A still embedded in a page shows that page's background where the stage doesn't reach. */
+html.tobos-still,
+html.tobos-still body,
+html.tobos-still .tobos-letterbox {
+  background: transparent;
+}
+
+/* The grid's guides, toggled with L; the master draws them into .tobos-guides-layer. */
+html:not(.tobos-guides) .tobos-guides-layer {
+  display: none;
+}
+
+/* Print: one page per beat. */
+@page {
+  size: 1920px 1080px;
+  margin: 0;
+}
+html.tobos-print,
+html.tobos-print body {
+  height: auto;
+  overflow: visible;
+}
+html.tobos-print #tobos {
+  position: static;
+}
+html.tobos-print .tobos-page {
+  position: relative;
+  transform: none;
+  break-after: page;
+}

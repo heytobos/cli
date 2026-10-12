@@ -1,0 +1,32 @@
+{
+  "master/fonts/geist-mono-latin-ext.woff2": {
+    "hash": "745994b5cd950ec201b66526375f057d540847cccfc70f4f24f5f571d26d3923",
+    "size": 14712,
+    "type": "font/woff2"
+  },
+  "master/fonts/geist-mono-latin.woff2": {
+    "hash": "5f3d6ad60f29d6cb708414ec6887163d63bf197377ef5417d2483ff31ace6c3b",
+    "size": 23108,
+    "type": "font/woff2"
+  },
+  "master/fonts/hanken-grotesk-latin-ext.woff2": {
+    "hash": "a1376a563717f1efa2f5286ab23da2b61ae8dec827a77b97adfa01cad4ec4ee2",
+    "size": 19572,
+    "type": "font/woff2"
+  },
+  "master/fonts/hanken-grotesk-latin.woff2": {
+    "hash": "1f21c6eaa0000f3329cfcfac966b43d5bebf5aa610303e33294ac31bc6f4bb59",
+    "size": 34664,
+    "type": "font/woff2"
+  },
+  "master/fonts/OFL-geist-mono.txt": {
+    "hash": "1781d2806a07d91c4edf4740b88449fab7d0eadad53f7c351b94cd4d4eb8c00f",
+    "size": 4387,
+    "type": "text/plain"
+  },
+  "master/fonts/OFL-hanken-grotesk.txt": {
+    "hash": "e02ccb89a86839b22feff7872ff5cc355cc0f58318d29eee20e2cf83a612f16d",
+    "size": 4402,
+    "type": "text/plain"
+  }
+}

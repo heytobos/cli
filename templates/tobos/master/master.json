@@ -1,0 +1,6 @@
+{
+  "rules": {
+    "minFontSize": 28,
+    "layoutRoot": true
+  }
+}

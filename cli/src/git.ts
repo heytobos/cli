@@ -1,0 +1,71 @@
+import { spawn } from 'node:child_process';
+import { realpathSync } from 'node:fs';
+import { CliError } from './out.ts';
+
+export interface GitResult {
+  code: number;
+  stdout: string;
+  stderr: string;
+}
+
+/** Run git. `echo` passes its stderr through (push progress, the server's messages). */
+export function git(
+  args: string[],
+  options: { cwd?: string; echo?: boolean; env?: Record<string, string> } = {},
+): Promise<GitResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', args, {
+      cwd: options.cwd,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...options.env },
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
+    child.stderr.on('data', (d: Buffer) => {
+      stderr += d.toString();
+      if (options.echo) process.stderr.write(d);
+    });
+    child.on('error', (error) =>
+      reject(
+        (error as NodeJS.ErrnoException).code === 'ENOENT'
+          ? new CliError('git is not installed. Tobos keeps every deck in git; install it first.')
+          : error,
+      ),
+    );
+    child.on('close', (code) => resolve({ code: code ?? 1, stdout, stderr }));
+  });
+}
+
+export async function gitOk(
+  args: string[],
+  options: Parameters<typeof git>[1] = {},
+): Promise<string> {
+  const result = await git(args, options);
+  if (result.code !== 0) throw new CliError(`git ${args[0]} failed:\n${result.stderr.trim()}`);
+  return result.stdout;
+}
+
+/**
+ * How git asks us for the token: this CLI is the credential helper for the Tobos server,
+ * so the token never sits in .git/config or a URL.
+ */
+export function credentialHelper(): string {
+  const script = realpathSync(process.argv[1]!);
+  const quote = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+  return `!${quote(process.execPath)} ${quote(script)} credential`;
+}
+
+/** Git config arguments that make git ask only us for the server's credentials. */
+export function credentialConfig(server: string): string[] {
+  return [
+    '-c',
+    `credential.${server}.helper=`,
+    '-c',
+    `credential.${server}.helper=${credentialHelper()}`,
+  ];
+}
+
+export async function configureCredentials(dir: string, server: string) {
+  await gitOk(['config', '--replace-all', `credential.${server}.helper`, ''], { cwd: dir });
+  await gitOk(['config', '--add', `credential.${server}.helper`, credentialHelper()], { cwd: dir });
+}
