@@ -1,12 +1,16 @@
-# Stages @tobos/cli on npm, by hand (Actions → Publish CLI → Run workflow), from main. A version
-# already on npm is refused: raise it in cli/package.json upstream first. npm trusts this workflow
+# Stages @tobos/cli on npm when a sync to main changes cli/package.json and its version isn't on
+# npm yet (or by hand: Actions → Publish CLI → Run workflow). npm trusts this workflow
 # by OIDC (trusted publishing), so there is no token, and only to stage: the version goes live
 # once a maintainer approves it with 2FA (npmjs.com → @tobos/cli → Staged Packages, or
 # `npm stage approve <id>`). Built here, from this repo's own commit, so npm can attest it
-# (provenance). Approve before the server deploy that announces the version.
+# (provenance). The server releases the version's commit once it is approved, and mails to ask.
 name: Publish CLI
 
-on: workflow_dispatch
+on:
+  push:
+    branches: [main]
+    paths: [cli/package.json]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -38,22 +42,31 @@ jobs:
           package-manager-cache: false
       # A runner's cached Node 24 may bundle an npm older than 11.15, which can't stage.
       - run: npm i -g npm@^11.15.0 && npm --version
+      # A change to cli/package.json that leaves the version stages nothing.
       - name: A version npm doesn't have yet
+        id: version
         run: |
           VERSION=$(node -p "require('./cli/package.json').version")
           if npm view "@tobos/cli@$VERSION" version >/dev/null 2>&1; then
-            echo "@tobos/cli $VERSION is on npm already: raise the version in cli/package.json." >&2
-            exit 1
+            echo "::notice::@tobos/cli $VERSION is on npm already: nothing to stage."
+          else
+            echo "Staging @tobos/cli $VERSION."
+            echo "new=true" >>"$GITHUB_OUTPUT"
           fi
-          echo "Staging @tobos/cli $VERSION."
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
-      - run: pnpm build
+      - if: steps.version.outputs.new
+        run: pnpm install --frozen-lockfile
+      - if: steps.version.outputs.new
+        run: pnpm check
+      - if: steps.version.outputs.new
+        run: pnpm build
       # pnpm packs, so workspace: versions are written out; npm stages, for trusted publishing.
-      - run: pnpm pack --pack-destination "$RUNNER_TEMP"
+      - if: steps.version.outputs.new
+        run: pnpm pack --pack-destination "$RUNNER_TEMP"
         working-directory: cli
       - name: Installs and runs
+        if: steps.version.outputs.new
         run: |
           npm i -g "$RUNNER_TEMP"/tobos-cli-*.tgz
           test "$(tobos version)" = "$(node -p "require('./cli/package.json').version")"
-      - run: npm stage publish "$RUNNER_TEMP"/tobos-cli-*.tgz --access public --provenance
+      - if: steps.version.outputs.new
+        run: npm stage publish "$RUNNER_TEMP"/tobos-cli-*.tgz --access public --provenance
