@@ -20,8 +20,9 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   let session: ReturnType<typeof joinSession> | null = null;
   let currentRev = config.rev;
   const embedded = window.parent !== window;
-  // A still on someone else's page (a template's gallery): no black bars around the stage.
-  if (render && embedded) document.documentElement.classList.add('tobos-still');
+  // On someone else's page (a deck's preview, a template's gallery) the stage has no black bars:
+  // the box around it is 16:9 already, and the sub-pixel it misses by would show as a black line.
+  if (embedded) document.documentElement.classList.add('tobos-embedded');
   const player: Player = new Player(stage, config.manifest, {
     mountAhead: !render,
     onMove: (position) => {
@@ -96,9 +97,12 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   });
 
   window.addEventListener('message', (event) => {
-    const data = event.data as { type?: string; hash?: string } | null;
+    const data = event.data as { type?: string; hash?: string; delta?: unknown } | null;
     if (data?.type === 'tobos:goto' && typeof data.hash === 'string')
       player.goHash(data.hash, false);
+    // The page around this preview passes on the arrow keys it gets while it has the focus.
+    if (data?.type === 'tobos:step' && (data.delta === 1 || data.delta === -1))
+      player.step(data.delta);
     if (data?.type === 'tobos:fullscreen') toggleFullscreen();
   });
 
