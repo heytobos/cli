@@ -6,7 +6,7 @@ import { directoryTree } from '@tobos/deck/node';
 import { api, VERSION } from './api.ts';
 import { forget, save, settings } from './config.ts';
 import { findDeck, parseName, requireRemote, type DeckDir } from './deck-dir.ts';
-import { configureCredentials, credentialConfig, git, gitOk } from './git.ts';
+import { authEnv, configureCredentials, credentialConfig, git, gitOk } from './git.ts';
 import { syncMediaJson, uploadMedia } from './media.ts';
 import { openUrl } from './open-url.ts';
 import { CliError, EXIT, type Output } from './out.ts';
@@ -128,7 +128,9 @@ async function cloneInto(out: Output, info: DeckInfo, dir: string) {
   const { server } = settings();
   if (existsSync(dir)) throw new CliError(`${dir} already exists.`);
   out.note(`cloning ${info.name} into ${dir}`);
-  await gitOk([...credentialConfig(server), 'clone', '--quiet', info.git, dir]);
+  await gitOk([...credentialConfig(server), 'clone', '--quiet', info.git, dir], {
+    env: authEnv(server),
+  });
   await configureCredentials(dir, server);
   return writeFormatGuide(dir, server);
 }
@@ -181,9 +183,7 @@ export async function pull(out: Output) {
   const deck = await requireRemote();
   const result = await git(
     [...credentialConfig(deck.server), 'pull', '--ff-only', '--quiet', 'origin', 'main'],
-    {
-      cwd: deck.root,
-    },
+    { cwd: deck.root, env: authEnv(deck.server) },
   );
   if (result.code !== 0)
     throw new CliError(
@@ -282,7 +282,7 @@ async function pushWorkingCopy(out: Output, deck: Required<DeckDir>, message?: s
   out.note('pushing…');
   const pushed = await git(
     [...credentialConfig(server), 'push', '--porcelain', 'origin', 'HEAD:main'],
-    { cwd: root, echo: !out.json },
+    { cwd: root, echo: !out.json, env: authEnv(server) },
   );
   const remote = remoteLines(pushed.stderr);
   if (pushed.code !== 0) {

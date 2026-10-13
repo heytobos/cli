@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { realpathSync } from 'node:fs';
+import { settings } from './config.ts';
 import { CliError } from './out.ts';
 
 export interface GitResult {
@@ -63,6 +64,22 @@ export function credentialConfig(server: string): string[] {
     '-c',
     `credential.${server}.helper=${credentialHelper()}`,
   ];
+}
+
+/**
+ * The token on git's first request, for the git this CLI runs itself. Without it git gets a 401,
+ * then starts this CLI as its helper twice (get, then store): over half a second a push. In the
+ * environment rather than `-c`, so it isn't in the process list.
+ */
+export function authEnv(server: string): Record<string, string> {
+  const { server: ours, token } = settings();
+  if (!token || new URL(ours).origin !== new URL(server).origin) return {};
+  const n = Number(process.env.GIT_CONFIG_COUNT) || 0;
+  return {
+    GIT_CONFIG_COUNT: String(n + 1),
+    [`GIT_CONFIG_KEY_${n}`]: `http.${server}.extraHeader`,
+    [`GIT_CONFIG_VALUE_${n}`]: `Authorization: Basic ${Buffer.from(`tobos:${token}`).toString('base64')}`,
+  };
 }
 
 export async function configureCredentials(dir: string, server: string) {
