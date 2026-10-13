@@ -80,7 +80,25 @@
     audience?.close();
     audience = null;
     audienceOpen = false;
+    goHome();
   }
+
+  /** Back to the deck's page in the app, at this beat. */
+  function goHome() {
+    if (config.home) location.replace(`${config.home}${location.hash}`);
+  }
+
+  // A closed audience window ends the show too, unless it was only reloading.
+  let wasShowing = false;
+  $effect(() => {
+    if (showing) {
+      wasShowing = true;
+      return;
+    }
+    if (!wasShowing) return;
+    const leave = window.setTimeout(goHome, 2000);
+    return () => window.clearTimeout(leave);
+  });
 
   function fullscreen() {
     // Capability delegation: this key press lets the audience window go fullscreen.
@@ -99,6 +117,8 @@
     chapters = config.manifest.chapters;
     session = joinSession(config.deck, 'presenter', {
       current: () => refOf(position),
+      // Esc in the audience.
+      onEnd: goHome,
       onAudience: (open) => {
         audienceOpen = open;
         if (open) started ??= Date.now();

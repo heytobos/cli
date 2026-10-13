@@ -12,6 +12,8 @@ export interface ViewerConfig {
   events?: string;
   /** Where the latest manifest is, for live follow. */
   manifestUrl?: string;
+  /** The deck's page in the app, where the presenter goes back to when the show ends. */
+  home?: string;
 }
 
 export function viewFromUrl(): View {
