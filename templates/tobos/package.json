@@ -4,7 +4,7 @@
   "private": true,
   "license": "FSL-1.1-ALv2",
   "type": "module",
-  "description": "The product template, tobos/standard: a deck whose master/ new decks copy, and whose scenes show it off.",
+  "description": "Tobos standard, the product template: a deck whose master/ new decks copy, and whose scenes show it off.",
   "scripts": {
     "build": "node fonts.ts",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings --threshold warning",

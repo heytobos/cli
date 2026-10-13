@@ -4,7 +4,7 @@ export type View = 'deck' | 'audience' | 'presenter' | 'print' | 'render';
 
 /** What the viewer page passes to start(). */
 export interface ViewerConfig {
-  /** "account/deck": names the presenting session. */
+  /** The deck's id: names the presenting session. */
   deck: string;
   rev: string;
   manifest: Manifest;

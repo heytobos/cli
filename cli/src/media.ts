@@ -104,7 +104,7 @@ export async function uploadMedia(
   root: string,
   media: MediaJson,
   server: string,
-  account: string,
+  deck: string,
   note: (m: string) => void,
 ) {
   const hashes = [...new Set(Object.values(media).map((m) => m.hash))];
@@ -122,7 +122,7 @@ export async function uploadMedia(
         `media/${name} is in media.json but not on this machine, and the server doesn't have it.`,
       );
     note(`uploading media/${name} (${Math.round(entry.size / 1000)} kB)`);
-    const response = await request(`/api/media/${hash}?account=${account}`, {
+    const response = await request(`/api/media/${hash}?deck=${deck}`, {
       method: 'PUT',
       body: Readable.toWeb(createReadStream(path)) as ReadableStream,
       contentType: entry.type,

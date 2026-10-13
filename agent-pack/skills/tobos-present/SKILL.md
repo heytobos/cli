@@ -22,9 +22,9 @@ Ask the person for their e-mail address first, then for the code in one line: it
 ## Start or continue a deck
 
 ```sh
-tobos decks                       # the decks you can work on
-tobos new "Title of the talk"     # create one and clone it into ./<slug>
-tobos clone account/deck          # or clone an existing one
+tobos decks                       # the decks you can work on, by id
+tobos new "Title of the talk"     # create one and clone it into ./<id>
+tobos clone <id>                  # or clone an existing one
 ```
 
 Then **read the deck's `AGENTS.md`**. It, `.tobos/FORMAT.md` and `master/GUIDE.md` are the instructions for everything that follows: the loop (`check` → `render` → look → `push`), the format, the slide master's layouts and rules.

@@ -5,7 +5,7 @@ import { buildDeck, formatProblems, type Problem } from '@tobos/deck';
 import { directoryTree } from '@tobos/deck/node';
 import { api, VERSION } from './api.ts';
 import { forget, save, settings } from './config.ts';
-import { findDeck, parseName, requireRemote, type DeckDir } from './deck-dir.ts';
+import { findDeck, parseId, requireRemote, type DeckDir } from './deck-dir.ts';
 import { authEnv, configureCredentials, credentialConfig, git, gitOk } from './git.ts';
 import { syncMediaJson, uploadMedia } from './media.ts';
 import { openUrl } from './open-url.ts';
@@ -19,9 +19,7 @@ export interface Args {
 }
 
 interface DeckInfo {
-  account: string;
-  slug: string;
-  name: string;
+  id: string;
   kind: 'deck' | 'template';
   title: string;
   rev: string | null;
@@ -74,12 +72,9 @@ export async function login(out: Output, args: Args) {
     body: { email: address, code, client },
   });
   save({ server, token, pending: undefined });
-  const me = await api<{ email: string; accounts: { slug: string }[] }>('/api/me', { server });
+  const me = await api<{ email: string }>('/api/me', { server });
   save({ email: me.email });
-  out.result(
-    { email: me.email, server, accounts: me.accounts.map((a) => a.slug) },
-    () => `Logged in as ${me.email}.`,
-  );
+  out.result({ email: me.email, server }, () => `Logged in as ${me.email}.`);
 }
 
 /** Revoke this machine's token on the server, then forget it here. */
@@ -101,16 +96,8 @@ export async function logout(out: Output) {
 }
 
 export async function whoami(out: Output) {
-  const me = await api<{
-    email: string;
-    name: string | null;
-    accounts: { slug: string; role: string }[];
-  }>('/api/me');
-  out.result(
-    { ...me, server: settings().server },
-    () =>
-      `${me.email} on ${settings().server}\naccounts: ${me.accounts.map((a) => `${a.slug} (${a.role})`).join(', ')}`,
-  );
+  const me = await api<{ email: string }>('/api/me');
+  out.result({ ...me, server: settings().server }, () => `${me.email} on ${settings().server}`);
 }
 
 export async function decks(out: Output) {
@@ -118,7 +105,7 @@ export async function decks(out: Output) {
   out.result({ decks }, () =>
     decks.length === 0
       ? 'No decks yet. `tobos new "Title"` starts one.'
-      : decks.map((d) => `${d.name.padEnd(32)} ${d.title}`).join('\n'),
+      : decks.map((d) => `${d.id}  ${d.title}`).join('\n'),
   );
 }
 
@@ -127,7 +114,7 @@ export async function decks(out: Output) {
 async function cloneInto(out: Output, info: DeckInfo, dir: string) {
   const { server } = settings();
   if (existsSync(dir)) throw new CliError(`${dir} already exists.`);
-  out.note(`cloning ${info.name} into ${dir}`);
+  out.note(`cloning ${info.title} into ${dir}`);
   await gitOk([...credentialConfig(server), 'clone', '--quiet', info.git, dir], {
     env: authEnv(server),
   });
@@ -136,16 +123,16 @@ async function cloneInto(out: Output, info: DeckInfo, dir: string) {
 }
 
 export async function clone(out: Output, args: Args) {
-  const name = args.positionals[0];
-  if (!name) throw new CliError('Which deck? `tobos clone account/deck` (see `tobos decks`).');
-  const { account, deck } = parseName(name);
-  const info = await api<DeckInfo>(`/api/decks/${account}/${deck}`);
-  const dir = resolve(args.positionals[1] ?? deck);
+  const given = args.positionals[0];
+  if (!given) throw new CliError('Which deck? `tobos clone <id>` (`tobos decks` lists them).');
+  const id = parseId(given);
+  const info = await api<DeckInfo>(`/api/decks/${id}`);
+  const dir = resolve(args.positionals[1] ?? id);
   await cloneInto(out, info, dir);
   out.result(
     { ...info, dir },
     () =>
-      `Cloned ${info.name} into ${relative(process.cwd(), dir) || '.'}.\nRead AGENTS.md there first. Preview: ${info.url}`,
+      `Cloned ${info.title} into ${relative(process.cwd(), dir) || '.'}.\nRead AGENTS.md there first. Preview: ${info.url}`,
   );
 }
 
@@ -159,19 +146,18 @@ export async function create(out: Output, args: Args) {
   const info = await api<DeckInfo>('/api/decks', {
     body: {
       title,
-      slug: args.values.slug,
       from: args.values.from,
       template: Boolean(args.values.template),
     },
   });
   let dir: string | undefined;
   if (!args.values['no-clone']) {
-    dir = resolve((args.values.dir as string) ?? info.slug);
+    dir = resolve((args.values.dir as string) ?? info.id);
     await cloneInto(out, info, dir);
   }
   out.result({ ...info, dir: dir ?? null }, () =>
     [
-      `Created ${info.name}: ${info.url}`,
+      `Created ${info.title}: ${info.url}`,
       dir ? `Cloned into ${relative(process.cwd(), dir) || '.'}. Read AGENTS.md there first.` : '',
     ]
       .filter(Boolean)
@@ -191,7 +177,7 @@ export async function pull(out: Output) {
     );
   await writeFormatGuide(deck.root, deck.server);
   const rev = (await gitOk(['rev-parse', 'HEAD'], { cwd: deck.root })).trim();
-  out.result({ name: deck.name, rev }, () => `Up to date with ${deck.name} (${rev.slice(0, 7)}).`);
+  out.result({ id: deck.id, rev }, () => `Up to date with the server (${rev.slice(0, 7)}).`);
 }
 
 // ─── Check and push ─────────────────────────────────────────────────────────
@@ -265,8 +251,7 @@ async function pushWorkingCopy(out: Output, deck: Required<DeckDir>, message?: s
         `note: media/${name} is ${Math.round(entry.size / 1_000_000)} MB. Every viewer downloads it; size it for the stage.`,
         true,
       );
-  const account = deck.name.split('/')[0]!;
-  const uploaded = await uploadMedia(root, media, server, account, (m) => out.note(m));
+  const uploaded = await uploadMedia(root, media, server, deck.id, (m) => out.note(m));
 
   await gitOk(['add', '-A'], { cwd: root });
   const committed = (await gitOk(['diff', '--cached', '--name-only'], { cwd: root }))
@@ -313,7 +298,7 @@ export async function push(out: Output, args: Args) {
     process.exitCode = EXIT.problems;
     return;
   }
-  const url = `${deck.server}/${deck.name}`;
+  const url = `${deck.server}/${deck.id}`;
   out.result(
     { ...result, pushed: true, url },
     () =>
@@ -325,9 +310,9 @@ export async function push(out: Output, args: Args) {
  * Before showing a deck from its own working copy, push what changed: what you render or open
  * is always what's pushed, and what everyone with the deck open sees.
  */
-async function pushIfChanged(out: Output, name: string, message?: string) {
+async function pushIfChanged(out: Output, id: string, message?: string) {
   const found = await findDeck().catch(() => undefined);
-  if (!found?.server || found.name !== name) return { pushed: false, uploaded: [] as string[] };
+  if (!found?.server || found.id !== id) return { pushed: false, uploaded: [] as string[] };
   const deck = found as Required<DeckDir>;
   const dirty = (await gitOk(['status', '--porcelain'], { cwd: deck.root })).trim() !== '';
   const head = await git(['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: deck.root });
@@ -357,18 +342,18 @@ async function identity(root: string): Promise<Record<string, string>> {
 
 // ─── Viewing ────────────────────────────────────────────────────────────────
 
-async function viewUrl(name: string, view?: string, hours?: number) {
-  const { account, deck } = parseName(name);
+async function viewUrl(id: string, view?: string, hours?: number) {
   return api<{
     url: string;
     rev: string | null;
     scenes: DeckInfo['scenes'];
-  }>(`/api/decks/${account}/${deck}/view`, { body: { view, hours } });
+  }>(`/api/decks/${id}/view`, { body: { view, hours } });
 }
 
-async function deckName(args: Args): Promise<string> {
-  if (typeof args.values.deck === 'string') return args.values.deck;
-  return (await requireRemote()).name;
+/** The deck a command is about: `--deck <id>`, or the working copy's. */
+async function deckId(args: Args): Promise<string> {
+  if (typeof args.values.deck === 'string') return parseId(args.values.deck);
+  return (await requireRemote()).id;
 }
 
 export async function open(out: Output, args: Args) {
@@ -376,9 +361,9 @@ export async function open(out: Output, args: Args) {
   if (!position && typeof args.values.deck !== 'string' && !(await findDeck().catch(() => null)))
     return openApp(out, args);
   const view = args.values.presenter ? 'presenter' : undefined;
-  const name = await deckName(args);
-  const { pushed } = await pushIfChanged(out, name);
-  const { url } = await viewUrl(name, view, 12);
+  const id = await deckId(args);
+  const { pushed } = await pushIfChanged(out, id);
+  const { url } = await viewUrl(id, view, 12);
   const full = position ? `${url}#${position}` : url;
   const opened = !args.values.print && (await openUrl(full));
   out.result({ url: full, opened, pushed }, () => full);
@@ -408,12 +393,11 @@ async function exportTarget(args: Args, file: string): Promise<string> {
 
 export async function exportDeck(out: Output, args: Args) {
   const kind = args.positionals[0];
-  const name = await deckName(args);
-  const { account, deck } = parseName(name);
+  const id = await deckId(args);
   if (kind === 'pdf') {
     const { exportPdf } = await import('./render.ts');
-    const { url, rev } = await viewUrl(name, 'print');
-    const target = await exportTarget(args, `${account}-${deck}.pdf`);
+    const { url, rev } = await viewUrl(id, 'print');
+    const target = await exportTarget(args, `${id}.pdf`);
     const pages = await exportPdf(url + (args.values.handout ? '&beats=last' : ''), target, (m) =>
       out.note(m),
     );
@@ -432,11 +416,12 @@ export async function exportDeck(out: Output, args: Args) {
  */
 export async function render(out: Output, args: Args) {
   const { renderBeats } = await import('./render.ts');
-  const deck = await findDeck();
-  const name = (args.values.deck as string) ?? deck.name;
-  if (!name) throw new CliError('Run this inside a cloned deck, or pass --deck account/deck.');
-  const { pushed, uploaded } = await pushIfChanged(out, name, args.values.message as string);
-  const view = await viewUrl(name, 'render');
+  // With --deck, from anywhere: a working copy is needed only to say which deck.
+  const deck = await findDeck().catch(() => undefined);
+  const id = typeof args.values.deck === 'string' ? parseId(args.values.deck) : deck?.id;
+  if (!id) throw new CliError('Run this inside a cloned deck, or pass --deck <id>.');
+  const { pushed, uploaded } = await pushIfChanged(out, id, args.values.message as string);
+  const view = await viewUrl(id, 'render');
   const { url } = view;
   const rev = view.rev ?? undefined;
 
@@ -457,7 +442,9 @@ export async function render(out: Output, args: Args) {
       targets.push(`${scene.id}/${id}`);
     } else targets.push(...scene.beats.map((b) => `${scene.id}/${b}`));
   }
-  const dir = resolve((args.values.out as string) ?? join(deck.root, '.tobos', 'render'));
+  // Beside the deck's own working copy; any other deck's, here.
+  const root = deck?.id === id ? deck.root : '.';
+  const dir = resolve((args.values.out as string) ?? join(root, '.tobos', 'render'));
   const { files, errors } = await renderBeats(url, targets, {
     dir,
     film: Boolean(args.values.film),

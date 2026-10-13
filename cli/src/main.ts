@@ -11,11 +11,11 @@ Account
   tobos login --code <code>                   finish: the code they read from the mail
   tobos logout                                forget this machine's token
   tobos whoami                                who you are, on which server
-  tobos decks                                 your decks
+  tobos decks                                 your decks and templates, by id
 
 Working on a deck
-  tobos new "Title" [--slug S]                create a deck and clone it here
-  tobos clone account/deck [dir]              clone a deck, with the agent pack
+  tobos new "Title"                           create a deck and clone it here, into ./<id>
+  tobos clone <id> [dir]                      clone a deck, with the agent pack
   tobos pull                                  get the latest pushes and the format guide
   tobos check [--types]                       compile and check the deck, offline (~1 s);
                                               --types: TypeScript too (installs a checker once)
@@ -33,8 +33,8 @@ The skill (what your harness reads to know Tobos without this help)
                                               read skills; later CLIs keep it up to date
 
 Templates (decks people start from: a new deck copies a template's master/)
-  tobos new "Title" --from account/template   start a deck from that template (default: your own,
-                                              account/my-template)
+  tobos new "Title" --from <id>                start a deck from that template (default: your own,
+                                              "My template")
   tobos new "Our brand" --template            a new template: a copy of your default (or of --from)
 
 Every command takes --json and then prints one JSON object.
@@ -59,7 +59,6 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
   new: {
     run: commands.create,
     options: {
-      slug: { type: 'string' },
       dir: { type: 'string' },
       'no-clone': { type: 'boolean' },
       from: { type: 'string' },

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { parseName } from '../src/deck-dir.ts';
+import { parseId } from '../src/deck-dir.ts';
 
 const main = join(import.meta.dirname, '../src/main.ts');
 const config = mkdtempSync(join(tmpdir(), 'tobos-cli-'));
@@ -25,9 +25,10 @@ function run(args: string[], input?: string) {
 }
 
 describe('tobos', () => {
-  it('reads deck names', () => {
-    expect(parseName('ada/first-deck')).toEqual({ account: 'ada', deck: 'first-deck' });
-    expect(() => parseName('first-deck')).toThrow('account/deck');
+  it("reads a deck's id", () => {
+    const id = '4388700c-ca09-4818-880b-3d9c2d3de8af';
+    expect(parseId(id)).toBe(id);
+    expect(() => parseId('ada/first-deck')).toThrow('`tobos decks` lists them');
   });
 
   it('prints one JSON object for an error, with a stable exit code', () => {
@@ -49,7 +50,7 @@ describe('tobos', () => {
   it('says when the server names a newer CLI: once on stderr, or in the --json result', async () => {
     const server = createServer((_, response) => {
       response.writeHead(200, { 'content-type': 'application/json', 'tobos-latest-cli': '0.2.0' });
-      response.end(JSON.stringify({ email: 'ada@example.com', name: null, accounts: [] }));
+      response.end(JSON.stringify({ email: 'ada@example.com' }));
     });
     await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
     // A released CLI has its version built in; from source it is "dev", unless set like this.

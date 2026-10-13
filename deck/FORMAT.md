@@ -248,8 +248,8 @@ media/master/         the master's own files: its fonts, a logo (media like any 
 
 A template is a deck people start from. Its scenes show its master off, one per layout or component, with a `note` in deck.json saying what each is for; its page on Tobos shows them as a gallery.
 
-- `tobos new "Title"` starts a deck with a copy of the default template's master: `master/` and the media in `media/master/`. `--from account/template` copies another template's.
+- `tobos new "Title"` starts a deck with a copy of the default template's master: `master/` and the media in `media/master/`. `--from <id>` copies another template's: `tobos decks` lists the ids.
 - `tobos new "Our brand" --template` makes a template: a copy of all of the default template (or of `--from`), showcase and master.
 - A copy is a copy. Changing a template changes only the decks made from it afterwards; to bring a deck along, copy the master's files across.
-- Every personal account has a template of its own, `account/my-template`, its default: a copy of Tobos simple (Title, Agenda, Content with one box, Blank, and the grid's guides), to change as it likes. An account without one starts from Tobos standard.
-- Tobos standard (`tobos/standard`) and Tobos simple (`tobos/simple`) come with Tobos: anyone may look at them, clone them and start from them.
+- Every personal account has a template of its own, "My template", its default: a copy of Tobos simple (Title, Agenda, Content with one box, Blank, and the grid's guides), to change as it likes. An account without one starts from Tobos standard.
+- Tobos standard (`06b48295-7c5c-4e1f-90f5-a082d60941de`) and Tobos simple (`50ca89b5-c668-465b-b72b-eb5da0b9b9ab`) come with Tobos: anyone may look at them, clone them and start from them.
