@@ -15,7 +15,7 @@ They are in `master.json`; `tobos check` and every push enforce them.
 - **Continuity over cuts.** Something that stays on screen across beats moves to its new place (GSAP Flip); it doesn't fade out and back in.
 - **Nothing loops while the presenter talks.**
 - **The story carries the scene.** A content scene has a headline only when it says something (a claim, a question), never a label like "Overview".
-- **Navy is the accent, and highlight red means "look here now"**: one thing at a time.
+- **Ink is the accent, and highlight red means "look here now"**: one thing at a time.
 
 ## Layouts
 
@@ -136,7 +136,7 @@ A video is motion like any other: it plays in a beat, with `playVideo` from `@to
 
 CSS variables, for scenes that draw their own things:
 
-- Colour: `--stage-paper`, `--stage-ink`, `--stage-muted`, `--stage-rule`, `--stage-accent` (navy), `--stage-dark`, `--stage-highlight` (red); `--stage-soft`, the accent's tint, for surfaces only.
+- Colour: `--stage-paper`, `--stage-ink`, `--stage-muted`, `--stage-rule`, `--stage-accent` (the ink, unless a deck sets its own), `--stage-dark`, `--stage-highlight` (red); `--stage-soft`, the ink's tint, for surfaces only.
 - Type: `--stage-font-text` (Hanken Grotesk), `--stage-font-label` (Geist Mono; capitals, tracked 0.08em), `--stage-font-mono` (Geist Mono). Sizes: `--stage-size-label` 28, `-code` 32, `-body` 40, `-lead` 52, `-title` 64, `-section` 96, `-display` 144.
 - Grid: `--stage-margin-x` 112, `--stage-margin-top` 96, `--stage-margin-bottom` 96, 12 columns, `--stage-gutter` 32. `import { grid, column } from '../master/index.ts'` gives the same numbers in TypeScript. Press L in the viewer to see the guides.
 

@@ -10,7 +10,6 @@
     ['ink', '--stage-ink'],
     ['muted', '--stage-muted'],
     ['rule', '--stage-rule'],
-    ['accent', '--stage-accent'],
     ['soft', '--stage-soft'],
     ['dark', '--stage-dark'],
     ['highlight', '--stage-highlight'],

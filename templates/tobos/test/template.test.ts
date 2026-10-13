@@ -48,8 +48,8 @@ describe('Tobos standard', () => {
     const pairs = {
       '--stage-ink': '--ink',
       '--stage-muted': '--ink-2',
-      '--stage-accent': '--blue',
-      '--stage-soft': '--blue-soft',
+      '--stage-accent': '--ink',
+      '--stage-soft': '--ink-soft',
       '--stage-highlight': '--pop',
     };
     for (const [stage, site] of Object.entries(pairs))

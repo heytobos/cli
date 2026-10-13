@@ -47,14 +47,14 @@
 }
 
 :root {
-  /* Colour, tobos.ai's: white paper, navy ink; navy is the accent, and red is the one colour
+  /* Colour, tobos.ai's: white paper and one ink, which is also the accent; red is the one colour
      that shouts. */
   --stage-paper: #ffffff;
   --stage-ink: #121a2c;
   --stage-muted: #474f62;
   --stage-rule: #e5e6e8; /* tobos.ai's --line, flattened onto white */
-  --stage-accent: #1d3768;
-  /* The accent's tint: surfaces, chips and panels, never text. */
+  --stage-accent: #121a2c;
+  /* The ink's tint: surfaces, chips and panels, never text. */
   --stage-soft: #edf0f6;
   --stage-dark: #121a2c;
   /* "Look here now": used for one thing at a time. */
