@@ -5,6 +5,7 @@ import { action } from './keys.ts';
 import { follow } from './live.ts';
 import { Player } from './player.ts';
 import { settled } from './ready.ts';
+import { openAudience } from './screens.ts';
 import { joinSession, type BeatRef } from './session.ts';
 import { onTap } from './taps.ts';
 
@@ -72,7 +73,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     return;
   }
 
-  session = joinSession(config.deck, {
+  session = joinSession(config.deck, view, {
     current: () => (player.position ? refOf() : null),
     onState: (at) => {
       // go() reports the move synchronously, before the scene has loaded. Only that report is
@@ -106,6 +107,14 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     else document.documentElement.requestFullscreen().catch(() => undefined);
   };
 
+  // A key press may open one window, never make it fullscreen too: the audience opens, and this
+  // window (or the page around this preview) becomes the presenter.
+  const present = async () => {
+    await openAudience(urlForView('audience'));
+    if (embedded) window.parent.postMessage({ type: 'tobos:present', hash: player.hash }, '*');
+    else location.href = urlForView('presenter');
+  };
+
   window.addEventListener('keydown', (event) => {
     const what = action(event);
     if (!what) return;
@@ -113,7 +122,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
       event.preventDefault();
       player.step(what === 'next' ? 1 : -1);
     } else if (what === 'fullscreen') toggleFullscreen();
-    else if (what === 'present' && view === 'deck') location.href = urlForView('presenter');
+    else if (what === 'present' && view === 'deck') void present();
     else if (what === 'guides') document.documentElement.classList.toggle('tobos-guides');
   });
   if (view === 'audience') {
@@ -129,7 +138,19 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     });
   }
 
-  onTap(root, (delta) => player.step(delta));
+  if (view === 'audience') {
+    // Opened by a key press elsewhere, the audience can't go fullscreen by itself: its first
+    // click does that, rather than step.
+    const hint = document.createElement('div');
+    hint.className = 'tobos-fullscreen-hint';
+    hint.textContent = 'Click or press F for fullscreen';
+    root.append(hint);
+  }
+  onTap(root, (delta) => {
+    if (view === 'audience' && !document.fullscreenElement && document.fullscreenEnabled)
+      toggleFullscreen();
+    else player.step(delta);
+  });
   follow(
     config,
     () => [player],

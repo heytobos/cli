@@ -26,7 +26,10 @@
   let outline = $state<Outline>({ scenes: [] });
   let chapters = $state<ViewerConfig['manifest']['chapters']>([]);
   let atEnd = $state(false);
+  /** The audience window, when this one opened it. */
   let audience = $state<Window | null>(null);
+  /** Whether an audience window is open, whichever window opened it. */
+  let audienceOpen = $state(false);
   let started = $state<number | null>(null);
   let now = $state(Date.now());
 
@@ -36,6 +39,7 @@
 
   const total = $derived(outline.scenes.length ? count(outline) : 0);
   const at = $derived(outline.scenes.length ? ordinal(outline, position) + 1 : 0);
+  const showing = $derived(audience !== null || audienceOpen);
   const elapsed = $derived(started === null ? null : Math.floor((now - started) / 1000));
 
   function refOf(p: Position): BeatRef {
@@ -64,6 +68,7 @@
   }
 
   async function present() {
+    if (showing) return;
     const url = new URL(urlForView('audience'));
     url.hash = formatHash(current.outline, position);
     audience = await openAudience(url.href);
@@ -74,6 +79,7 @@
     session.end();
     audience?.close();
     audience = null;
+    audienceOpen = false;
   }
 
   function fullscreen() {
@@ -91,8 +97,12 @@
     next = new Player(b.stage, config.manifest, { still: true, mountAhead: true });
     outline = current.outline;
     chapters = config.manifest.chapters;
-    session = joinSession(config.deck, {
+    session = joinSession(config.deck, 'presenter', {
       current: () => refOf(position),
+      onAudience: (open) => {
+        audienceOpen = open;
+        if (open) started ??= Date.now();
+      },
       onState: (ref) => {
         const to = parseHash(current.outline, `#${ref.scene}/${ref.beat}`);
         if (to) show(to, false);
@@ -148,7 +158,7 @@
     <span class="mono">{at} / {total}</span>
     {#if elapsed !== null}<span class="mono">{clock(elapsed)}</span>{/if}
     <span class="spacer"></span>
-    {#if audience}
+    {#if showing}
       <button onclick={end}>End show</button>
     {:else}
       <button class="primary" onclick={present}>Present</button>
@@ -194,7 +204,8 @@
     </aside>
   </main>
   <footer>
-    → / Space next · ← back · {audience ? 'F fullscreen · Esc end' : '⌘/Ctrl-Enter present'}
+    → / Space next · ← back · {#if audience}F fullscreen · Esc end{:else if showing}click the
+      audience for fullscreen · Esc end{:else}⌘/Ctrl-Enter present{/if}
   </footer>
 </div>
 
