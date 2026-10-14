@@ -47,12 +47,20 @@
   const hasActivities = $derived(scenes.some((s) => s.activity));
   /** The current scene's activity, open or revealed. */
   const activityHere = $derived(scenes[position.scene]?.activity);
-  /** The room, while the show is on: "312 joined · 204 answered". */
-  const room = $derived(
-    activityHere
-      ? `${results.joined} joined · ${results.activities[activityHere.id]?.answered ?? 0} answered`
-      : `${results.joined} joined`,
+  /** Answers in the show, to every activity: before Present, what is left from the last one. */
+  const answeredAll = $derived(
+    Object.values(results.activities).reduce((sum, a) => sum + a.answered, 0),
   );
+  /** The room: "312 joined · 204 answered", this scene's while the show is on. */
+  const room = $derived(
+    !showing
+      ? `${results.joined} joined · ${answeredAll} answered`
+      : activityHere
+        ? `${results.joined} joined · ${results.activities[activityHere.id]?.answered ?? 0} answered`
+        : `${results.joined} joined`,
+  );
+  /** Responses the room has given in this show, or the last one: what Clear clears. */
+  const answered = $derived(results.joined > 0 || Object.keys(results.activities).length > 0);
 
   function refOf(p: Position): BeatRef {
     const scene = current.outline.scenes[p.scene]!;
@@ -102,6 +110,33 @@
     const heartbeat = window.setInterval(() => report(refOf(position)), 20_000);
     return () => window.clearInterval(heartbeat);
   });
+
+  /**
+   * Clear the room's responses, so a rehearsal's or the last class's don't show: a new show
+   * starts, its counts from zero, and the phones may answer again. The first click asks, the
+   * second within a few seconds clears. The CSV keeps every response all the same.
+   */
+  let confirming = $state(false);
+  let clearing = $state(false);
+  let confirmTimer = 0;
+  function clearResponses() {
+    if (!config.live || clearing) return;
+    window.clearTimeout(confirmTimer);
+    if (!confirming) {
+      confirming = true;
+      confirmTimer = window.setTimeout(() => (confirming = false), 4000);
+      return;
+    }
+    confirming = false;
+    clearing = true;
+    fetch(config.live, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ restart: true }),
+    })
+      .catch(() => undefined)
+      .finally(() => (clearing = false));
+  }
 
   function move(delta: 1 | -1) {
     show(step(current.outline, position, delta), true);
@@ -200,6 +235,7 @@
     return () => {
       window.removeEventListener('keydown', onKey);
       window.clearInterval(closed);
+      window.clearTimeout(confirmTimer);
       stop();
       session.close();
       current.destroy();
@@ -222,10 +258,15 @@
     <strong>{config.manifest.title}</strong>
     <span class="mono">{at} / {total}</span>
     {#if elapsed !== null}<span class="mono">{clock(elapsed)}</span>{/if}
-    {#if showing && config.live && hasActivities}
+    {#if (showing || answered) && config.live && hasActivities}
       <span class="mono room">{room}</span>
     {/if}
     <span class="spacer"></span>
+    {#if answered && config.live && hasActivities}
+      <button class:confirming disabled={clearing} onclick={clearResponses}
+        >{confirming ? 'Click again to clear' : 'Clear responses'}</button
+      >
+    {/if}
     {#if showing}
       <button onclick={end}>End show</button>
     {:else}
@@ -350,6 +391,15 @@
   }
   header button.primary:hover {
     background: var(--grey);
+  }
+  header button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  header button.confirming {
+    border-color: var(--pop);
+    background: var(--pop);
+    color: #fff;
   }
   main {
     display: grid;
