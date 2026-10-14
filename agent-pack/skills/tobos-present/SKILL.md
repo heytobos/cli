@@ -35,7 +35,7 @@ They decide what to make and how much you do: some build a deck one scene at a t
 
 ## Polls and forms
 
-A scene can ask the room a poll or a short form, which people answer on their phones through the deck's join code: `<JoinCode/>` shows its QR code, and the poll's result shows on the projector at a beat you choose. See "Activities" in the deck's `.tobos/FORMAT.md`. The responses download as CSV from the deck's page.
+A scene can ask the room a poll or a short form, which people answer on their phones through the deck's join code: `<JoinCode/>` shows its QR code, and the poll's result shows on the projector at a beat you choose. See "Activities" in the deck's `.tobos/FORMAT.md`. The responses download from the deck's page as a CSV per show (one class or talk): a row per phone, a column per question.
 
 ## Commands
 
