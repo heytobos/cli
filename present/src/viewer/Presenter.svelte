@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Play from '@lucide/svelte/icons/play';
+  import Square from '@lucide/svelte/icons/square';
   import { onMount, untrack } from 'svelte';
   import { letterbox } from '../letterbox.ts';
   import {
@@ -270,9 +272,13 @@
       >
     {/if}
     {#if showing}
-      <button onclick={end}>End show</button>
+      <button onclick={end}>
+        <Square size={11} fill="currentColor" aria-hidden="true" />End show
+      </button>
     {:else}
-      <button class="primary" onclick={present}>Present</button>
+      <button class="primary" onclick={present}>
+        <Play size={12} fill="currentColor" aria-hidden="true" />Present
+      </button>
     {/if}
   </header>
   <main>
@@ -374,6 +380,9 @@
     flex: 1;
   }
   header button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     padding: 11px 16px;
     border: 1px solid #fff;
     background: transparent;
