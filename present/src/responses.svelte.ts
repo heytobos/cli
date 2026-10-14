@@ -1,7 +1,7 @@
 /**
- * What the room has answered, for the projector: the audience and presenter windows follow it
- * from the server while the deck is presented. Every other view (the deck's page, print,
- * render) has zeros. It is live data, which the position can't recreate.
+ * What the room has answered, for the projector: the audience and presenter windows, and the
+ * preview on the deck's page, follow it from the server. Print and render, and a link that isn't
+ * a presenter's, have zeros. It is live data, which the position can't recreate.
  */
 import type { Activity, Manifest } from '@tobos/deck/types';
 import type { Results } from './activities.ts';

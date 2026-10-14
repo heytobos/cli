@@ -15,9 +15,9 @@ export function start(config: ViewerConfig) {
   setJoin(config.join);
   const root = document.getElementById('tobos')!;
   const view = viewFromUrl();
-  // Only the windows of a show see what the room answers.
-  if (config.responses && (view === 'audience' || view === 'presenter'))
-    followResponses(config.responses);
+  // A presenter's link sees what the room answers: the show's windows, and the preview on the
+  // deck's page. Print and render are documents, so they show zeros.
+  if (config.responses && view !== 'print' && view !== 'render') followResponses(config.responses);
   document.documentElement.dataset.view = view;
   document.title = config.manifest.title;
   if (view === 'presenter') {
