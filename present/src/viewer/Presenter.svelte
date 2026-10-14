@@ -45,6 +45,8 @@
   const results = liveResults();
   const scenes = $derived(chapters.flatMap((c) => c.scenes));
   const hasActivities = $derived(scenes.some((s) => s.activity));
+  /** The scene list's numbers line up: each is as wide as the last one. */
+  const digits = $derived(String(scenes.length).length);
   /** The current scene's activity, open or revealed. */
   const activityHere = $derived(scenes[position.scene]?.activity);
   /** Answers in the show, to every activity: before Present, what is left from the last one. */
@@ -291,7 +293,10 @@
                 class:current={index === position.scene}
                 aria-current={index === position.scene ? 'step' : undefined}
               >
-                <button class="scene" onclick={() => jump(index, 0)}>{scene.title}</button>
+                <button class="scene" onclick={() => jump(index, 0)}
+                  ><span class="number" style:min-width="{digits}ch">{index + 1}</span
+                  >{scene.title}</button
+                >
                 <span class="beats">
                   {#each scene.beats as beat, b (beat)}
                     {@const here = index === position.scene && b === position.beat}
@@ -474,6 +479,15 @@
     all: unset;
     flex: 1;
     cursor: pointer;
+  }
+  .number {
+    display: inline-block;
+    margin-right: 8px;
+    text-align: right;
+    font-family: 'Tobos Mono', ui-monospace, monospace;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--grey);
   }
   .beats {
     display: flex;
