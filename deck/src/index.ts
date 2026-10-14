@@ -7,4 +7,5 @@ export { masterOf } from './master.ts';
 export { memoryTree, readText } from './tree.ts';
 export { sha256 } from './hash.ts';
 export { activitiesOf, openActivity, TEXT_MAX } from './activity.ts';
+export { sharedManifest } from './share.ts';
 export { formatProblems } from './format-problems.ts';

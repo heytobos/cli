@@ -1,5 +1,5 @@
 import { mount } from 'svelte';
-import { setJoin, setMedia } from '../registry.ts';
+import { setJoin, setMedia, setShared } from '../registry.ts';
 import { followResponses, setActivities } from '../responses.svelte.ts';
 import { viewFromUrl, type ViewerConfig } from './config.ts';
 import { showDeck } from './deck-view.ts';
@@ -13,8 +13,9 @@ export function start(config: ViewerConfig) {
   setMedia(config.manifest.media);
   setActivities(config.manifest);
   setJoin(config.join);
+  setShared(Boolean(config.shared));
   const root = document.getElementById('tobos')!;
-  const view = viewFromUrl();
+  const view = viewFromUrl(Boolean(config.shared));
   // A presenter's link sees what the room answers: the show's windows, and the preview on the
   // deck's page. Print and render are documents, so they show zeros.
   if (config.responses && view !== 'print' && view !== 'render') followResponses(config.responses);

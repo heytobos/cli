@@ -7,10 +7,13 @@ import { Player } from './player.ts';
 import { settled } from './ready.ts';
 import { openAudience } from './screens.ts';
 import { joinSession, type BeatRef } from './session.ts';
+import { shareBar } from './share-bar.ts';
 import { onTap } from './taps.ts';
 
 /**
- * The deck on one stage: the plain view, the audience window, and the view render uses.
+ * The deck on one stage: the plain view, the audience window, and the view render uses. A share
+ * link's page is the plain view on its own: it shares no beat with other windows and presents
+ * nothing.
  */
 export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   const { stage } = letterbox(root);
@@ -74,22 +77,24 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     return;
   }
 
-  session = joinSession(config.deck, view, {
-    current: () => (player.position ? refOf() : null),
-    onState: (at) => {
-      // go() reports the move synchronously, before the scene has loaded. Only that report is
-      // the other window's: a click here while the scene still loads is this window's own.
-      applyingRemote = true;
-      try {
-        void player.goHash(`#${at.scene}/${at.beat}`);
-      } finally {
-        applyingRemote = false;
-      }
-    },
-    onEnd: () => {
-      if (view === 'audience') window.close();
-    },
-  });
+  const shared = Boolean(config.shared);
+  if (!shared)
+    session = joinSession(config.deck, view, {
+      current: () => (player.position ? refOf() : null),
+      onState: (at) => {
+        // go() reports the move synchronously, before the scene has loaded. Only that report is
+        // the other window's: a click here while the scene still loads is this window's own.
+        applyingRemote = true;
+        try {
+          void player.goHash(`#${at.scene}/${at.beat}`);
+        } finally {
+          applyingRemote = false;
+        }
+      },
+      onEnd: () => {
+        if (view === 'audience') window.close();
+      },
+    });
 
   window.addEventListener('hashchange', () => {
     const position = parseHash(player.outline, location.hash);
@@ -126,7 +131,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
       event.preventDefault();
       player.step(what === 'next' ? 1 : -1);
     } else if (what === 'fullscreen') toggleFullscreen();
-    else if (what === 'present' && view === 'deck') void present();
+    else if (what === 'present' && view === 'deck' && !shared) void present();
     else if (what === 'guides') document.documentElement.classList.toggle('tobos-guides');
   });
   if (view === 'audience') {
@@ -155,6 +160,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
       toggleFullscreen();
     else player.step(delta);
   });
+  if (config.shared) shareBar(root, config.shared, toggleFullscreen);
   follow(
     config,
     () => [player],

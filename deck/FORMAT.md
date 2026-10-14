@@ -210,7 +210,7 @@ A video plays as part of a beat: `playVideo(tl, q('video'))` in the beat's `ente
 
 ## Activities: polls and forms on phones
 
-A scene may ask the room something: a poll (`choice`), or a short form (`text`). The room answers on their phones. A deck has one **join code**, six digits, for good; its link (`tobosusercontent.com/482913`) opens whatever activity the presenter is on, so people scan it once per lecture. `<JoinCode size={480} />` shows it: a QR code, with the link under it in the scene's font. To lay it out another way, `useJoin()` gives its parts: `code` (`482913`), `link` (as people type it, `tobosusercontent.com/482913`), `url` (the full URL the QR code holds) and `qr` (the QR code, black on white, as an image's address: `<img src={join.qr} alt="" />`). It is undefined while the deck has no activity.
+A scene may ask the room something: a poll (`choice`), or a short form (`text`). The room answers on their phones. A deck has one **join code**, six digits, for good; its link (`tobosusercontent.com/482913`) opens whatever activity the presenter is on, so people scan it once per lecture. `<JoinCode size={480} />` shows it: a QR code, with the link under it in the scene's font. To lay it out another way, `useJoin()` gives its parts: `code` (`482913`), `link` (as people type it, `tobosusercontent.com/482913`), `url` (the full URL the QR code holds) and `qr` (the QR code, black on white, as an image's address: `<img src={join.qr} alt="" />`). It is undefined while the deck has no activity, and on a share link, where `<JoinCode/>` shows nothing at all.
 
 A scene declares at most one activity, in its module script, beside its beats:
 
@@ -264,6 +264,7 @@ export const activity: Activity = {
 - **Results are live data**, which the position can't recreate (like video): going back to a result beat shows the counts as they are now. Show them in the markup, from `useResponses`; a beat's `enter` can animate them in, but not their values.
 - **Afterwards**, the deck's page has a CSV per activity: every response, oldest first, with its time and the phone's id for this deck: the same in all of the deck's activities and shows, so one person's answers can be lined up, and different in every other deck. Lectures are told apart by time.
 - Scenes still can't use the network: the engine fetches the responses for them.
+- **Share links** (made on the deck's page) show the deck to anyone with the link, without an account, to click through and download as a PDF, one page per scene at its last beat. They never open a room: a scene with an activity is left out of them, a chapter left with no scene goes too, and so do the scenes' notes. So a scene that shows the join code next to other content still works shared: `<JoinCode/>` draws nothing there, and `useJoin()` is undefined.
 
 ## Checks
 

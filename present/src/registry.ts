@@ -36,3 +36,14 @@ export function setJoin(info: JoinInfo | undefined) {
 export function joinInfo(): JoinInfo | undefined {
   return join;
 }
+
+let shared = false;
+
+/** Whether this is a share link's page, for people outside the deck's account. */
+export function setShared(value: boolean) {
+  shared = value;
+}
+
+export function isShared(): boolean {
+  return shared;
+}

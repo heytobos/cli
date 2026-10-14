@@ -103,3 +103,39 @@ html.tobos-print .tobos-page {
   transform: none;
   break-after: page;
 }
+
+/* A share link's controls (share-bar.ts): in the corner, while the pointer moves. */
+.tobos-share-bar {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.tobos-share-bar.tobos-shown,
+.tobos-share-bar.tobos-busy,
+.tobos-share-bar:focus-within,
+.tobos-share-bar:hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+.tobos-share-bar button {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font:
+    14px/1 system-ui,
+    sans-serif;
+  cursor: pointer;
+}
+.tobos-share-bar button:hover {
+  background: rgba(0, 0, 0, 0.88);
+}
+.tobos-share-bar button:disabled {
+  cursor: progress;
+}

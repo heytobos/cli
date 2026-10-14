@@ -21,10 +21,18 @@ export interface ViewerConfig {
   live?: string;
   /** The room's responses, as server-sent events, for the projector: on a presenter's link only. */
   responses?: string;
+  /**
+   * A share link's page, for people outside the deck's account: the deck to click through, and
+   * its PDF to download (`pdf`, where the server makes them). Never presented, never in sync with
+   * another window.
+   */
+  shared?: { pdf?: string };
 }
 
-export function viewFromUrl(): View {
+/** The view the URL asks for. A share link is only ever clicked through, or printed. */
+export function viewFromUrl(shared = false): View {
   const view = new URLSearchParams(location.search).get('view');
+  if (shared) return view === 'print' ? 'print' : 'deck';
   return view === 'audience' || view === 'presenter' || view === 'print' || view === 'render'
     ? view
     : 'deck';
