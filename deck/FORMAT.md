@@ -123,13 +123,13 @@ The URL names a position as `#scene/beat`. `#scene/2` is the scene's third beat,
 
 A scene, and anything in `master/` and `lib/`, may import:
 
-| Import                      | What it is                                                                                               |
-| --------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `svelte`, `svelte/*`        | Svelte 5                                                                                                 |
-| `gsap`, `gsap/*`            | GSAP 3, all plugins                                                                                      |
-| `@tobos/present`            | the engine's API for scenes: `Beat`, `media()`, `playVideo()`, `useDeck()`                               |
-| `./…`, `../…`               | files inside the deck: `.svelte`, `.ts`, `.js`, `.json`; the master is `../master/index.ts` from a scene |
-| a package in `dependencies` | any npm package that runs in a browser                                                                   |
+| Import                      | What it is                                                                                                                           |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `svelte`, `svelte/*`        | Svelte 5                                                                                                                             |
+| `gsap`, `gsap/*`            | GSAP 3, all plugins                                                                                                                  |
+| `@tobos/present`            | the engine's API for scenes: `Beat`, `media()`, `playVideo()`, `useDeck()`, `Activity`, `useResponses()`, `useJoin()`, `<JoinCode/>` |
+| `./…`, `../…`               | files inside the deck: `.svelte`, `.ts`, `.js`, `.json`; the master is `../master/index.ts` from a scene                             |
+| a package in `dependencies` | any npm package that runs in a browser                                                                                               |
 
 Nothing else: no Node APIs, no URLs, no files outside the deck.
 
@@ -208,20 +208,77 @@ A video plays as part of a beat: `playVideo(tl, q('video'))` in the beat's `ente
 - **The engine builds a scene's timeline once its videos know their length**, so `to` defaults to the video's end. A video that can't load is skipped after a few seconds; pass `to` for one that loads late.
 - **Encode for jumping:** WebM (VP9) or MP4 (H.264), at the size shown, with a keyframe at least every two seconds (`ffmpeg … -g 60` at 30 fps). A jump decodes from the keyframe before it.
 
+## Activities: polls and forms on phones
+
+A scene may ask the room something: a poll (`choice`), or a short form (`text`). The room answers on their phones. A deck has one **join code**, six digits, for good; its link (`tobosusercontent.com/482913`) opens whatever activity the presenter is on, so people scan it once per lecture. `<JoinCode size={480} />` shows it: a QR code, with the link under it in the scene's font. To lay it out another way, `useJoin()` gives its parts: `code` (`482913`), `link` (as people type it, `tobosusercontent.com/482913`), `url` (the full URL the QR code holds) and `qr` (the QR code, black on white, as an image's address: `<img src={join.qr} alt="" />`). It is undefined while the deck has no activity.
+
+A scene declares at most one activity, in its module script, beside its beats:
+
+```svelte
+<script module lang="ts">
+  import type { Activity, Beat } from '@tobos/present';
+
+  export const beats: Beat[] = [{ id: 'ask' }, { id: 'result' }];
+  export const activity: Activity = {
+    id: 'used-llm-api',
+    kind: 'choice',
+    prompt: 'Have you called an LLM API yourself?',
+    options: ['Never', 'Once or twice', 'Regularly'],
+    reveals: 'result',
+  };
+</script>
+
+<script lang="ts">
+  import { useResponses } from '@tobos/present';
+  import { Content } from '../master/index.ts';
+
+  let { beat }: { beat: string } = $props();
+  const responses = useResponses('used-llm-api');
+</script>
+
+<Content headline="Have you called an LLM API yourself?">
+  {#if beat === 'result'}
+    {#each responses.counts as count, i (i)}<p>{count}</p>{/each}
+  {/if}
+</Content>
+```
+
+```ts
+export const activity: Activity = {
+  id: 'course-wishes',
+  kind: 'text',
+  prompt: 'Help us make this course great',
+  fields: [
+    { id: 'amazing', label: 'What would make this course amazing?', multiline: true },
+    { id: 'worry', label: 'What worries you about it?', multiline: true, max: 500 },
+  ],
+};
+```
+
+- **When it is open.** While the deck is presented (its audience window is open) and the presenter is on the activity's scene, up to, not including, its `reveals` beat. Nothing else opens or closes one: no buttons, no timers. Moving to another scene closes it, and every phone moves on to the next scene's activity or waits. Ending the show closes everything.
+- **`activity`** is `export const`, an object literal of string, number and boolean literals and arrays of them, read without running the scene, as beats are. Its `id` is lowercase letters, digits and dashes, unique across the deck: it names the activity's responses, so keep it when you reword the prompt.
+- **A poll**, `kind: 'choice'`: a `prompt` (up to 200 characters), 2 to 8 different `options` (up to 80 characters each), and optionally `reveals`, a later beat of its scene, which closes the poll and is where the scene shows the result.
+- **A form**, `kind: 'text'`: an optional `prompt` (up to 200 characters) and 1 to 5 `fields`, each with an `id` unique in the form, a `label` (up to 200 characters), optionally `multiline: true`, and `max`, the characters it takes (500 unless set, at most 2000). A form's answers are only stored, never shown, so it has no `reveals`.
+- **On a phone** there is no account, name or cookie. A phone answers each activity once per show; a draft of a form survives a reload. Nobody is known by name: a phone has an id of its own for each deck.
+- **Results**: `useResponses(id)` gives `joined` (phones that opened the link during this show), `answered` (those that answered this activity), and for a poll `counts`, one number per option in the order declared (a form's is empty). They count from the start of the show: presenting again within the hour carries on, after an hour away a new show starts at zero. Only the audience and presenter windows get them, while presenting; the deck's page, `tobos render` and PDFs show zeros. A form's text never reaches the viewer, only how many answered. The presenter's view shows "312 joined · 204 answered" while the show is on.
+- **Results are live data**, which the position can't recreate (like video): going back to a result beat shows the counts as they are now. Show them in the markup, from `useResponses`; a beat's `enter` can animate them in, but not their values.
+- **Afterwards**, the deck's page has a CSV per activity: every response, oldest first, with its time and the phone's id for this deck: the same in all of the deck's activities and shows, so one person's answers can be lined up, and different in every other deck. Lectures are told apart by time.
+- Scenes still can't use the network: the engine fetches the responses for them.
+
 ## Checks
 
 `tobos check` runs on your machine, and the server runs the same check on every push and rejects the push if it fails. It checks `deck.json`, that every scene compiles, the beats, the imports, the media references, and the master's rules (`master/master.json`). `tobos check --json` prints one object per problem: `{ file, line, column, rule, message, severity }`. Errors stop a push; warnings don't, but each one is a reason the deck may misbehave on stage. `tobos check --types` adds TypeScript's errors (rule `types`): it installs svelte-check once into `~/.cache/tobos/` and links it in as `node_modules`, which git ignores; the push check doesn't run it.
 
-| Rule                                               | Severity         | What it catches                                                                                                                                                              |
-| -------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deck-json`, `scenes`, `beats`, `imports`, `media` | error            | the structure above                                                                                                                                                          |
-| `svelte/…`                                         | error or warning | the Svelte compiler's own errors and warnings                                                                                                                                |
-| `master/min-font-size`                             | error            | type below the master's floor, in `font-size`, the `font` shorthand, `style:font-size`, `rem` and GSAP's `fontSize` (`em` and `calc()` depend on context and aren't checked) |
-| `master/layout-root`                               | warning          | a scene whose root isn't one layout from the master                                                                                                                          |
-| `network`                                          | error            | `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, and media or CSS `url()` loaded from another site: the viewer blocks all of them                                      |
-| `motion/timer`                                     | warning          | `setTimeout`, `setInterval`, `requestAnimationFrame`: they run on their own clock, which the position can't recreate                                                         |
-| `motion/on-mount`                                  | warning          | GSAP animation started in `onMount`, which plays even when the scene is mounted ahead, out of sight                                                                          |
-| `motion/loop`                                      | warning          | `repeat: -1` and CSS animations that run for ever                                                                                                                            |
+| Rule                                                           | Severity         | What it catches                                                                                                                                                              |
+| -------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deck-json`, `scenes`, `beats`, `activity`, `imports`, `media` | error            | the structure above                                                                                                                                                          |
+| `svelte/…`                                                     | error or warning | the Svelte compiler's own errors and warnings                                                                                                                                |
+| `master/min-font-size`                                         | error            | type below the master's floor, in `font-size`, the `font` shorthand, `style:font-size`, `rem` and GSAP's `fontSize` (`em` and `calc()` depend on context and aren't checked) |
+| `master/layout-root`                                           | warning          | a scene whose root isn't one layout from the master                                                                                                                          |
+| `network`                                                      | error            | `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, and media or CSS `url()` loaded from another site: the viewer blocks all of them                                      |
+| `motion/timer`                                                 | warning          | `setTimeout`, `setInterval`, `requestAnimationFrame`: they run on their own clock, which the position can't recreate                                                         |
+| `motion/on-mount`                                              | warning          | GSAP animation started in `onMount`, which plays even when the scene is mounted ahead, out of sight                                                                          |
+| `motion/loop`                                                  | warning          | `repeat: -1` and CSS animations that run for ever                                                                                                                            |
 
 The viewer keeps a connection open to follow pushes, so a browser test that waits for the network to go idle never finishes; wait for the page's `load` event instead.
 

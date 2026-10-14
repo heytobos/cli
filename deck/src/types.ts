@@ -39,6 +39,38 @@ export interface MediaEntry {
 /** media.json: path inside media/ → the file's content hash. */
 export type MediaJson = Record<string, MediaEntry>;
 
+/** A poll: each phone picks one option. Its result shows on the projector from `reveals` on. */
+export interface ChoiceActivity {
+  id: string;
+  kind: 'choice';
+  prompt: string;
+  options: string[];
+  /** The beat of its scene that closes the poll and shows its result. */
+  reveals?: string;
+}
+
+export interface TextField {
+  id: string;
+  label: string;
+  multiline?: boolean;
+  /** The most characters it takes. 500 unless the scene says otherwise; in a manifest, always set. */
+  max?: number;
+}
+
+/** A form: each phone fills in its fields. The answers are only stored. */
+export interface TextActivity {
+  id: string;
+  kind: 'text';
+  prompt?: string;
+  fields: TextField[];
+}
+
+/**
+ * Something the room responds to on their phones, declared by a scene. It is open while the
+ * deck is presented on its scene, up to its `reveals` beat.
+ */
+export type Activity = ChoiceActivity | TextActivity;
+
 export interface ManifestScene {
   id: string;
   title: string;
@@ -46,6 +78,7 @@ export interface ManifestScene {
   beats: string[];
   /** The scene's specifier in the import map. */
   module: string;
+  activity?: Activity;
 }
 
 export interface ManifestChapter {

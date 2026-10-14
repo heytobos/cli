@@ -123,6 +123,7 @@ function writeConfig(root: string): string {
   const rel = (path: string) => relative(dir, path).split('\\').join('/');
   const paths: Record<string, string[]> = {
     '@tobos/present': [rel(join(dir, 'present', 'index.d.ts'))],
+    '@tobos/deck/types': [rel(join(dir, 'present', 'deck', 'types.d.ts'))],
   };
   const config = join(dir, 'tsconfig.json');
   writeFileSync(

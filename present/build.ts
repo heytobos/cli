@@ -57,6 +57,8 @@ const entries: { in: string; out: string; specifiers: string[] }[] = [
   })),
   { in: join(root, 'src/index.ts'), out: 'present', specifiers: ['@tobos/present'] },
   { in: join(root, 'src/viewer/index.ts'), out: 'viewer', specifiers: ['@tobos/present/viewer'] },
+  // The phone page's script: our code, on a page of its own, sharing nothing with decks.
+  { in: join(root, 'src/phone/phone.ts'), out: 'phone', specifiers: [] },
 ];
 
 const sveltePlugin: esbuild.Plugin = {
@@ -99,6 +101,7 @@ await esbuild.build({
   legalComments: 'none',
 });
 cpSync(join(root, 'src/viewer/viewer.css'), join(tmp, 'viewer.css'));
+cpSync(join(root, 'src/phone/phone.css'), join(tmp, 'phone.css'));
 // The presenter's faces, tobos.ai's own (viewer.css names them), with their licences.
 const fonts = dirname(fileURLToPath(import.meta.resolve('@tobos/site/fonts.css')));
 mkdirSync(join(tmp, 'fonts'));

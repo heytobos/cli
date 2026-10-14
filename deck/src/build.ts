@@ -350,6 +350,23 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
             severity: 'error',
           });
 
+  // Activity IDs name a deck's responses: unique across the deck.
+  const activityFiles = new Map<string, string>();
+  for (const file of sceneFiles) {
+    const found = graph.compiled.get(file)?.analysis.activity;
+    if (!found) continue;
+    const other = activityFiles.get(found.activity.id);
+    if (other)
+      problems.push({
+        file,
+        line: found.line,
+        rule: 'activity',
+        message: `Activity "${found.activity.id}" is declared in ${other} too: activity IDs are unique across the deck.`,
+        severity: 'error',
+      });
+    else activityFiles.set(found.activity.id, file);
+  }
+
   // Unless media.json itself is broken, as for media() above.
   const stylesheet = masterStylesheet(tree, media, mediaProblems.length ? [] : problems);
   if (problems.some((p) => p.severity === 'error')) return { problems, modules, deck };
@@ -361,12 +378,14 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
     title: chapter.title,
     scenes: chapter.scenes.map((scene) => {
       const file = `scenes/${scene.id}.svelte`;
+      const analysis = graph.compiled.get(file)?.analysis;
       return {
         id: scene.id,
         title: scene.title,
         ...(scene.note ? { note: scene.note } : {}),
-        beats: (graph.compiled.get(file)?.analysis.beats ?? []).map((b) => b.id),
+        beats: (analysis?.beats ?? []).map((b) => b.id),
         module: DECK_PREFIX + file,
+        ...(analysis?.activity ? { activity: analysis.activity.activity } : {}),
       };
     }),
   }));

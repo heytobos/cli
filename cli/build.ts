@@ -10,8 +10,10 @@ import { readTree, SKILL_NAME } from './src/skill.ts';
  */
 function presentTypes(): Record<string, string> {
   const root = new URL('../present/src/', import.meta.url).pathname;
+  // The deck format's types, which the engine's own name (Activity), go along as deck/types.d.ts.
+  const deckTypes = new URL('../deck/src/types.ts', import.meta.url).pathname;
   const files: Record<string, string> = {};
-  const program = ts.createProgram([`${root}index.ts`], {
+  const program = ts.createProgram([`${root}index.ts`, deckTypes], {
     declaration: true,
     emitDeclarationOnly: true,
     allowImportingTsExtensions: true,
@@ -24,8 +26,10 @@ function presentTypes(): Record<string, string> {
   });
   program.emit(undefined, (name, text) => {
     if (name.startsWith(root)) files[name.slice(root.length)] = text;
+    else if (name === deckTypes.replace(/\.ts$/, '.d.ts')) files['deck/types.d.ts'] = text;
   });
-  if (!files['index.d.ts']) throw new Error('No declarations for @tobos/present.');
+  if (!files['index.d.ts'] || !files['deck/types.d.ts'])
+    throw new Error('No declarations for @tobos/present.');
   return files;
 }
 

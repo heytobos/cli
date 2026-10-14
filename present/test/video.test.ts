@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import type { gsap } from 'gsap';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { playVideo, type Beat } from '../src/index.ts';
+import type { Beat } from '../src/index.ts';
 import { SceneTimeline } from '../src/timeline.ts';
-import { videoFramesReady, videosKnowTheirLength } from '../src/video.ts';
+import { playVideo, videoFramesReady, videosKnowTheirLength } from '../src/video.ts';
 
 /**
  * jsdom can't decode video, so a <video> whose media state is ours: it records every seek,

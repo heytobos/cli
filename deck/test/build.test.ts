@@ -661,3 +661,215 @@ describe('media patterns', () => {
     expect(mediaMatches('*a'.repeat(20) + 'b.png', 'a'.repeat(10_000) + '.png')).toBe(false);
   });
 });
+
+describe('activities', () => {
+  const POLL = `export const beats = [{ id: 'ask' }, { id: 'result' }];
+export const activity = {
+  id: 'used-llm-api',
+  kind: 'choice',
+  prompt: 'Have you called an LLM API yourself?',
+  options: ['Never', 'Once or twice', 'Regularly'],
+  reveals: 'result',
+};`;
+  const FORM = `export const beats = [{ id: 'ask' }];
+export const activity = {
+  id: 'course-wishes',
+  kind: 'text',
+  prompt: 'Help us make this course great',
+  fields: [
+    { id: 'amazing', label: 'What would make this course amazing?', multiline: true },
+    { id: 'worry', label: 'What worries you about it?', multiline: true, max: 1000 },
+  ],
+};`;
+  /** The title scene with this module script; its activity's problems. */
+  const check = async (module: string) =>
+    (await checkDeck(variant({ 'scenes/title.svelte': scene(module) }))).filter(
+      (p) => p.rule === 'activity',
+    );
+  const messages = async (module: string) => (await check(module)).map((p) => p.message);
+  /** A poll whose fields are these, written as an object literal's body. */
+  const poll = (body: string) =>
+    `export const beats = [{ id: 'ask' }, { id: 'result' }];\nexport const activity = {\n${body}\n};`;
+
+  it('go into the manifest with their scene, a form with each field’s limit', async () => {
+    const { manifest, problems } = await buildDeck(
+      variant({ 'scenes/title.svelte': scene(POLL), 'scenes/question.svelte': scene(FORM) }),
+    );
+    expect(errors(problems)).toEqual([]);
+    const [title, question] = manifest!.chapters[0]!.scenes;
+    expect(title!.activity).toEqual({
+      id: 'used-llm-api',
+      kind: 'choice',
+      prompt: 'Have you called an LLM API yourself?',
+      options: ['Never', 'Once or twice', 'Regularly'],
+      reveals: 'result',
+    });
+    expect(question!.activity).toEqual({
+      id: 'course-wishes',
+      kind: 'text',
+      prompt: 'Help us make this course great',
+      fields: [
+        { id: 'amazing', label: 'What would make this course amazing?', multiline: true, max: 500 },
+        { id: 'worry', label: 'What worries you about it?', multiline: true, max: 1000 },
+      ],
+    });
+    expect(manifest!.chapters[1]!.scenes[0]).not.toHaveProperty('activity');
+  });
+
+  it('may be typed, as beats are', async () => {
+    const typed = POLL.replace('export const activity = {', 'export const activity: Activity = {')
+      .replace('};', '} satisfies Activity;')
+      .concat("\nimport type { Activity } from '@tobos/present';");
+    expect(await check(typed)).toEqual([]);
+  });
+
+  it('are read without running the scene: literals only', async () => {
+    expect(await messages(POLL.replace('export const activity', 'export let activity'))).toEqual([
+      '`activity` must be declared with const.',
+    ]);
+    expect(
+      await check("export const beats = [{ id: 'a' }];\nconst a = {};\nexport const activity = a;"),
+    ).toMatchObject([
+      { rule: 'activity', line: 4, message: expect.stringContaining('object literal') },
+    ]);
+    expect(
+      await messages(
+        poll("id: 'x', kind: 'choice', prompt: 'Q?', options: ['a', 'b'].map((o) => o),"),
+      ),
+    ).toEqual([expect.stringContaining('only string, number and boolean literals')]);
+    expect(
+      await messages(poll("id: 'x', kind: 'choice', prompt: `Q ${1}?`, options: ['a', 'b'],")),
+    ).toEqual([expect.stringContaining('only string, number and boolean literals')]);
+    expect(
+      await messages(poll("['id']: 'x', kind: 'choice', prompt: 'Q?', options: ['a', 'b'],")),
+    ).toEqual([expect.stringContaining('only string, number and boolean literals')]);
+    // A template literal without holes is a string literal.
+    expect(
+      await messages(poll("id: 'x', kind: 'choice', prompt: `Q?`, options: ['a', 'b'],")),
+    ).toEqual([]);
+  });
+
+  it('need an id of lowercase letters, digits and dashes, and a kind', async () => {
+    expect(await messages(poll("kind: 'choice', prompt: 'Q?', options: ['a', 'b'],"))).toEqual([
+      'An activity needs an `id`: lowercase letters, digits and dashes.',
+    ]);
+    expect(
+      await messages(poll("id: 'Used API', kind: 'choice', prompt: 'Q?', options: ['a', 'b'],")),
+    ).toEqual(['Activity ID "Used API" must be lowercase letters, digits and dashes.']);
+    expect(await messages(poll("id: 'x', kind: 'quiz', prompt: 'Q?'"))).toEqual([
+      'An activity\'s `kind` is "choice" (a poll) or "text" (a form).',
+    ]);
+    expect(
+      await messages(
+        poll("id: 'x', kind: 'choice', prompt: 'Q?', options: ['a', 'b'], reveal: 'result',"),
+      ),
+    ).toEqual(['A poll has no `reveal`: it takes id, kind, prompt, options and reveals.']);
+  });
+
+  it('as a poll need a prompt and two to eight different options, each short', async () => {
+    expect(await messages(poll("id: 'x', kind: 'choice', options: ['a', 'b'],"))).toEqual([
+      'A poll needs a `prompt`.',
+    ]);
+    expect(
+      await messages(poll("id: 'x', kind: 'choice', prompt: ' ', options: ['a', 'b'],")),
+    ).toEqual(['A poll needs a `prompt`.']);
+    expect(
+      await messages(
+        poll(`id: 'x', kind: 'choice', prompt: '${'q'.repeat(201)}', options: ['a', 'b'],`),
+      ),
+    ).toEqual(['The `prompt` is 201 characters; it may have 200.']);
+    expect(await messages(poll("id: 'x', kind: 'choice', prompt: 'Q?', options: ['a'],"))).toEqual([
+      'A poll needs 2 to 8 `options`; this one has 1.',
+    ]);
+    expect(
+      await messages(
+        poll(
+          "id: 'x', kind: 'choice', prompt: 'Q?', options: ['1','2','3','4','5','6','7','8','9'],",
+        ),
+      ),
+    ).toEqual(['A poll needs 2 to 8 `options`; this one has 9.']);
+    expect(
+      await messages(poll("id: 'x', kind: 'choice', prompt: 'Q?', options: ['a', 'a'],")),
+    ).toEqual(['Option "a" is listed twice.']);
+    expect(
+      await messages(poll("id: 'x', kind: 'choice', prompt: 'Q?', options: ['a', ' '],")),
+    ).toEqual(['An option needs some text.']);
+    expect(
+      await messages(poll("id: 'x', kind: 'choice', prompt: 'Q?', options: ['a', 2],")),
+    ).toEqual(['Each option is a string.']);
+    expect(
+      await messages(
+        poll(`id: 'x', kind: 'choice', prompt: 'Q?', options: ['a', '${'o'.repeat(81)}'],`),
+      ),
+    ).toEqual(['An option is 81 characters; it may have 80.']);
+  });
+
+  it("reveal a poll's result on a later beat of its own scene", async () => {
+    const reveals = (beat: string) =>
+      messages(
+        poll(`id: 'x', kind: 'choice', prompt: 'Q?', options: ['a', 'b'], reveals: '${beat}',`),
+      );
+    expect(await reveals('result')).toEqual([]);
+    expect(await reveals('ask')).toEqual([
+      '`reveals` names "ask", the scene\'s first beat: the poll would never be open. Name a later beat.',
+    ]);
+    expect(await reveals('nope')).toEqual([
+      '`reveals` names "nope", which is not a beat of this scene (ask, result).',
+    ]);
+  });
+
+  it('as a form need one to five fields, each with a unique id and a label', async () => {
+    const form = (fields: string, extra = '') =>
+      messages(poll(`id: 'x', kind: 'text', ${extra}fields: [${fields}],`));
+    expect(await form("{ id: 'a', label: 'A?' }")).toEqual([]);
+    expect(await form('')).toEqual(['A form needs 1 to 5 `fields`; this one has 0.']);
+    expect(
+      await form(Array.from({ length: 6 }, (_, i) => `{ id: 'f${i}', label: 'L' }`).join()),
+    ).toEqual(['A form needs 1 to 5 `fields`; this one has 6.']);
+    expect(await form("{ id: 'a', label: 'A?' }, { id: 'a', label: 'B?' }")).toEqual([
+      'Field "a" is declared twice in this form.',
+    ]);
+    expect(await form("{ id: 'a' }")).toEqual(['A field needs a `label`.']);
+    expect(await form("{ label: 'A?' }")).toEqual([
+      'A field needs an `id`: lowercase letters, digits and dashes.',
+    ]);
+    expect(await form("'a'")).toEqual(['Each field is an object: `{ id: "…", label: "…" }`.']);
+    expect(await form(`{ id: 'a', label: '${'l'.repeat(201)}' }`)).toEqual([
+      'The `label` is 201 characters; it may have 200.',
+    ]);
+    expect(await form("{ id: 'a', label: 'A?', multiline: 'yes' }")).toEqual([
+      '`multiline` is true or false.',
+    ]);
+    expect(await form("{ id: 'a', label: 'A?', max: 2001 }")).toEqual([
+      '`max` is a whole number of characters from 1 to 2000.',
+    ]);
+    expect(await form("{ id: 'a', label: 'A?', size: 3 }")).toEqual([
+      'A field has no `size`: it takes id, label, multiline and max.',
+    ]);
+    expect(await form("{ id: 'a', label: 'A?' }", `prompt: '${'q'.repeat(201)}', `)).toEqual([
+      'The `prompt` is 201 characters; it may have 200.',
+    ]);
+  });
+
+  it("can't reveal a form, whose answers are only stored", async () => {
+    expect(
+      await messages(
+        poll("id: 'x', kind: 'text', fields: [{ id: 'a', label: 'A?' }], reveals: 'result',"),
+      ),
+    ).toEqual(["A form can't `reveal`: a form's answers are only stored."]);
+  });
+
+  it('have IDs unique across the deck', async () => {
+    const problems = await checkDeck(
+      variant({ 'scenes/title.svelte': scene(POLL), 'scenes/question.svelte': scene(POLL) }),
+    );
+    expect(problems.filter((p) => p.rule === 'activity')).toMatchObject([
+      {
+        file: 'scenes/question.svelte',
+        line: 4,
+        message:
+          'Activity "used-llm-api" is declared in scenes/title.svelte too: activity IDs are unique across the deck.',
+      },
+    ]);
+  });
+});

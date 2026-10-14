@@ -6,4 +6,5 @@ export { ID, parseDeckJson, parseMediaJson } from './deck-json.ts';
 export { masterOf } from './master.ts';
 export { memoryTree, readText } from './tree.ts';
 export { sha256 } from './hash.ts';
+export { activitiesOf, openActivity, TEXT_MAX } from './activity.ts';
 export { formatProblems } from './format-problems.ts';

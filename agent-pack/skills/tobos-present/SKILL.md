@@ -33,6 +33,10 @@ Then **read the deck's `AGENTS.md`**. It, `.tobos/FORMAT.md` and `master/GUIDE.m
 
 They decide what to make and how much you do: some build a deck one scene at a time, some want all of it at once. Do what they ask, at the size they ask. Don't ask what a talk is about, who it's for or how long it runs, and don't propose an outline they didn't ask for.
 
+## Polls and forms
+
+A scene can ask the room a poll or a short form, which people answer on their phones through the deck's join code: `<JoinCode/>` shows its QR code, and the poll's result shows on the projector at a beat you choose. See "Activities" in the deck's `.tobos/FORMAT.md`. The responses download as CSV from the deck's page.
+
 ## Commands
 
 | Command                                                  | Does                                                   |

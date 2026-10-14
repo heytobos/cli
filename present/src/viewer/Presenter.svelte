@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { letterbox } from '../letterbox.ts';
   import {
     count,
@@ -11,6 +11,7 @@
     type Outline,
     type Position,
   } from '../position.ts';
+  import { liveResults } from '../responses.svelte.ts';
   import { urlForView, type ViewerConfig } from './config.ts';
   import { action } from './keys.ts';
   import { follow } from './live.ts';
@@ -41,6 +42,17 @@
   const at = $derived(outline.scenes.length ? ordinal(outline, position) + 1 : 0);
   const showing = $derived(audience !== null || audienceOpen);
   const elapsed = $derived(started === null ? null : Math.floor((now - started) / 1000));
+  const results = liveResults();
+  const scenes = $derived(chapters.flatMap((c) => c.scenes));
+  const hasActivities = $derived(scenes.some((s) => s.activity));
+  /** The current scene's activity, open or revealed. */
+  const activityHere = $derived(scenes[position.scene]?.activity);
+  /** The room, while the show is on: "312 joined · 204 answered". */
+  const room = $derived(
+    activityHere
+      ? `${results.joined} joined · ${results.activities[activityHere.id]?.answered ?? 0} answered`
+      : `${results.joined} joined`,
+  );
 
   function refOf(p: Position): BeatRef {
     const scene = current.outline.scenes[p.scene]!;
@@ -57,7 +69,39 @@
     const hash = formatHash(current.outline, to);
     if (location.hash !== hash) history.replaceState(null, '', hash);
     if (publish) session.publish(refOf(to));
+    if (showing) report(refOf(to));
   }
+
+  /**
+   * The server hears where the show is, so the room's phones follow it: every move while the
+   * show is on, and a heartbeat. Presenting never waits for it: a failed report is ignored, and
+   * the next one puts it right.
+   */
+  let reported = false;
+  function report(at: BeatRef) {
+    if (!config.live) return;
+    reported = true;
+    fetch(config.live, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(at),
+      keepalive: true,
+    }).catch(() => undefined);
+  }
+
+  /** The show is over: everything open on the phones closes. */
+  function reportEnd() {
+    if (!config.live || !reported) return;
+    reported = false;
+    navigator.sendBeacon(config.live, JSON.stringify({ end: true }));
+  }
+
+  $effect(() => {
+    if (!showing || !config.live) return;
+    untrack(() => report(refOf(position)));
+    const heartbeat = window.setInterval(() => report(refOf(position)), 20_000);
+    return () => window.clearInterval(heartbeat);
+  });
 
   function move(delta: 1 | -1) {
     show(step(current.outline, position, delta), true);
@@ -83,8 +127,9 @@
     goHome();
   }
 
-  /** Back to the deck's page in the app, at this beat. */
+  /** The show has ended: back to the deck's page in the app, at this beat. */
   function goHome() {
+    reportEnd();
     if (config.home) location.replace(`${config.home}${location.hash}`);
   }
 
@@ -177,6 +222,9 @@
     <strong>{config.manifest.title}</strong>
     <span class="mono">{at} / {total}</span>
     {#if elapsed !== null}<span class="mono">{clock(elapsed)}</span>{/if}
+    {#if showing && config.live && hasActivities}
+      <span class="mono room">{room}</span>
+    {/if}
     <span class="spacer"></span>
     {#if showing}
       <button onclick={end}>End show</button>
@@ -272,6 +320,9 @@
   }
   .mono {
     font-size: 13px;
+  }
+  .room {
+    color: #fff;
   }
   .spacer {
     flex: 1;

@@ -2,10 +2,13 @@
  * @tobos/present: what a scene imports from the engine.
  */
 import type { gsap } from 'gsap';
-import { getContext } from 'svelte';
-import { mediaUrl } from './registry.ts';
+import { getContext, type Component } from 'svelte';
+import JoinCodeComponent from './JoinCode.svelte';
+import { joinInfo, mediaUrl, type JoinInfo } from './registry.ts';
 
 export { playVideo, type PlayVideoOptions } from './video.ts';
+export { useResponses, type Responses } from './responses.svelte.ts';
+export type { Activity, ChoiceActivity, TextActivity, TextField } from '@tobos/deck/types';
 
 /** Finds elements inside the current scene only. */
 export type Query = (selector: string) => Element[];
@@ -44,3 +47,25 @@ export function useDeck(): DeckContext {
 export function media(name: string): string {
   return mediaUrl(name);
 }
+
+export type { JoinInfo } from './registry.ts';
+
+/**
+ * The deck's join code, for a scene to show its own way: the digits, the link as people type
+ * it, the full URL, and the QR code as an image's address. Undefined while the deck has no
+ * activity.
+ */
+export function useJoin(): JoinInfo | undefined {
+  return joinInfo();
+}
+
+export interface JoinCodeProps {
+  /** The QR code's width and height, in stage pixels. */
+  size?: number;
+}
+
+/**
+ * The deck's join code: a QR code, and under it the link it holds, which phones open to answer
+ * the deck's activities. The scene sizes it; the link takes the scene's font.
+ */
+export const JoinCode = JoinCodeComponent as unknown as Component<JoinCodeProps>;

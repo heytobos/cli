@@ -1,4 +1,5 @@
 import type { Manifest } from '@tobos/deck';
+import type { JoinInfo } from '../registry.ts';
 
 export type View = 'deck' | 'audience' | 'presenter' | 'print' | 'render';
 
@@ -14,6 +15,12 @@ export interface ViewerConfig {
   manifestUrl?: string;
   /** The deck's page in the app, where the presenter goes back to when the show ends. */
   home?: string;
+  /** The deck's join code, for `<JoinCode/>`: once the deck has an activity. */
+  join?: JoinInfo;
+  /** Where the presenter reports the show's position: on a presenter's link only. */
+  live?: string;
+  /** The room's responses, as server-sent events, for the projector: on a presenter's link only. */
+  responses?: string;
 }
 
 export function viewFromUrl(): View {

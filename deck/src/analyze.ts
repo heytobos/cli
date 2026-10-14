@@ -1,8 +1,9 @@
 import { parse as parseJs } from 'acorn';
 import { parse as parseSvelte } from 'svelte/compiler';
 import { walk } from 'zimmerframe';
+import { TEXT_MAX } from './activity.ts';
 import { position } from './tree.ts';
-import type { Problem } from './types.ts';
+import type { Activity, Problem, TextField } from './types.ts';
 
 // The parts of the ESTree and Svelte ASTs this module reads.
 interface Node {
@@ -20,6 +21,8 @@ export interface BeatInfo {
 export interface Analysis {
   /** The scene's beats, if the file is a scene and they could be read. */
   beats?: BeatInfo[];
+  /** The scene's activity, if it declares one without problems, and the line of its id. */
+  activity?: { activity: Activity; line: number };
   /** Names passed to media(), with where they were used. */
   media: { name: string; pattern?: boolean; line: number; column: number }[];
   problems: Problem[];
@@ -130,6 +133,266 @@ function readBeats(
   }
   if (beats.length === 0 && problems.length === 0) at(list, 'A scene needs at least one beat.');
   return { beats, problems };
+}
+
+/** A value written as literals, with where each part is, for messages. */
+interface Literal {
+  node: Node;
+  value: string | number | boolean | Literal[] | Map<string, Literal>;
+}
+
+/** Read a literal, or say which node isn't one. */
+function readLiteral(node: Node): Literal | { bad: Node } {
+  const value = unwrap(node)!;
+  if (value.type === 'Literal' && ['string', 'number', 'boolean'].includes(typeof value.value))
+    return { node: value, value: value.value as string | number | boolean };
+  if (value.type === 'TemplateLiteral' && (value.expressions as Node[]).length === 0)
+    return {
+      node: value,
+      value: ((value.quasis as Node[])[0]!.value as { cooked: string | null }).cooked ?? '',
+    };
+  if (value.type === 'ArrayExpression') {
+    const items: Literal[] = [];
+    for (const element of value.elements as (Node | null)[]) {
+      if (!element || element.type === 'SpreadElement') return { bad: element ?? value };
+      const item = readLiteral(element);
+      if ('bad' in item) return item;
+      items.push(item);
+    }
+    return { node: value, value: items };
+  }
+  if (value.type === 'ObjectExpression') {
+    const props = new Map<string, Literal>();
+    for (const prop of value.properties as Node[]) {
+      const key = prop.key as Node | undefined;
+      const name =
+        key?.type === 'Identifier'
+          ? (key.name as string)
+          : key?.type === 'Literal' && typeof key.value === 'string'
+            ? key.value
+            : undefined;
+      if (prop.type !== 'Property' || prop.computed || prop.kind !== 'init' || prop.method)
+        return { bad: prop };
+      if (name === undefined) return { bad: prop };
+      const item = readLiteral(prop.value as Node);
+      if ('bad' in item) return item;
+      props.set(name, item);
+    }
+    return { node: value, value: props };
+  }
+  return { bad: value };
+}
+
+const ACTIVITY_ID = /^[a-z0-9][a-z0-9-]*$/;
+const PROMPT_MAX = 200;
+const OPTION_MAX = 80;
+const LABEL_MAX = 200;
+const FIELD_MAX = 2000;
+const list = (names: string[]) =>
+  names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+
+/**
+ * The scene's activity, from `export const activity = { … }` in its module script: object and
+ * array literals of strings, numbers and booleans, read without running the scene.
+ */
+function readActivity(
+  file: string,
+  source: string,
+  module: Node | null,
+  beats: BeatInfo[] | undefined,
+): Pick<Analysis, 'activity' | 'problems'> {
+  const problems: Problem[] = [];
+  const at = (node: Node, message: string) =>
+    problems.push({
+      file,
+      ...position(source, node.start),
+      rule: 'activity',
+      message,
+      severity: 'error',
+    });
+  let init: Node | undefined;
+  for (const statement of ((module?.content as Node | undefined)?.body as Node[]) ?? []) {
+    const declaration = statement.declaration as Node | null;
+    if (statement.type !== 'ExportNamedDeclaration' || declaration?.type !== 'VariableDeclaration')
+      continue;
+    for (const declarator of declaration.declarations as Node[]) {
+      const id = declarator.id as Node;
+      if (id.type !== 'Identifier' || id.name !== 'activity') continue;
+      if (declaration.kind !== 'const') at(declarator, '`activity` must be declared with const.');
+      init = unwrap(declarator.init as Node);
+      if (!init) at(declarator, '`activity` needs a value.');
+    }
+  }
+  if (!init || problems.length) return { problems };
+  if (init.type !== 'ObjectExpression') {
+    at(
+      init,
+      '`activity` must be an object literal, so Tobos can read it without running the scene.',
+    );
+    return { problems };
+  }
+  const read = readLiteral(init);
+  if ('bad' in read) {
+    at(
+      read.bad,
+      '`activity` may hold only string, number and boolean literals, and arrays and objects of them, so Tobos can read it without running the scene.',
+    );
+    return { problems };
+  }
+  const props = read.value as Map<string, Literal>;
+  const text = (literal: Literal | undefined) =>
+    typeof literal?.value === 'string' ? literal.value : undefined;
+  /** A string of at most `max` characters, or a problem. */
+  const short = (literal: Literal, name: string, max: number) => {
+    const value = text(literal);
+    if (value === undefined) at(literal.node, `The \`${name}\` is a string.`);
+    else if (value.length > max)
+      at(literal.node, `The \`${name}\` is ${value.length} characters; it may have ${max}.`);
+    return value;
+  };
+  const only = (map: Map<string, Literal>, allowed: string[], what: string) => {
+    for (const [key, literal] of map)
+      if (!allowed.includes(key))
+        at(literal.node, `${what} has no \`${key}\`: it takes ${list(allowed)}.`);
+  };
+
+  const idLiteral = props.get('id');
+  const id = text(idLiteral);
+  if (id === undefined)
+    at(idLiteral?.node ?? init, 'An activity needs an `id`: lowercase letters, digits and dashes.');
+  else if (!ACTIVITY_ID.test(id))
+    at(idLiteral!.node, `Activity ID "${id}" must be lowercase letters, digits and dashes.`);
+  const kind = text(props.get('kind'));
+  const prompt = props.get('prompt');
+
+  let activity: Activity | undefined;
+  if (kind === 'choice') {
+    only(props, ['id', 'kind', 'prompt', 'options', 'reveals'], 'A poll');
+    const question = prompt ? short(prompt, 'prompt', PROMPT_MAX) : undefined;
+    if (!prompt) at(init, 'A poll needs a `prompt`.');
+    else if (question !== undefined && !question.trim())
+      at(prompt.node, 'A poll needs a `prompt`.');
+    const optionsLiteral = props.get('options');
+    const options: string[] = [];
+    if (!Array.isArray(optionsLiteral?.value))
+      at(optionsLiteral?.node ?? init, 'A poll needs 2 to 8 `options`, as an array of strings.');
+    else {
+      const items = optionsLiteral.value;
+      if (items.length < 2 || items.length > 8)
+        at(optionsLiteral.node, `A poll needs 2 to 8 \`options\`; this one has ${items.length}.`);
+      for (const item of items) {
+        const option = text(item);
+        if (option === undefined) at(item.node, 'Each option is a string.');
+        else if (!option.trim()) at(item.node, 'An option needs some text.');
+        else if (option.length > OPTION_MAX)
+          at(item.node, `An option is ${option.length} characters; it may have ${OPTION_MAX}.`);
+        else if (options.includes(option)) at(item.node, `Option "${option}" is listed twice.`);
+        else options.push(option);
+      }
+    }
+    const revealsLiteral = props.get('reveals');
+    const reveals = text(revealsLiteral);
+    if (revealsLiteral) {
+      const names = (beats ?? []).map((b) => b.id);
+      if (reveals === undefined) at(revealsLiteral.node, '`reveals` names a beat of this scene.');
+      else if (names[0] === reveals)
+        at(
+          revealsLiteral.node,
+          `\`reveals\` names "${reveals}", the scene's first beat: the poll would never be open. Name a later beat.`,
+        );
+      else if (beats && !names.includes(reveals))
+        at(
+          revealsLiteral.node,
+          `\`reveals\` names "${reveals}", which is not a beat of this scene (${names.join(', ')}).`,
+        );
+    }
+    if (id !== undefined && question !== undefined)
+      activity = {
+        id,
+        kind,
+        prompt: question,
+        options,
+        ...(reveals !== undefined ? { reveals } : {}),
+      };
+  } else if (kind === 'text') {
+    if (props.has('reveals'))
+      at(props.get('reveals')!.node, "A form can't `reveal`: a form's answers are only stored.");
+    only(
+      new Map([...props].filter(([key]) => key !== 'reveals')),
+      ['id', 'kind', 'prompt', 'fields'],
+      'A form',
+    );
+    const question = prompt ? short(prompt, 'prompt', PROMPT_MAX) : undefined;
+    const fieldsLiteral = props.get('fields');
+    const fields: TextField[] = [];
+    if (!Array.isArray(fieldsLiteral?.value))
+      at(fieldsLiteral?.node ?? init, 'A form needs 1 to 5 `fields`, as an array of objects.');
+    else {
+      const items = fieldsLiteral.value;
+      if (items.length < 1 || items.length > 5)
+        at(fieldsLiteral.node, `A form needs 1 to 5 \`fields\`; this one has ${items.length}.`);
+      const seen = new Set<string>();
+      for (const item of items) {
+        if (!(item.value instanceof Map)) {
+          at(item.node, 'Each field is an object: `{ id: "…", label: "…" }`.');
+          continue;
+        }
+        const field = item.value;
+        only(field, ['id', 'label', 'multiline', 'max'], 'A field');
+        const fieldIdLiteral = field.get('id');
+        const fieldId = text(fieldIdLiteral);
+        if (fieldId === undefined)
+          at(
+            fieldIdLiteral?.node ?? item.node,
+            'A field needs an `id`: lowercase letters, digits and dashes.',
+          );
+        else if (!ACTIVITY_ID.test(fieldId))
+          at(
+            fieldIdLiteral!.node,
+            `Field ID "${fieldId}" must be lowercase letters, digits and dashes.`,
+          );
+        else if (seen.has(fieldId))
+          at(fieldIdLiteral!.node, `Field "${fieldId}" is declared twice in this form.`);
+        else seen.add(fieldId);
+        const labelLiteral = field.get('label');
+        const label = labelLiteral ? short(labelLiteral, 'label', LABEL_MAX) : undefined;
+        if (!labelLiteral) at(item.node, 'A field needs a `label`.');
+        const multiline = field.get('multiline');
+        if (multiline && typeof multiline.value !== 'boolean')
+          at(multiline.node, '`multiline` is true or false.');
+        const max = field.get('max');
+        if (
+          max &&
+          (typeof max.value !== 'number' ||
+            !Number.isInteger(max.value) ||
+            max.value < 1 ||
+            max.value > FIELD_MAX)
+        )
+          at(max.node, `\`max\` is a whole number of characters from 1 to ${FIELD_MAX}.`);
+        if (fieldId !== undefined && label !== undefined)
+          fields.push({
+            id: fieldId,
+            label,
+            ...(multiline?.value === true ? { multiline: true } : {}),
+            max: typeof max?.value === 'number' ? max.value : TEXT_MAX,
+          });
+      }
+    }
+    if (id !== undefined)
+      activity = {
+        id,
+        kind,
+        ...(question !== undefined ? { prompt: question } : {}),
+        fields,
+      };
+  } else
+    at(
+      props.get('kind')?.node ?? init,
+      'An activity\'s `kind` is "choice" (a poll) or "text" (a form).',
+    );
+
+  if (problems.length || !activity) return { problems };
+  return { activity: { activity, line: position(source, idLiteral!.node.start).line }, problems };
 }
 
 /**
@@ -408,9 +671,13 @@ export function analyzeSvelte(
   const result: Analysis = { media: [], problems };
   const rules = options.rules ?? {};
   if (options.scene) {
-    const beats = readBeats(file, source, ast.module as unknown as Node | null);
+    const module = ast.module as unknown as Node | null;
+    const beats = readBeats(file, source, module);
     result.beats = beats.beats;
     problems.push(...beats.problems);
+    const activity = readActivity(file, source, module, beats.beats);
+    result.activity = activity.activity;
+    problems.push(...activity.problems);
     if (rules.layoutRoot) readRoot(file, source, ast as never, problems);
   }
   Object.assign(result, readCalls(file, source, ast, problems));

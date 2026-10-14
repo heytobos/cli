@@ -1,5 +1,6 @@
 import type { Manifest } from '@tobos/deck';
 import { setMedia } from '../registry.ts';
+import { setActivities } from '../responses.svelte.ts';
 import type { ViewerConfig } from './config.ts';
 import type { Player } from './player.ts';
 
@@ -25,6 +26,7 @@ export function follow(
       const next = (await response.json()) as Manifest & { rev?: string };
       rev = data.rev;
       setMedia(next.media);
+      setActivities(next);
       for (const player of players()) {
         const result = await player.update(next, new URL(config.manifestUrl!, location.href).href);
         if (result === 'reload') {

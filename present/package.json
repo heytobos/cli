@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./viewer": "./src/viewer/index.ts",
     "./screens": "./src/viewer/screens.ts",
+    "./activities": "./src/activities.ts",
     "./runtime": "./src/runtime.ts",
     "./package.json": "./package.json"
   },
