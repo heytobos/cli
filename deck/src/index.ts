@@ -4,6 +4,7 @@ export type { BuildCache, BuildOptions, BuildResult } from './build.ts';
 export type { Rules } from './analyze.ts';
 export { ID, parseDeckJson, parseMediaJson } from './deck-json.ts';
 export { masterOf } from './master.ts';
+export type { Master } from './master.ts';
 export { memoryTree, readText } from './tree.ts';
 export { sha256 } from './hash.ts';
 export { activitiesOf, openActivity, TEXT_MAX } from './activity.ts';

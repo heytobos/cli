@@ -156,6 +156,29 @@ function compileFile(path: string, source: string, rules: Rules, isScene: boolea
   return { code, imports, analysis, problems };
 }
 
+/** The source files in these folders, which a build compiles; JSON only when imported. */
+const sourcesIn = (files: Iterable<string>, folders: string[]) =>
+  [...files].filter(
+    (f) => folders.some((folder) => f.startsWith(folder)) && SOURCE.test(f) && !f.endsWith('.json'),
+  );
+
+/**
+ * The packages in a deck's dependencies that its master imports, with their versions: what a
+ * copy of the master needs in its own deck.json. Compiles the master; never runs it.
+ */
+export async function masterDependencies(tree: DeckTree): Promise<Record<string, string>> {
+  const dependencies = parseDeckJson(readText(tree, 'deck.json')).deck?.dependencies ?? {};
+  const { rules } = parseMasterJson(readText(tree, 'master/master.json'));
+  const { compiled } = await compileGraph(tree, sourcesIn(tree.files(), ['master/']), {
+    rules,
+    scenes: new Set(),
+    dependencies,
+  });
+  return Object.fromEntries(
+    Object.keys(packageImports(compiled, dependencies)).map((name) => [name, dependencies[name]!]),
+  );
+}
+
 interface GraphOptions {
   rules: Rules;
   cache?: BuildCache;
@@ -305,16 +328,12 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
 
   // Compile every scene and every source file in master/ and lib/, then whatever they import.
   const dependencies = deck.dependencies ?? {};
-  const graph = await compileGraph(
-    tree,
-    [...files].filter(
-      (f) =>
-        (f.startsWith('scenes/') || f.startsWith('master/') || f.startsWith('lib/')) &&
-        SOURCE.test(f) &&
-        !f.endsWith('.json'),
-    ),
-    { rules, cache: options.cache, scenes: sceneFiles, dependencies },
-  );
+  const graph = await compileGraph(tree, sourcesIn(files, ['scenes/', 'master/', 'lib/']), {
+    rules,
+    cache: options.cache,
+    scenes: sceneFiles,
+    dependencies,
+  });
   problems.push(...graph.problems);
   for (const path of graph.compiled.keys())
     if (

@@ -23,8 +23,8 @@ const RULES = JSON.stringify({ rules: { minFontSize: 28, layoutRoot: true } });
  * The sample deck with the standard master copied in, as `tobos new` gives every deck: its
  * master/ files and the media under media/master/. Without the master's rules.
  */
-const sample: DeckTree = (() => {
-  const { files, media } = masterOf(standard);
+const sample: DeckTree = await (async () => {
+  const { files, media } = await masterOf(standard);
   const all: Record<string, Uint8Array> = { ...files };
   for (const path of sampleDir.files()) all[path] = sampleDir.read(path)!;
   const own = JSON.parse(text(sampleDir.read('media.json')));
@@ -514,6 +514,22 @@ describe('the master', () => {
     expect(errors(build.problems).map((p) => [p.file, p.rule])).toEqual([
       ['master/master.json', 'master'],
     ]);
+  });
+
+  it('is copied with the dependencies its files import, not those only scenes import', async () => {
+    const deck = JSON.parse(text(sample.read('deck.json')));
+    deck.dependencies = { katex: '0.16.11', shiki: '1.22.0', d3: '7.9.0' };
+    const tree = variant({
+      'deck.json': JSON.stringify(deck),
+      'master/components/Formula.svelte':
+        "<script lang=\"ts\">\n  import katex from 'katex';\n  import 'katex/dist/katex.min.css';\n</script>\n<p>{katex.renderToString('x')}</p>\n",
+      'master/highlight.ts': "export const load = () => import('shiki/bundle/web');\n",
+      'scenes/title.svelte': scene("export const beats = [{ id: 'a' }];", '', "import 'd3';"),
+    });
+    const master = await masterOf(tree);
+    expect(master.dependencies).toEqual({ katex: '0.16.11', shiki: '1.22.0' });
+    expect(Object.keys(master.files)).toContain('master/components/Formula.svelte');
+    expect((await masterOf(sample)).dependencies).toEqual({});
   });
 
   it("puts a scene's note in the manifest", async () => {
