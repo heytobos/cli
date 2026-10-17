@@ -102,13 +102,20 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   });
 
   window.addEventListener('message', (event) => {
-    const data = event.data as { type?: string; hash?: string; delta?: unknown } | null;
+    const data = event.data as {
+      type?: string;
+      hash?: string;
+      delta?: unknown;
+      on?: unknown;
+    } | null;
     if (data?.type === 'tobos:goto' && typeof data.hash === 'string')
       player.goHash(data.hash, false);
     // The page around this preview passes on the arrow keys it gets while it has the focus.
     if (data?.type === 'tobos:step' && (data.delta === 1 || data.delta === -1))
       player.step(data.delta);
     if (data?.type === 'tobos:fullscreen') toggleFullscreen();
+    // The deck's page can turn the preview's animations off, to click through the end states.
+    if (data?.type === 'tobos:animate') player.stage.animate(Boolean(data.on));
   });
 
   const toggleFullscreen = () => {

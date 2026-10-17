@@ -98,6 +98,12 @@ export class Stage {
     }
   }
 
+  /** Play animations from the next cue on, or land every cue on its end state. */
+  animate(on: boolean) {
+    this.options.still = !on;
+    if (!on) this.finish();
+  }
+
   /** Finish whatever is playing, at once. */
   finish() {
     this.current?.timeline.finish();
