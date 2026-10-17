@@ -49,6 +49,12 @@
   const hasActivities = $derived(scenes.some((s) => s.activity));
   /** The scene list's numbers line up: each is as wide as the last one. */
   const digits = $derived(String(scenes.length).length);
+  /** What the deck's story says about each scene, by its id: the speaker's notes. */
+  let notes = $state<Record<string, string[]>>({});
+  const notesHere = $derived.by(() => {
+    const id = scenes[position.scene]?.id ?? '';
+    return Object.hasOwn(notes, id) ? notes[id]! : [];
+  });
   /** The current scene's activity, open or revealed. */
   const activityHere = $derived(scenes[position.scene]?.activity);
   /** Answers in the show, to every activity: before Present, what is left from the last one. */
@@ -228,6 +234,10 @@
       if (audience?.closed) audience = null;
       now = Date.now();
     }, 500);
+    const story = config.notes ? new EventSource(config.notes) : undefined;
+    story?.addEventListener('notes', (event) => {
+      notes = JSON.parse((event as MessageEvent<string>).data);
+    });
     const stop = follow(
       config,
       () => [current, next],
@@ -241,6 +251,7 @@
       window.clearInterval(closed);
       window.clearTimeout(confirmTimer);
       stop();
+      story?.close();
       session.close();
       current.destroy();
       next.destroy();
@@ -285,6 +296,12 @@
     <section class="now">
       <div class="label">Now</div>
       <div class="box" bind:this={currentBox}></div>
+      {#if notesHere.length}
+        <!-- What the deck's story says about this scene: the speaker's notes. -->
+        <div class="notes" aria-label="Speaker notes">
+          {#each notesHere as note, i (i)}<p>{note}</p>{/each}
+        </div>
+      {/if}
     </section>
     <aside>
       <div class="label">{atEnd ? 'Next: the end of the deck' : 'Next'}</div>
@@ -447,6 +464,19 @@
     flex: 1;
     min-height: 0;
     overflow: hidden;
+  }
+  .notes {
+    flex: none;
+    max-height: 30%;
+    overflow: auto;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    font-size: 18px;
+    line-height: 1.55;
+  }
+  .notes p {
+    margin: 0 0 0.6em;
   }
   .box.next {
     flex: none;

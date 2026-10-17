@@ -2,7 +2,7 @@
  * Every command prints human text by default, and exactly one JSON object on stdout with
  * --json (login prints one per step, as JSON lines). Progress goes to stderr either way.
  */
-export const EXIT = { ok: 0, error: 1, problems: 2, auth: 3 } as const;
+export const EXIT = { ok: 0, error: 1, problems: 2, auth: 3, conflict: 4 } as const;
 
 export class CliError extends Error {
   readonly exit: number;

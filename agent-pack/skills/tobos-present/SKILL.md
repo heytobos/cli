@@ -37,6 +37,15 @@ They decide what to make and how much you do: some build a deck one scene at a t
 
 A scene can ask the room a poll or a short form, which people answer on their phones through the deck's join code: `<JoinCode/>` shows its QR code, and the poll's result shows on the projector at a beat you choose. See "Activities" in the deck's `.tobos/FORMAT.md`. The responses download from the deck's page as a CSV per show (one class or talk): a row per phone, a column per question.
 
+## The story
+
+A deck has one story: the talk as the speaker tells it, paragraph by paragraph, with scenes mentioned as Markdown links, `[Dartmouth College](scene:same-problem)`, or one of their beats, `[Dartmouth College](scene:same-problem/quote)` (the ids from deck.json; the label is the scene's title). What follows a mention, up to the next, is that scene's: the deck's page shows it under the stage, and the presenter sees it as speaker notes. The server holds it, not git, so there is no file to edit: the person types in it live on the deck's page, and you change it with `tobos story`, which reads and writes it on the server.
+
+- `tobos story` prints it with a ¶ id per paragraph (`p4`). Read it again before each change: the person may be typing.
+- Your changes apply at once, as the person's do, and the deck's page marks what you wrote. Change what the person asked you to, and leave the rest of their words as they are.
+- An edit is anchored on the exact text it replaces, which has to occur once in the paragraph. If someone changed it meanwhile, the command exits with code 4 and the paragraph as it is now: anchor on that and try again.
+- Set `TOBOS_AGENT` to your name (`claude`, `codex`): the page shows who wrote what.
+
 ## Commands
 
 | Command                                                  | Does                                                   |
@@ -47,7 +56,10 @@ A scene can ask the room a poll or a short form, which people answer on their ph
 | `tobos open [scene/beat] [--presenter]`                  | the deck in a browser; pushes what changed first       |
 | `tobos open` (outside a deck)                            | Tobos in the browser, logged in: decks and templates   |
 | `tobos export pdf`                                       | a PDF of every beat                                    |
+| `tobos story`                                            | the story, by ¶ id                                     |
+| `tobos story edit <¶> "old" "new"`                       | change it, anchored on the exact text                  |
+| `tobos story add [--after <¶>] "…"` · `delete <¶>`       | add a paragraph, or delete one                         |
 
-Every command takes `--json`. Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in.
+Every command takes `--json`. Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in, 4 the story changed meanwhile.
 
 When a command says a newer `tobos` is out, run `npm i -g @tobos/cli`; the next command updates this skill. When a plan's limit stops a command (Free hosts 3 decks), the error links to the billing page: give the person the link, since only they can buy Pro.

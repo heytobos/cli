@@ -22,6 +22,11 @@ export interface ViewerConfig {
   /** The room's responses, as server-sent events, for the projector: on a presenter's link only. */
   responses?: string;
   /**
+   * The speaker's notes, what the deck's story says about each scene by its id, as server-sent
+   * events (`notes`), again whenever the story changes: on a presenter's link only.
+   */
+  notes?: string;
+  /**
    * A share link's page, for people outside the deck's account: the deck to click through, and
    * its PDF to download (`pdf`, where the server makes them). Never presented, never in sync with
    * another window.

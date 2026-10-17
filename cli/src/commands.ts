@@ -380,6 +380,92 @@ async function openApp(out: Output, args: Args) {
   );
 }
 
+// ─── The story ──────────────────────────────────────────────────────────────
+
+interface StoryParagraph {
+  id: string;
+  text: string;
+  version: number;
+  /** Who wrote what in it, and when: n characters (a mention counts as one). */
+  marks: { n: number; name: string; agent: string | null; at: string }[];
+}
+
+interface Story {
+  id: string;
+  title: string;
+  seq: number;
+  paragraphs: StoryParagraph[];
+}
+
+/**
+ * Change the story with one request. The server applies it, or refuses it with the paragraph as
+ * it is now (exit code 4): read it again, and anchor on its text as it is.
+ */
+async function storyTx(id: string, ops: unknown[]) {
+  try {
+    return await api<{ seq: number; ids: Record<string, string> }>(`/api/decks/${id}/story/tx`, {
+      body: { ops, agent: process.env.TOBOS_AGENT || undefined },
+    });
+  } catch (error) {
+    if (error instanceof CliError && error.extra.status === 409) {
+      const now = error.extra.paragraph as StoryParagraph | undefined;
+      throw new CliError(
+        now ? `${error.message}\nIt is now:\n¶ ${now.id}  ${now.text}` : error.message,
+        EXIT.conflict,
+        error.extra,
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * `tobos story`: the deck's story, one living text the server holds, with ¶ ids. `edit`, `add`
+ * and `delete` change it, as a person on the deck's page does; the page marks what an agent wrote.
+ */
+export async function story(out: Output, args: Args) {
+  const [action, ...rest] = args.positionals;
+  const id = await deckId(args);
+  if (!action) {
+    const story = await api<Story>(`/api/decks/${id}/story`);
+    out.result({ ...story }, () =>
+      story.paragraphs.length
+        ? story.paragraphs.map((p) => `¶ ${p.id.padEnd(4)} ${p.text}`).join('\n\n')
+        : 'No story yet. `tobos story add "…"` writes its first paragraph.',
+    );
+    return;
+  }
+  if (action === 'edit') {
+    const [paragraph, find, replace] = rest;
+    if (!paragraph || find === undefined || replace === undefined)
+      throw new CliError(
+        '`tobos story edit <¶ id> "the exact text" "what replaces it"` (`tobos story` shows the ids).',
+      );
+    const result = await storyTx(id, [{ op: 'set', id: paragraph, find, replace }]);
+    out.result({ ...result, paragraph }, () => `Changed ${paragraph}.`);
+    return;
+  }
+  if (action === 'add') {
+    const text = rest.join(' ').trim();
+    if (!text) throw new CliError('`tobos story add [--after <¶ id>] "the paragraph"`.');
+    const after = (args.values.after as string | undefined) ?? 'end';
+    const result = await storyTx(id, [
+      { op: 'insert', after: after === 'start' ? null : after, text, key: 'new:1' },
+    ]);
+    const paragraph = result.ids['new:1'] ?? null;
+    out.result({ ...result, paragraph }, () => `Added ${paragraph}.`);
+    return;
+  }
+  if (action === 'delete') {
+    const paragraph = rest[0];
+    if (!paragraph) throw new CliError('`tobos story delete <¶ id>`.');
+    const result = await storyTx(id, [{ op: 'delete', id: paragraph }]);
+    out.result({ ...result, paragraph }, () => `Deleted ${paragraph}.`);
+    return;
+  }
+  throw new CliError(`No \`tobos story ${action}\`: edit, add or delete.`);
+}
+
 // ─── Exports and rendering ──────────────────────────────────────────────────
 
 /** Where exports go by default: .tobos/exports/ inside a deck (ignored by git), else here. */

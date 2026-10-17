@@ -28,6 +28,15 @@ Looking at it (from the working copy, render and open push what changed first)
   tobos open                                  outside a deck: Tobos in the browser, logged in
   tobos export pdf [--out file]               a PDF of every beat
 
+The story (what the speaker says, held by the server; a scene mentioned: [Title](scene:<id>),
+a beat: [Title](scene:<id>/<beat>))
+  tobos story                                 the text, by ¶ id
+  tobos story edit <¶> "old" "new"            change it, anchored on the exact text
+  tobos story add [--after <¶>] "…"           a new paragraph (at the end, or after ¶)
+  tobos story delete <¶>                      a paragraph goes
+                                              TOBOS_AGENT=<name> says which agent you are: the
+                                              deck's page marks what you wrote
+
 The skill (what your harness reads to know Tobos without this help)
   tobos skill install                         put it where Claude Code, Codex, OpenCode and others
                                               read skills; later CLIs keep it up to date
@@ -38,7 +47,8 @@ Templates (decks people start from: a new deck copies a template's master/)
   tobos new "Our brand" --template            a new template: a copy of your default (or of --from)
 
 Every command takes --json and then prints one JSON object.
-Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in.
+Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in, 4 the story changed
+meanwhile (the reply has the paragraph as it is now: anchor on that and try again).
 `;
 
 const COMMON: ParseArgsConfig['options'] = {
@@ -86,6 +96,10 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
     },
   },
   skill: { run: commands.skill },
+  story: {
+    run: commands.story,
+    options: { deck: { type: 'string' }, after: { type: 'string' } },
+  },
   render: {
     run: commands.render,
     options: {
