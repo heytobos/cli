@@ -401,7 +401,6 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
       return {
         id: scene.id,
         title: scene.title,
-        ...(scene.note ? { note: scene.note } : {}),
         beats: (analysis?.beats ?? []).map((b) => b.id),
         module: DECK_PREFIX + file,
         ...(analysis?.activity ? { activity: analysis.activity.activity } : {}),

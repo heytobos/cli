@@ -7,8 +7,7 @@
       "scenes": [
         {
           "id": "title",
-          "title": "Title",
-          "note": "The deck's opening. Kicker, title, subtitle."
+          "title": "Title"
         },
         {
           "id": "title-regions",
@@ -16,8 +15,7 @@
         },
         {
           "id": "section",
-          "title": "Section",
-          "note": "A divider between chapters; its title defaults to the chapter's."
+          "title": "Section"
         },
         {
           "id": "section-regions",
@@ -25,8 +23,7 @@
         },
         {
           "id": "content",
-          "title": "Content",
-          "note": "Most scenes. Headline, main and an optional aside; the wayfinder names the chapter."
+          "title": "Content"
         },
         {
           "id": "content-regions",
@@ -34,13 +31,11 @@
         },
         {
           "id": "agenda",
-          "title": "Agenda",
-          "note": "The chapters from deck.json, the current one highlighted."
+          "title": "Agenda"
         },
         {
           "id": "blank-regions",
-          "title": "Blank · regions",
-          "note": "The whole stage, for full-bleed images and bespoke scenes."
+          "title": "Blank · regions"
         }
       ]
     },
@@ -54,18 +49,15 @@
         },
         {
           "id": "stat",
-          "title": "Stat",
-          "note": "accent · ink · highlight"
+          "title": "Stat"
         },
         {
           "id": "chip",
-          "title": "Chip",
-          "note": "soft · outline · ink · highlight"
+          "title": "Chip"
         },
         {
           "id": "code",
-          "title": "Code",
-          "note": "Lines 2–3 in focus; the rest dims."
+          "title": "Code"
         }
       ]
     },
@@ -75,13 +67,11 @@
       "scenes": [
         {
           "id": "type-scale",
-          "title": "Type scale",
-          "note": "Stage px. 28 px is the floor: nothing on stage is smaller."
+          "title": "Type scale"
         },
         {
           "id": "colour",
-          "title": "Colour",
-          "note": "One ink, which is also the accent; red, the highlight, means look here now."
+          "title": "Colour"
         }
       ]
     }

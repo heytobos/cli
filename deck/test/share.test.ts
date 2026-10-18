@@ -12,6 +12,7 @@ const manifest: Manifest = {
         {
           id: 'title',
           title: 'Title',
+          // @ts-expect-error A scene's note, which deck.json no longer has.
           note: 'Wait for the room to settle.',
           beats: ['title'],
           module: '@deck/scenes/title.svelte',
@@ -58,14 +59,14 @@ describe('sharedManifest', () => {
     expect(shared.chapters.map((c) => c.scenes.map((s) => s.id))).toEqual([['title']]);
   });
 
-  it("leaves out the scenes' notes", () => {
+  it('leaves out a note an older push left in the manifest', () => {
     expect(shared.chapters[0]!.scenes[0]).not.toHaveProperty('note');
     expect(shared.chapters[0]!.scenes[0]).toMatchObject({ id: 'title', beats: ['title'] });
   });
 
   it('keeps the rest, and the manifest it was given as it was', () => {
     expect(shared.imports).toEqual(manifest.imports);
-    expect(manifest.chapters[0]!.scenes[0]!.note).toBe('Wait for the room to settle.');
+    expect(manifest.chapters[0]!.scenes[0]).toHaveProperty('note', 'Wait for the room to settle.');
     expect(manifest.chapters[0]!.scenes).toHaveLength(2);
   });
 });

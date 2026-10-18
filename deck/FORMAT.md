@@ -36,7 +36,7 @@ AGENTS.md          instructions for the agent that builds the deck
 
 - `title`: the deck's title.
 - `chapters`: at least one. Each has an `id` and a `title`, and at least one scene. A deck has at most 500 scenes in all; a longer one is several decks.
-- `scenes[]`: an `id` and a `title`, and optionally a `note`: a line about the scene for the people working on the deck (a template's gallery shows it). The scene's code is in `scenes/<id>.svelte`.
+- `scenes[]`: an `id` and a `title`. The scene's code is in `scenes/<id>.svelte`.
 - `dependencies` (optional): npm packages the scenes import, with exact versions. Svelte and GSAP come with Tobos and aren't listed.
 
 IDs are lowercase letters, digits and dashes, starting with a letter: `same-problem`, `q2`. Scene IDs are unique across the whole deck, chapter IDs across the chapters.
@@ -265,7 +265,7 @@ export const activity: Activity = {
 - **Results are live data**, which the position can't recreate (like video): going back to a result beat shows the counts as they are now. Show them in the markup, from `useResponses`; a beat's `enter` can animate them in, but not their values.
 - **Afterwards**, the deck's page lists the shows that have responses, each by when its first response came in, with a CSV: a row per phone and a column per question (a poll's prompt, a form's field labels), named after the deck and that time, `lecture-3_2026-10-14_0915.csv`. A phone's id is the same in all of the deck's activities and shows, so one person's answers can be lined up across shows too, and different in every other deck. A show can be deleted there, a rehearsal's say, once it is over. `/api/decks/<id>/activities/<activity>.csv` still has every response to one activity, of every show, with its show's time.
 - Scenes still can't use the network: the engine fetches the responses for them.
-- **The share link** (sharing turned on, on the deck's page) shows the deck to anyone with the link, without an account, to click through and download as a PDF, one page per scene at its last beat; it always shows the latest push. The deck's members download the same PDF from the page, shared or not. A share never opens a room: a scene with an activity is left out of it, a chapter left with no scene goes too, and so do the scenes' notes. So a scene that shows the join code next to other content still works shared: `<JoinCode/>` draws nothing there, and `useJoin()` is undefined.
+- **The share link** (sharing turned on, on the deck's page) shows the deck to anyone with the link, without an account, to click through and download as a PDF, one page per scene at its last beat; it always shows the latest push. The deck's members download the same PDF from the page, shared or not. A share never opens a room: a scene with an activity is left out of it, and a chapter left with no scene goes too. So a scene that shows the join code next to other content still works shared: `<JoinCode/>` draws nothing there, and `useJoin()` is undefined.
 
 ## Checks
 
@@ -305,7 +305,7 @@ media/master/         the master's own files: its fonts, a logo (media like any 
 
 ## Templates
 
-A template is a deck people start from. Its scenes show its master off, one per layout or component, with a `note` in deck.json saying what each is for; its page on Tobos shows them as a gallery.
+A template is a deck people start from. Its scenes show its master off, one per layout or component; its page on Tobos shows them as a gallery.
 
 - `tobos new "Title"` starts a deck with a copy of the default template's master: `master/`, the media in `media/master/`, and the `dependencies` the master imports. `--from <id>` copies another template's: `tobos decks` lists the ids.
 - `tobos new "Our brand" --template` makes a template: a copy of all of the default template (or of `--from`), showcase and master.

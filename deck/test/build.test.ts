@@ -571,11 +571,12 @@ describe('the master', () => {
     expect((await masterOf(sample)).dependencies).toEqual({});
   });
 
-  it("puts a scene's note in the manifest", async () => {
+  it('builds a deck.json that still gives a scene a note, and leaves the note out', async () => {
     const deck = JSON.parse(text(sample.read('deck.json')));
     deck.chapters[0].scenes[0].note = 'The opening.';
     const { manifest } = await buildDeck(variant({ 'deck.json': JSON.stringify(deck) }));
-    expect(manifest!.chapters[0]!.scenes[0]).toMatchObject({ id: 'title', note: 'The opening.' });
+    expect(manifest!.chapters[0]!.scenes[0]).toMatchObject({ id: 'title' });
+    expect(manifest!.chapters[0]!.scenes[0]).not.toHaveProperty('note');
   });
 });
 

@@ -13,8 +13,6 @@ export interface Problem {
 export interface DeckScene {
   id: string;
   title: string;
-  /** A line about the scene, for the people working on the deck (a template's gallery shows it). */
-  note?: string;
 }
 
 export interface DeckChapter {
@@ -74,7 +72,6 @@ export type Activity = ChoiceActivity | TextActivity;
 export interface ManifestScene {
   id: string;
   title: string;
-  note?: string;
   beats: string[];
   /** The scene's specifier in the import map. */
   module: string;

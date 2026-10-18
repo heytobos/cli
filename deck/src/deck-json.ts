@@ -62,8 +62,6 @@ export function parseDeckJson(text: string | undefined): { deck?: DeckJson; prob
         else sceneIds.add(scene.id);
         if (typeof scene.title !== 'string')
           problems.push(problem(`${at}.title must be a string.`));
-        if (scene.note !== undefined && typeof scene.note !== 'string')
-          problems.push(problem(`${at}.note must be a string.`));
       });
     });
     const count = raw.chapters.reduce(
