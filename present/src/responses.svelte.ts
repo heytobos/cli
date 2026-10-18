@@ -5,6 +5,7 @@
  */
 import type { Activity, Manifest } from '@tobos/deck/types';
 import type { Results } from './activities.ts';
+import { stream } from './viewer/stream.ts';
 
 /** One activity's responses in the current show. */
 export interface Responses {
@@ -56,12 +57,12 @@ export function useResponses(id: string): Responses {
 
 /** Follow the server's results stream (server-sent events) until the returned function is called. */
 export function followResponses(url: string): () => void {
-  const source = new EventSource(url);
-  source.addEventListener('results', (event) => {
-    const next = JSON.parse((event as MessageEvent<string>).data) as Results;
-    results.show = next.show;
-    results.joined = next.joined;
-    results.activities = next.activities;
+  return stream(url, {
+    results: (data) => {
+      const next = JSON.parse(data) as Results;
+      results.show = next.show;
+      results.joined = next.joined;
+      results.activities = next.activities;
+    },
   });
-  return () => source.close();
 }

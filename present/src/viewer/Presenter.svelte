@@ -17,6 +17,7 @@
   import { urlForView, type ViewerConfig } from './config.ts';
   import { action } from './keys.ts';
   import { follow } from './live.ts';
+  import { stream } from './stream.ts';
   import { Player } from './player.ts';
   import { openAudience } from './screens.ts';
   import { joinSession, type BeatRef } from './session.ts';
@@ -234,10 +235,9 @@
       if (audience?.closed) audience = null;
       now = Date.now();
     }, 500);
-    const story = config.notes ? new EventSource(config.notes) : undefined;
-    story?.addEventListener('notes', (event) => {
-      notes = JSON.parse((event as MessageEvent<string>).data);
-    });
+    const story = config.notes
+      ? stream(config.notes, { notes: (data) => (notes = JSON.parse(data)) })
+      : undefined;
     const stop = follow(
       config,
       () => [current, next],
@@ -251,7 +251,7 @@
       window.clearInterval(closed);
       window.clearTimeout(confirmTimer);
       stop();
-      story?.close();
+      story?.();
       session.close();
       current.destroy();
       next.destroy();

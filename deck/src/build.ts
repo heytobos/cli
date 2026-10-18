@@ -97,6 +97,9 @@ function compileFile(path: string, source: string, rules: Rules, isScene: boolea
         filename: path,
         generate: 'client',
         css: 'injected',
+        // Svelte names a component's styles by its file alone, and injects them only if no style
+        // of that name is in the page yet: a scene swapped in by a push would keep its old rules.
+        cssHash: ({ hash, css, filename }) => `svelte-${hash(`${filename}\n${css}`)}`,
         dev: false,
         discloseVersion: false,
       });
