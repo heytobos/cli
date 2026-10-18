@@ -59,7 +59,12 @@ A deck has one story: the talk as the speaker tells it, paragraph by paragraph, 
 | `tobos story`                                            | the story, by ¶ id                                     |
 | `tobos story edit <¶> "old" "new"`                       | change it, anchored on the exact text                  |
 | `tobos story add [--after <¶>] "…"` · `delete <¶>`       | add a paragraph, or delete one                         |
+| `tobos people`                                           | who is on the deck, and what each may do               |
+| `tobos invite <email> --can edit` · `present` · `view`   | put someone on the deck; they get a mail               |
+| `tobos uninvite <email>`                                 | take them off; their access ends at once               |
+
+Invite only whom the person names, at the level they say: the mail goes to someone else, from the person's name. Can edit builds the deck with their own agent; can present presents it with its notes and polls; can view sees the slides only.
 
 Every command takes `--json`. Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in, 4 the story changed meanwhile.
 
-When a command says a newer `tobos` is out, run `npm i -g @tobos/cli`; the next command updates this skill. When a plan's limit stops a command (Free hosts 3 decks), the error links to the billing page: give the person the link, since only they can buy Pro.
+When a command says a newer `tobos` is out, run `npm i -g @tobos/cli`; the next command updates this skill. When a plan's limit stops a command (Free hosts 3 decks, and lets 1 person besides the owner edit them), the error links to the billing page: give the person the link, since only they can buy Pro.

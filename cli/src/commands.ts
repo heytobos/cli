@@ -466,6 +466,88 @@ export async function story(out: Output, args: Args) {
   throw new CliError(`No \`tobos story ${action}\`: edit, add or delete.`);
 }
 
+// ─── People ─────────────────────────────────────────────────────────────────
+
+interface Person {
+  email: string;
+  role: 'owner' | 'editor' | 'presenter' | 'viewer';
+  joined: boolean;
+  /** An editor beyond what the owner's plan allows, who views the deck meanwhile. */
+  paused: boolean;
+}
+
+/** `--can`'s words, as the Share menu says them (Can edit, Can present, Can view), and the level. */
+const CAN: Record<string, Exclude<Person['role'], 'owner'>> = {
+  edit: 'editor',
+  present: 'presenter',
+  view: 'viewer',
+};
+const CAN_WORDS: Record<Person['role'], string> = {
+  owner: 'owner',
+  editor: 'can edit',
+  presenter: 'can present',
+  viewer: 'can view',
+};
+
+/** Who is on the deck, the owner first, and what each may do. */
+export async function people(out: Output, args: Args) {
+  const id = await deckId(args);
+  const { people } = await api<{ people: Person[] }>(`/api/decks/${id}/people`);
+  out.result({ people }, () =>
+    people
+      .map(
+        (p) =>
+          `${p.email.padEnd(32)} ${CAN_WORDS[p.role]}${p.paused ? ', paused: views until the plan allows more editors' : ''}${p.joined ? '' : ' (invited, not logged in yet)'}`,
+      )
+      .join('\n'),
+  );
+}
+
+/**
+ * Put someone on the deck at a level: they get a mail with the way in, and their access starts
+ * at their first login from that address. Someone on it already is given the new level instead;
+ * someone who had its invite in the last day gets no second one, and the link is for you to send.
+ */
+export async function invite(out: Output, args: Args) {
+  const email = args.positionals[0];
+  const level = CAN[String(args.values.can)];
+  if (!email || !level)
+    throw new CliError(
+      'Invite whom, to do what? `tobos invite <email> --can edit`, `--can present` or `--can view`.',
+    );
+  const id = await deckId(args);
+  const done = await api<{
+    email: string;
+    level: Person['role'];
+    mailed: boolean;
+    /** The mail couldn't be sent; they are on the deck all the same. */
+    mailFailed?: boolean;
+    link?: string;
+  }>(`/api/decks/${id}/people`, { body: { email, level } });
+  const now = `${done.email} ${CAN_WORDS[done.level]} now`;
+  out.result(done, () =>
+    done.mailed
+      ? `${now}; they got a mail with the way in.`
+      : done.mailFailed
+        ? `${now}, but the invite mail couldn't be sent: send them ${done.link}`
+        : done.link
+          ? `${now}. They had an invite to it in the last day, so no second mail: send them ${done.link}`
+          : `${now}.`,
+  );
+}
+
+/** Take someone off the deck, or, with your own address, leave it. Their access ends at once. */
+export async function uninvite(out: Output, args: Args) {
+  const email = args.positionals[0];
+  if (!email) throw new CliError('Take whom off? `tobos uninvite <email>`.');
+  const id = await deckId(args);
+  const done = await api<{ removed: string }>(`/api/decks/${id}/people`, {
+    method: 'DELETE',
+    body: { email },
+  });
+  out.result(done, () => `${done.removed} is off the deck; their access has ended.`);
+}
+
 // ─── Exports and rendering ──────────────────────────────────────────────────
 
 /** Where exports go by default: .tobos/exports/ inside a deck (ignored by git), else here. */
