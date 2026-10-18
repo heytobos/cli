@@ -48,6 +48,9 @@ function unwrap(node: Node | undefined): Node | undefined {
   return node;
 }
 
+/** The most beats a scene declares; more is several scenes. */
+const BEATS_MAX = 100;
+
 function readBeats(
   file: string,
   source: string,
@@ -132,6 +135,11 @@ function readBeats(
     beats.push({ id, line: position(source, value.start).line });
   }
   if (beats.length === 0 && problems.length === 0) at(list, 'A scene needs at least one beat.');
+  if (beats.length > BEATS_MAX)
+    at(
+      list,
+      `The scene has ${beats.length} beats; it may have ${BEATS_MAX}. Split it into several scenes.`,
+    );
   return { beats, problems };
 }
 

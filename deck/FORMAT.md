@@ -35,7 +35,7 @@ AGENTS.md          instructions for the agent that builds the deck
 ```
 
 - `title`: the deck's title.
-- `chapters`: at least one. Each has an `id` and a `title`, and at least one scene.
+- `chapters`: at least one. Each has an `id` and a `title`, and at least one scene. A deck has at most 500 scenes in all; a longer one is several decks.
 - `scenes[]`: an `id` and a `title`, and optionally a `note`: a line about the scene for the people working on the deck (a template's gallery shows it). The scene's code is in `scenes/<id>.svelte`.
 - `dependencies` (optional): npm packages the scenes import, with exact versions. Svelte and GSAP come with Tobos and aren't listed.
 
@@ -68,6 +68,7 @@ A presentation is a sequence of **beats**. One click advances one beat. A scene 
 ```
 
 - `beats` is exported as an array literal, and every `id` is a string literal. Tobos reads the beats without running your code, so computed lists and IDs are rejected.
+- A scene has at most 100 beats. One that needs more is several scenes.
 - `enter(tl, q)` adds the animation into the beat to `tl`, the scene's GSAP timeline. `q(selector)` finds elements inside this scene only. A beat without `enter` changes nothing on screen (useful as the first beat of a scene whose layout is already complete).
 - The engine builds one timeline per scene: every beat's `enter`, followed by a label with the beat's ID. Animations that hide something at the start use `tl.from(...)`, so the hidden state is the timeline's start.
 - The scene's first beat is its entrance: stepping into a scene plays it.

@@ -9,6 +9,8 @@ const PACKAGE = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 /** Packages the runtime provides: one copy, shared by the engine and the deck. */
 const PROVIDED = new Set(['svelte', 'gsap']);
+/** The most scenes a deck lists: a bound on what a push compiles and its shared PDF prints. */
+const SCENES_MAX = 500;
 
 function problem(message: string, rule = 'deck-json'): Problem {
   return { file: FILE, rule, message, severity: 'error' };
@@ -64,6 +66,18 @@ export function parseDeckJson(text: string | undefined): { deck?: DeckJson; prob
           problems.push(problem(`${at}.note must be a string.`));
       });
     });
+    const count = raw.chapters.reduce(
+      (sum: number, chapter: unknown) =>
+        sum + (isObject(chapter) && Array.isArray(chapter.scenes) ? chapter.scenes.length : 0),
+      0,
+    );
+    if (count > SCENES_MAX)
+      problems.push(
+        problem(
+          `deck.json lists ${count} scenes; a deck may have ${SCENES_MAX}. Split it into several decks.`,
+          'scenes',
+        ),
+      );
   }
 
   if (raw.dependencies !== undefined) {

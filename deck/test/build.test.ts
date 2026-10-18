@@ -154,6 +154,30 @@ describe('deck.json', () => {
     ]);
   });
 
+  it('lists at most 500 scenes, and stops there, before compiling any', async () => {
+    const listing = (count: number) => ({
+      title: 'x',
+      chapters: [0, 1].map((c) => ({
+        id: `c${c}`,
+        title: 'C',
+        scenes: Array.from({ length: c ? count - 250 : 250 }, (_, s) => ({
+          id: `s${c}-${s}`,
+          title: 'S',
+        })),
+      })),
+    });
+    expect(await checkDeck(variant({ 'deck.json': JSON.stringify(listing(501)) }))).toEqual([
+      {
+        file: 'deck.json',
+        rule: 'scenes',
+        message: 'deck.json lists 501 scenes; a deck may have 500. Split it into several decks.',
+        severity: 'error',
+      },
+    ]);
+    const atLimit = await checkDeck(variant({ 'deck.json': JSON.stringify(listing(500)) }));
+    expect(atLimit.filter((p) => p.message.includes('may have'))).toEqual([]);
+  });
+
   it('reports a scene without a file', async () => {
     expect(await checkDeck(variant({ 'scenes/title.svelte': null }))).toMatchObject([
       {
@@ -218,6 +242,21 @@ describe('beats', () => {
     expect(problems).toMatchObject([
       { rule: 'beats', message: 'A scene needs at least one beat.' },
     ]);
+  });
+  it('number at most 100 in a scene', async () => {
+    const beats = (count: number) =>
+      scene(
+        `export const beats = [${Array.from({ length: count }, (_, b) => `{ id: 'b${b}' }`).join(', ')}];`,
+      );
+    expect(await checkDeck(variant({ 'scenes/title.svelte': beats(101) }))).toMatchObject([
+      {
+        file: 'scenes/title.svelte',
+        rule: 'beats',
+        line: 2,
+        message: 'The scene has 101 beats; it may have 100. Split it into several scenes.',
+      },
+    ]);
+    expect(await checkDeck(variant({ 'scenes/title.svelte': beats(100) }))).toEqual([]);
   });
 });
 
