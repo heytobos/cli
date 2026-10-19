@@ -477,6 +477,7 @@
   }
   .notes p {
     margin: 0 0 0.6em;
+    white-space: pre-line;
   }
   .box.next {
     flex: none;
