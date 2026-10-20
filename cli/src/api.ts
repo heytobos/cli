@@ -53,16 +53,24 @@ export function failure(response: Response, data: unknown, prefix = ''): CliErro
 
 export async function request(path: string, options: ApiOptions = {}): Promise<Response> {
   const { server, token } = settings();
+  const target = options.server ?? server;
   const headers: Record<string, string> = {
     'user-agent': `tobos/${VERSION}`,
     accept: 'application/json',
   };
   // Not a browser: say which server we mean, so SvelteKit's cross-site check has an origin.
-  headers.origin = options.server ?? server;
+  headers.origin = target;
   if (!options.anonymous) {
     if (!token)
       throw new CliError(
         'Not logged in. Ask the person you work for for their e-mail address, then run `tobos login <email>`.',
+        EXIT.auth,
+      );
+    // The token is the server's it was made by, and goes to no other: not to the server a
+    // working copy's git remote names, whoever set that remote (git's helper is as strict).
+    if (new URL(target).origin !== new URL(server).origin)
+      throw new CliError(
+        `This deck is on ${target}, but you are logged in to ${server}, and the token goes only there. Log in to the deck's server with \`tobos login <email> --server ${target}\`.`,
         EXIT.auth,
       );
     headers.authorization = `Bearer ${token}`;
@@ -75,7 +83,7 @@ export async function request(path: string, options: ApiOptions = {}): Promise<R
     headers['content-type'] = 'application/json';
     body = JSON.stringify(options.body);
   }
-  const url = `${options.server ?? server}${path}`;
+  const url = `${target}${path}`;
   let response: Response;
   try {
     response = await fetch(url, {
@@ -86,7 +94,7 @@ export async function request(path: string, options: ApiOptions = {}): Promise<R
     } as RequestInit);
   } catch (error) {
     throw new CliError(
-      `Can't reach ${options.server ?? server}: ${(error as Error).cause ?? (error as Error).message}`,
+      `Can't reach ${target}: ${(error as Error).cause ?? (error as Error).message}`,
     );
   }
   // The server names the latest CLI on every response: the one place people learn of a new
