@@ -103,6 +103,37 @@ describe('the sample deck', () => {
   });
 });
 
+describe('the build cache', () => {
+  it('keeps what a build that passed compiled, and nothing of one that failed', async () => {
+    const cache = createCache();
+    const broken = variant({
+      'scenes/title.svelte': scene("export const beats = [{ id: 'a' }];", '<p>{#if}</p>'),
+    });
+    expect((await buildDeck(broken, { cache })).manifest).toBeUndefined();
+    expect(cache.size).toBe(0);
+    await buildDeck(sample, { cache });
+    expect(cache.size).toBeGreaterThan(0);
+  });
+
+  it('keeps no more than its budget, the least recently used going first', () => {
+    // An empty file takes 1024 bytes of it: room for three.
+    const cache = createCache(3 * 1024);
+    const file = (code: string) =>
+      ({ code, imports: [], analysis: { media: [], problems: [] }, problems: [] }) as never;
+    for (const key of ['a', 'b', 'c']) cache.set(key, file(''));
+    expect(cache.get('a')).toBeDefined();
+    cache.set('d', file(''));
+    // b was used least lately.
+    expect(cache.get('b')).toBeUndefined();
+    for (const key of ['a', 'c', 'd']) expect(cache.get(key), key).toBeDefined();
+    expect(cache.bytes).toBeLessThanOrEqual(3 * 1024);
+    // One larger than the whole budget isn't kept, and pushes nothing out.
+    cache.set('e', file('x'.repeat(5000)));
+    expect(cache.get('e')).toBeUndefined();
+    expect(cache.size).toBe(3);
+  });
+});
+
 describe('deck.json', () => {
   it('must exist', async () => {
     expect(await checkDeck(variant({ 'deck.json': null }))).toMatchObject([{ rule: 'deck-json' }]);
@@ -280,6 +311,84 @@ describe('compiling', () => {
     );
     expect(problems).toMatchObject([
       { rule: 'svelte/a11y_missing_attribute', severity: 'warning' },
+    ]);
+  });
+
+  it('reports a module that is no JavaScript where it stops being, and checks nothing else in it', async () => {
+    const problems = await checkDeck(
+      variant({
+        'lib/format.ts': "export const far = 1;\nexport const far = 2;\nmedia('cow.jpg');",
+      }),
+    );
+    expect(problems).toEqual([
+      {
+        file: 'lib/format.ts',
+        line: 2,
+        column: 14,
+        rule: 'compile',
+        message: "Identifier 'far' has already been declared",
+        severity: 'error',
+      },
+    ]);
+  });
+
+  it('refuses JavaScript nested deeper than the check can read, valid or not past that, saying what to do', async () => {
+    // More than acorn's stack takes: a long sum, which es-module-lexer reads flat, then an error
+    // nothing here would see.
+    const deep = `export const t = ${Array.from({ length: 10_000 }, (_, i) => `'s${i}'`).join(' + ')};`;
+    for (const source of [deep, `${deep}\nexport const = 1;`]) {
+      const problems = await checkDeck(
+        variant({ 'lib/deep.js': source, 'lib/format.ts': "export { t } from './deep.js';" }),
+      );
+      expect(problems).toMatchObject([
+        {
+          file: 'lib/deep.js',
+          rule: 'compile',
+          severity: 'error',
+          message: expect.stringMatching(/nested too deeply.*data\//),
+        },
+      ]);
+    }
+  });
+
+  it('reports a JavaScript file that is no JavaScript once', async () => {
+    const problems = await checkDeck(
+      variant({
+        'lib/broken.js': "export const s = 'abc",
+        'lib/format.ts': "export { s } from './broken.js';",
+      }),
+    );
+    expect(problems).toEqual([
+      {
+        file: 'lib/broken.js',
+        line: 1,
+        column: 18,
+        rule: 'compile',
+        message: 'Unterminated string constant',
+        severity: 'error',
+      },
+    ]);
+  });
+
+  it('puts the error on the line an editor shows, a line separator in a string or not', async () => {
+    const problems = await checkDeck(
+      variant({
+        'lib/format.ts':
+          "export const s = 'a\u2028b';\nexport const far = 1;\nexport const far = 2;",
+      }),
+    );
+    expect(problems).toMatchObject([{ file: 'lib/format.ts', line: 3, column: 14 }]);
+  });
+
+  it('reports TypeScript it cannot read, not failing the check', async () => {
+    const problems = await checkDeck(variant({ 'lib/format.ts': 'export const x: = 1;' }));
+    expect(problems).toMatchObject([
+      {
+        file: 'lib/format.ts',
+        rule: 'compile',
+        message: expect.stringMatching(/^TypeScript can't read this file: Unexpected token/),
+        severity: 'error',
+      },
     ]);
   });
 

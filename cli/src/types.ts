@@ -206,5 +206,26 @@ export async function checkTypes(root: string, note: (m: string) => void): Promi
     ],
     root,
   );
-  return parseMachineOutput(result.out, root);
+  return typeProblems(result, root);
+}
+
+/**
+ * The problems svelte-check found, and if it didn't finish, or failed without saying why in
+ * problems, that: a check that couldn't run hasn't passed.
+ */
+export function typeProblems(result: { code: number; out: string }, root: string): Problem[] {
+  const problems = parseMachineOutput(result.out, root);
+  const completed = /^\d+ COMPLETED /m.test(result.out);
+  if (completed && (result.code === 0 || problems.some((p) => p.severity === 'error')))
+    return problems;
+  const said = result.out.trim().split('\n').slice(-5).join('\n');
+  return [
+    ...problems,
+    {
+      file: 'deck.json',
+      rule: 'types',
+      message: `The type checker didn't finish (exit code ${result.code})${said ? `:\n${said}` : '.'}`,
+      severity: 'error',
+    },
+  ];
 }

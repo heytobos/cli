@@ -794,7 +794,11 @@ export function analyzeSvelte(
   return result;
 }
 
-/** Read media() calls and behaviour from a plain module (JavaScript, or TypeScript with types stripped). */
+/**
+ * Read media() calls and behaviour from a plain module (JavaScript, or TypeScript with types
+ * stripped). One that isn't JavaScript is an error where it stops being: its viewers' browsers
+ * wouldn't run it, and none of its checks could.
+ */
 export function analyzeScript(file: string, source: string, rules: Rules = {}): Analysis {
   const problems: Problem[] = [];
   const comments: { start: number; end: number }[] = [];
@@ -806,7 +810,29 @@ export function analyzeScript(file: string, source: string, rules: Rules = {}): 
       locations: false,
       onComment: (_block, _text, start, end) => comments.push({ start, end }),
     });
-  } catch {
+  } catch (error) {
+    // Nested deeper than the parser can follow, it may be JavaScript or not past that point, and
+    // nothing here can tell: refused, with the way out. Data that deep is what data/*.json is for.
+    if (error instanceof RangeError || /Not enough stack space/.test((error as Error).message)) {
+      problems.push({
+        file,
+        rule: 'compile',
+        message:
+          'This file is nested too deeply for the check to read. Put data like this in a .json file in data/ and import it, or split the expression up.',
+        severity: 'error',
+      });
+      return { media: [], problems };
+    }
+    // Where, from the offset as every other problem's: acorn counts lines its own way, U+2028 too.
+    const { message, pos } = error as SyntaxError & { pos?: number };
+    problems.push({
+      file,
+      ...(pos === undefined ? {} : position(source, pos)),
+      rule: 'compile',
+      // Acorn ends its message with where, which the problem says already.
+      message: message.replace(/ \(\d+:\d+\)$/, ''),
+      severity: 'error',
+    });
     return { media: [], problems };
   }
   const calls = readCalls(file, source, program, problems);

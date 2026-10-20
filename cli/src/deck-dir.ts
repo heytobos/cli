@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { git } from './git.ts';
+import { git, refreshCredentials } from './git.ts';
 import { CliError } from './out.ts';
 
 export interface DeckDir {
@@ -24,7 +24,10 @@ export async function findDeck(start = process.cwd()): Promise<DeckDir> {
   }
   const remote = await git(['remote', 'get-url', 'origin'], { cwd: dir }).catch(() => undefined);
   const match = remote && remote.code === 0 ? REMOTE.exec(remote.stdout.trim()) : null;
-  return match ? { root: dir, server: match[1], id: match[2] } : { root: dir };
+  if (!match) return { root: dir };
+  // Before anything here tells anyone to run `git pull`.
+  await refreshCredentials(dir, match[1]!).catch(() => undefined);
+  return { root: dir, server: match[1], id: match[2] };
 }
 
 export async function requireRemote(start?: string): Promise<Required<DeckDir>> {

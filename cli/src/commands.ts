@@ -203,6 +203,46 @@ const remoteLines = (stderr: string) =>
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
+/**
+ * Why a push failed, as the exit code says it (2 only for problems in the deck, which an agent
+ * then sets out to fix), and what to do about it. `output` is git's, `remote` the server's lines.
+ */
+export function pushFailure(output: string, remote: string[]): { message: string; exit: number } {
+  if (/non-fast-forward|fetch first/.test(output))
+    return {
+      message:
+        "The server has changes you don't have. Run `tobos pull` (or `git pull`), then push again.",
+      exit: EXIT.error,
+    };
+  if (remote.some((line) => line.startsWith('tobos: rejected:')))
+    return { message: `The server rejected the deck.\n${remote.join('\n')}`, exit: EXIT.problems };
+  if (/Authentication failed|returned error: 401|could not read Username/i.test(output))
+    return {
+      message: "The server didn't take your login. Run `tobos login` again, then push.",
+      exit: EXIT.auth,
+    };
+  if (/returned error: 403/.test(output))
+    return {
+      message: 'You may not push to this deck: ask its owner to make you an editor.',
+      exit: EXIT.error,
+    };
+  if (remote.length > 0)
+    return { message: `The server refused the push.\n${remote.join('\n')}`, exit: EXIT.error };
+  // Never reached, or not trusted (TLS): nothing went.
+  if (/Could not resolve host|Failed to connect|Connection refused|SSL|certificate/i.test(output))
+    return {
+      message: `Couldn't reach the server: nothing was pushed. Try again.\n${output.trim()}`,
+      exit: EXIT.error,
+    };
+  // Reached, then cut off: the server may have taken it all the same.
+  if (/timed out|Connection reset|unexpected disconnect|RPC failed/i.test(output))
+    return {
+      message: `The connection broke off, and the push may have gone through. Run \`tobos pull\` to see where the server is, then push again if it still lacks your change.\n${output.trim()}`,
+      exit: EXIT.error,
+    };
+  return { message: `The push failed.\n${output.trim()}`, exit: EXIT.error };
+}
+
 function problemSummary(problems: Problem[]) {
   const errors = problems.filter((p) => p.severity === 'error').length;
   return { errors, warnings: problems.length - errors };
@@ -277,16 +317,8 @@ async function pushWorkingCopy(out: Output, deck: Required<DeckDir>, message?: s
   );
   const remote = remoteLines(pushed.stderr);
   if (pushed.code !== 0) {
-    const behind = /non-fast-forward|fetch first|rejected.*\(fetch first\)/.test(
-      pushed.stdout + pushed.stderr,
-    );
-    throw new CliError(
-      behind
-        ? "The server has changes you don't have. Run `tobos pull` (or `git pull`), then push again."
-        : `The server rejected the push.\n${remote.join('\n') || pushed.stderr.trim()}`,
-      behind ? EXIT.error : EXIT.problems,
-      { remote },
-    );
+    const { message, exit } = pushFailure(pushed.stdout + pushed.stderr, remote);
+    throw new CliError(message, exit, { remote });
   }
   const rev = (await gitOk(['rev-parse', 'HEAD'], { cwd: root })).trim();
   return { ok: true as const, rev, committed, uploaded, warnings, remote };

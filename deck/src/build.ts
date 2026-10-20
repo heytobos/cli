@@ -45,8 +45,58 @@ interface CompiledFile {
   problems: Problem[];
 }
 
-export type BuildCache = Map<string, CompiledFile>;
-export const createCache = (): BuildCache => new Map();
+/**
+ * Compiled files by their content, kept across builds so a file that didn't change isn't compiled
+ * again: the most recently used, up to `maxBytes` of compiled code, and only from builds that
+ * passed, so pushes refused, one after another say, neither fill the memory nor push out what the
+ * decks that build use.
+ */
+export class BuildCache {
+  readonly #files = new Map<string, { file: CompiledFile; bytes: number }>();
+  readonly #maxBytes: number;
+  #bytes = 0;
+
+  constructor(maxBytes = 64 * 1024 * 1024) {
+    this.#maxBytes = maxBytes;
+  }
+
+  /** How many files it keeps, and how much of the budget they take. */
+  get size(): number {
+    return this.#files.size;
+  }
+  get bytes(): number {
+    return this.#bytes;
+  }
+
+  get(key: string): CompiledFile | undefined {
+    const entry = this.#files.get(key);
+    if (!entry) return undefined;
+    // Used now: last to go.
+    this.#files.delete(key);
+    this.#files.set(key, entry);
+    return entry.file;
+  }
+
+  set(key: string, file: CompiledFile): void {
+    // Roughly what it holds: its code, two bytes a character, and the rest.
+    const bytes = file.code.length * 2 + 1024;
+    if (bytes > this.#maxBytes) return;
+    const known = this.#files.get(key);
+    if (known) {
+      this.#files.delete(key);
+      this.#bytes -= known.bytes;
+    }
+    this.#files.set(key, { file, bytes });
+    this.#bytes += bytes;
+    for (const [oldest, entry] of this.#files) {
+      if (this.#bytes <= this.#maxBytes) break;
+      this.#files.delete(oldest);
+      this.#bytes -= entry.bytes;
+    }
+  }
+}
+
+export const createCache = (maxBytes?: number): BuildCache => new BuildCache(maxBytes);
 
 function packageName(specifier: string): string {
   const parts = specifier.split('/');
@@ -131,8 +181,22 @@ function compileFile(path: string, source: string, rules: Rules, isScene: boolea
     }
     analysis = analyzeSvelte(path, source, { scene: isScene, rules });
   } else {
-    code = path.endsWith('.ts') ? stripTypes(source) : source;
+    try {
+      code = path.endsWith('.ts') ? stripTypes(source) : source;
+    } catch (error) {
+      // Node's stripper says what is wrong, not where.
+      problems.push({
+        file: path,
+        rule: 'compile',
+        message: `TypeScript can't read this file: ${(error as Error).message.split('\n')[0]}`,
+        severity: 'error',
+      });
+      return { code: '', imports: [], analysis, problems };
+    }
     analysis = analyzeScript(path, code, rules);
+    // Not JavaScript: said once, where it stops being, and nothing more is read from it.
+    if (analysis.problems.some((p) => p.rule === 'compile' && p.severity === 'error'))
+      return { code: '', imports: [], analysis, problems: [...problems, ...analysis.problems] };
   }
   problems.push(...analysis.problems);
 
@@ -196,11 +260,17 @@ async function compileGraph(
   tree: DeckTree,
   start: string[],
   options: GraphOptions,
-): Promise<{ compiled: Map<string, CompiledFile>; problems: Problem[] }> {
+): Promise<{
+  compiled: Map<string, CompiledFile>;
+  /** What was compiled now, not taken from the cache: for it, once the build has passed. */
+  fresh: Map<string, CompiledFile>;
+  problems: Problem[];
+}> {
   await initLexer;
   const problems: Problem[] = [];
   const files = new Set(tree.files());
   const compiled = new Map<string, CompiledFile>();
+  const fresh = new Map<string, CompiledFile>();
   const queue = [...start];
   while (queue.length > 0) {
     const path = queue.shift()!;
@@ -211,10 +281,10 @@ async function compileGraph(
     const key = sha256(
       `${SVELTE_VERSION}\0${JSON.stringify(options.rules)}\0${isScene}\0${path}\0${source}`,
     );
-    let file = options.cache?.get(key);
+    let file = options.cache?.get(key) ?? fresh.get(key);
     if (!file) {
       file = compileFile(path, source, options.rules, isScene);
-      options.cache?.set(key, file);
+      fresh.set(key, file);
     }
     compiled.set(path, file);
     problems.push(...file.problems);
@@ -261,7 +331,7 @@ async function compileGraph(
         );
     }
   }
-  return { compiled, problems };
+  return { compiled, fresh, problems };
 }
 
 /**
@@ -411,6 +481,8 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
     }),
   }));
 
+  // Passed: what it compiled is worth keeping.
+  for (const [key, file] of graph.fresh) options.cache?.set(key, file);
   return {
     problems,
     deck,

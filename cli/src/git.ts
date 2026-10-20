@@ -82,6 +82,21 @@ export function authEnv(server: string): Record<string, string> {
   };
 }
 
+/**
+ * The helper a deck's .git/config names, set again if it isn't this CLI as it runs now: written at
+ * clone, it names Node and the CLI where they were then, and plain `git pull` uses it too, which
+ * stops working once Node is upgraded. A deck it was never written into is left alone.
+ */
+export async function refreshCredentials(dir: string, server: string) {
+  // The deck's own, not one the person set for everything: that one is theirs to keep.
+  const configured = await git(['config', '--local', '--get-all', `credential.${server}.helper`], {
+    cwd: dir,
+  });
+  if (configured.code !== 0) return;
+  if (configured.stdout === `\n${credentialHelper()}\n`) return;
+  await configureCredentials(dir, server);
+}
+
 export async function configureCredentials(dir: string, server: string) {
   await gitOk(['config', '--replace-all', `credential.${server}.helper`, ''], { cwd: dir });
   await gitOk(['config', '--add', `credential.${server}.helper`, credentialHelper()], { cwd: dir });
