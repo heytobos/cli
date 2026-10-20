@@ -20,6 +20,17 @@ export function readText(tree: DeckTree, path: string): string | undefined {
   return bytes === undefined ? undefined : decoder.decode(bytes);
 }
 
+/**
+ * Whether a file's path is one a deck can hold: relative, with no empty, `.` or `..` part, and
+ * nothing inside a `.git` folder. Git stores whatever names a pushed tree gives, and the server
+ * writes a tree's files to disk when it starts a deck from it, so every such write needs this.
+ */
+export function isSafePath(path: string): boolean {
+  return path
+    .split('/')
+    .every((part) => part !== '' && part !== '.' && part !== '..' && part.toLowerCase() !== '.git');
+}
+
 /** Resolve `spec` relative to the file `from`. Returns undefined if it leaves the deck. */
 export function resolvePath(from: string, spec: string): string | undefined {
   const parts = from.split('/').slice(0, -1);
