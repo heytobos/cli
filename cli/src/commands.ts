@@ -407,11 +407,13 @@ async function storyTx(id: string, ops: unknown[]) {
       body: { ops, agent: process.env.TOBOS_AGENT || undefined },
     });
   } catch (error) {
-    if (error instanceof CliError && error.extra.status === 409) {
+    // The story changed meanwhile (409, exit 4), or the anchor is too short (422): either way the
+    // paragraph as it is now, to anchor on.
+    if (error instanceof CliError && (error.extra.status === 409 || error.extra.status === 422)) {
       const now = error.extra.paragraph as StoryParagraph | undefined;
       throw new CliError(
         now ? `${error.message}\nIt is now:\n¶ ${now.id}  ${now.text}` : error.message,
-        EXIT.conflict,
+        error.extra.status === 409 ? EXIT.conflict : EXIT.error,
         error.extra,
       );
     }
