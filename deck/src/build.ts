@@ -441,9 +441,18 @@ function masterStylesheet(
   const file = 'master/tokens.css';
   const source = readText(tree, file);
   if (source === undefined) return undefined;
+  // Quoted, or bare with no space: parts that can't take the same characters, so a run of
+  // spaces with no `)` is one pass, not one for every way to split it.
   const code = source.replace(
-    /url\(\s*(['"]?)([^'")]*)\1\s*\)/g,
-    (whole, _quote: string, url: string, offset: number) => {
+    /url\(\s*(?:'([^'\n]*)'|"([^"\n]*)"|([^'"()\s]+))\s*\)/g,
+    (
+      whole,
+      single: string | undefined,
+      double: string | undefined,
+      bare: string | undefined,
+      offset: number,
+    ) => {
+      const url = single ?? double ?? bare!;
       if (url.startsWith('data:') || url.startsWith('#')) return whole;
       const target = /^[a-z][a-z0-9+.-]*:|^\//i.test(url) ? undefined : resolvePath(file, url);
       const name = target?.startsWith('media/') ? target.slice('media/'.length) : undefined;

@@ -15,6 +15,8 @@ sources/           originals the scripts read: full-size scans, raw data (never 
 AGENTS.md          instructions for the agent that builds the deck
 ```
 
+Besides `media/`, a deck's files may take 100 MB together and number at most 10,000, each at most 20 MB. The server rejects a push that goes over, in any of its commits for the 20 MB.
+
 ## deck.json
 
 ```json

@@ -464,24 +464,103 @@ export function mediaMatches(pattern: string, name: string): boolean {
   return true;
 }
 
+/**
+ * Each match of `start`, with the value after it: up to the first of `end` (a global pattern) or
+ * the next match. These checks read source anyone can push, on the server, so a pattern that
+ * scans on from every match to the file's end would let a few kilobytes take minutes. Here each
+ * part of the source is scanned once.
+ */
+function* declarations(
+  source: string,
+  start: RegExp,
+  end: RegExp,
+): Generator<{ index: number; value: string }> {
+  const starts = [...source.matchAll(start)];
+  let stop = -1;
+  for (const [i, match] of starts.entries()) {
+    const from = match.index + match[0].length;
+    if (stop < from) {
+      end.lastIndex = from;
+      stop = end.exec(source)?.index ?? source.length;
+    }
+    const next = starts[i + 1]?.index ?? source.length;
+    yield { index: match.index, value: source.slice(from, Math.min(stop, next)) };
+  }
+}
+
+type Size = { index: number; value: string; unit: string | undefined };
+
+const sizesOf =
+  (pattern: RegExp) =>
+  (source: string): Size[] =>
+    [...source.matchAll(pattern)].map((m) => ({ index: m.index, value: m[1]!, unit: m[2] }));
+
 // Font sizes, in the forms CSS and GSAP write them. `em` and calc() depend on context: unchecked.
-const SIZES: RegExp[] = [
-  /font-size\s*:\s*(\d+(?:\.\d+)?)(px|rem)\b/g,
-  /(?<![\w-])font\s*:\s*[^;{}"'`]*?\b(\d+(?:\.\d+)?)(px|rem)\b/g,
-  /style:font-size\s*=\s*\{?\s*["'`]?\s*(\d+(?:\.\d+)?)(px|rem)\b/g,
-  /fontSize\s*:\s*["'`]?(\d+(?:\.\d+)?)(px|rem)?(?![\w.%])/g,
+// No two neighbouring parts of a pattern take the same characters, so none backtracks for long.
+const SIZES: ((source: string) => Size[])[] = [
+  sizesOf(/font-size\s*:\s*(\d+(?:\.\d+)?)(px|rem)\b/g),
+  // The `font` shorthand: its size is somewhere among the declaration's other values.
+  (source) =>
+    [...declarations(source, /(?<![\w-])font\s*:/g, /[;{}"'`]/g)].flatMap(({ index, value }) => {
+      const size = /\b(\d+(?:\.\d+)?)(px|rem)\b/.exec(value);
+      return size ? [{ index, value: size[1]!, unit: size[2] }] : [];
+    }),
+  sizesOf(/style:font-size\s*=\s*(?:\{\s*)?(?:["'`]\s*)?(\d+(?:\.\d+)?)(px|rem)\b/g),
+  sizesOf(/fontSize\s*:\s*["'`]?(\d+(?:\.\d+)?)(px|rem)?(?![\w.%])/g),
 ];
+
+/**
+ * The source as the text checks read it: what isn't code, the markup's prose and every comment,
+ * blanked, its lines kept, so each position stays where it was. `font-size: 12px` in a paragraph
+ * is something a slide says, not how it looks.
+ */
+function codeOnly(source: string, prose: { start: number; end: number }[]): string {
+  if (prose.length === 0) return source;
+  const chars = source.split('');
+  for (const { start, end } of prose)
+    for (let i = start; i < end; i++) if (chars[i] !== '\n') chars[i] = ' ';
+  return chars.join('');
+}
+
+/**
+ * A Svelte file's prose: the text between its tags and in its attributes, all but `style`, which
+ * is CSS, and its comments, HTML, script and CSS.
+ */
+function proseOf(ast: ReturnType<typeof parseSvelte>): { start: number; end: number }[] {
+  const modern = ast as unknown as {
+    fragment: Node;
+    comments?: { start: number; end: number }[];
+    css?: { comments?: { start: number; end: number }[] } | null;
+  };
+  const prose = [...(modern.comments ?? []), ...(modern.css?.comments ?? [])];
+  walk(modern.fragment, null, {
+    Fragment(node, { next }) {
+      for (const child of node.nodes as Node[])
+        if (child.type === 'Text' || child.type === 'Comment')
+          prose.push({ start: child.start as number, end: child.end as number });
+      next();
+    },
+    Attribute(node, { next }) {
+      if (node.name !== 'style' && Array.isArray(node.value))
+        for (const part of node.value as Node[])
+          if (part.type === 'Text')
+            prose.push({ start: part.start as number, end: part.end as number });
+      next();
+    },
+  });
+  return prose;
+}
 
 function readFontSizes(file: string, source: string, rules: Rules, problems: Problem[]) {
   const floor = rules.minFontSize;
   if (!floor) return;
   const seen = new Set<number>();
-  for (const pattern of SIZES)
-    for (const match of source.matchAll(pattern)) {
+  for (const sizes of SIZES)
+    for (const match of sizes(source)) {
       if (seen.has(match.index)) continue;
       seen.add(match.index);
       // rem is relative to the page's 16px, not the stage's body size.
-      const size = Number(match[1]) * (match[2] === 'rem' ? 16 : 1);
+      const size = Number(match.value) * (match.unit === 'rem' ? 16 : 1);
       if (size < floor)
         problems.push({
           file,
@@ -496,6 +575,12 @@ function readFontSizes(file: string, source: string, rules: Rules, problems: Pro
 const TIMERS = new Set(['setTimeout', 'setInterval', 'requestAnimationFrame']);
 const NETWORK = new Set(['fetch']);
 const NETWORK_CLASSES = new Set(['XMLHttpRequest', 'WebSocket', 'EventSource']);
+/** The global object, by the names code calls it: `window.fetch` is fetch. */
+const GLOBALS = new Set(['window', 'globalThis', 'self']);
+const onGlobal = (callee: Node) =>
+  callee.type === 'MemberExpression' &&
+  (callee.object as Node).type === 'Identifier' &&
+  GLOBALS.has((callee.object as Node).name as string);
 const REMOTE = /^(https?:)?\/\//i;
 
 /**
@@ -519,7 +604,11 @@ function readBehaviour(file: string, source: string, root: unknown, problems: Pr
             : callee.type === 'MemberExpression' && (callee.property as Node).type === 'Identifier'
               ? ((callee.property as Node).name as string)
               : '';
-        if (callee.type === 'Identifier' && NETWORK.has(name))
+        if (
+          ((callee.type === 'Identifier' || onGlobal(callee)) && NETWORK.has(name)) ||
+          // navigator.sendBeacon(), however navigator is reached.
+          (callee.type === 'MemberExpression' && name === 'sendBeacon')
+        )
           at(node, 'network', network, 'error');
         else if (TIMERS.has(name))
           at(
@@ -546,8 +635,13 @@ function readBehaviour(file: string, source: string, root: unknown, problems: Pr
       },
       NewExpression(node, { next }) {
         const callee = node.callee as Node;
-        if (callee.type === 'Identifier' && NETWORK_CLASSES.has(callee.name as string))
-          at(node, 'network', network, 'error');
+        const name =
+          callee.type === 'Identifier'
+            ? (callee.name as string)
+            : onGlobal(callee)
+              ? ((callee.property as Node).name as string)
+              : '';
+        if (NETWORK_CLASSES.has(name)) at(node, 'network', network, 'error');
         next();
       },
       Property(node, { next }) {
@@ -593,14 +687,19 @@ function readBehaviour(file: string, source: string, root: unknown, problems: Pr
       message: `url(${match[1]}) loads from another site, which the viewer blocks. Put the file in media/.`,
       severity: 'error',
     });
-  for (const match of source.matchAll(/animation(?:-iteration-count)?\s*:[^;}]*\binfinite\b/g))
-    problems.push({
-      file,
-      ...position(source, match.index),
-      rule: 'motion/loop',
-      message: 'A CSS animation that runs for ever. Nothing loops while the presenter talks.',
-      severity: 'warning',
-    });
+  for (const { index, value } of declarations(
+    source,
+    /animation(?:-iteration-count)?\s*:/g,
+    /[;}]/g,
+  ))
+    if (/\binfinite\b/.test(value))
+      problems.push({
+        file,
+        ...position(source, index),
+        rule: 'motion/loop',
+        message: 'A CSS animation that runs for ever. Nothing loops while the presenter talks.',
+        severity: 'warning',
+      });
 }
 
 const IGNORED_ROOT = new Set([
@@ -689,22 +788,30 @@ export function analyzeSvelte(
     if (rules.layoutRoot) readRoot(file, source, ast as never, problems);
   }
   Object.assign(result, readCalls(file, source, ast, problems));
-  readFontSizes(file, source, rules, problems);
-  readBehaviour(file, source, ast, problems);
+  const code = codeOnly(source, proseOf(ast));
+  readFontSizes(file, code, rules, problems);
+  readBehaviour(file, code, ast, problems);
   return result;
 }
 
 /** Read media() calls and behaviour from a plain module (JavaScript, or TypeScript with types stripped). */
 export function analyzeScript(file: string, source: string, rules: Rules = {}): Analysis {
   const problems: Problem[] = [];
+  const comments: { start: number; end: number }[] = [];
   let program: unknown;
   try {
-    program = parseJs(source, { ecmaVersion: 'latest', sourceType: 'module', locations: false });
+    program = parseJs(source, {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      locations: false,
+      onComment: (_block, _text, start, end) => comments.push({ start, end }),
+    });
   } catch {
     return { media: [], problems };
   }
   const calls = readCalls(file, source, program, problems);
-  readFontSizes(file, source, rules, problems);
-  readBehaviour(file, source, program, problems);
+  const code = codeOnly(source, comments);
+  readFontSizes(file, code, rules, problems);
+  readBehaviour(file, code, program, problems);
   return { ...calls, problems };
 }

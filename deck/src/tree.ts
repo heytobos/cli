@@ -44,15 +44,26 @@ export function resolvePath(from: string, spec: string): string | undefined {
   return parts.join('/');
 }
 
-/** 1-based line and column of an offset in a text. */
+/** Where each line of the last text asked about starts: problems come many to a file. */
+let lines: { text: string; starts: number[] } | undefined;
+
+/**
+ * 1-based line and column of an offset in a text. A file can have a problem on every line, so
+ * each line's start is found once per text, and each offset's line by a binary search.
+ */
 export function position(text: string, offset: number): { line: number; column: number } {
-  let line = 1;
-  let last = -1;
-  for (let i = 0; i < offset && i < text.length; i++) {
-    if (text.charCodeAt(i) === 10) {
-      line++;
-      last = i;
-    }
+  if (lines?.text !== text) {
+    const starts = [0];
+    for (let i = text.indexOf('\n'); i >= 0; i = text.indexOf('\n', i + 1)) starts.push(i + 1);
+    lines = { text, starts };
   }
-  return { line, column: offset - last };
+  const { starts } = lines;
+  let low = 0;
+  let high = starts.length - 1;
+  while (low < high) {
+    const mid = (low + high + 1) >> 1;
+    if (starts[mid]! <= offset) low = mid;
+    else high = mid - 1;
+  }
+  return { line: low + 1, column: offset - starts[low]! + 1 };
 }

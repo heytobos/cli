@@ -656,7 +656,41 @@ describe('the rules a master and the stage set', () => {
     ).toEqual([['motion/loop', 'warning']]);
   });
 
+  it('read code, not what a slide says or a comment', async () => {
+    for (const body of [
+      '<Content><p>Write font-size: 12px, and font: 10px serif, in your CSS.</p></Content>',
+      '<Content><p>See url(https://example.com/x.png).</p></Content>',
+      '<Content><!-- font-size: 12px --><p>a</p></Content>',
+      '<Content><img alt="Set font-size: 12px" title="font: 10px serif" src="x" /></Content>',
+      '<Content><p>a</p></Content>\n<style>/* p { font-size: 12px } */ p { color: red; }</style>',
+    ])
+      expect(await rulesOf(body), body).toEqual([]);
+    expect(
+      await rulesOf(
+        '<Content><p>a</p></Content>',
+        "import { Content } from '../master/index.ts';\n// const grow = { fontSize: 12 };\n/* animation: pulse 1s infinite */",
+      ),
+    ).toEqual([]);
+    // The same, as code, still counts.
+    expect(
+      await rulesOf('<Content><p style="font-size: 12px">Write font-size: 12px</p></Content>'),
+    ).toEqual([['master/min-font-size', 'error']]);
+  });
+
   it('reject the network, which the viewer blocks', async () => {
+    for (const call of [
+      "window.fetch('https://example.com/data.json');",
+      "globalThis.fetch('/data.json');",
+      "navigator.sendBeacon('https://example.com', 'x');",
+      "new window.WebSocket('wss://example.com');",
+    ])
+      expect(
+        await rulesOf(
+          '<Content>a</Content>',
+          `import { Content } from '../master/index.ts';\n${call}`,
+        ),
+        call,
+      ).toEqual([['network', 'error']]);
     expect(
       await rulesOf(
         '<Content>a</Content>',
@@ -927,5 +961,48 @@ export const activity = {
           'Activity "used-llm-api" is declared in scenes/title.svelte too: activity IDs are unique across the deck.',
       },
     ]);
+  });
+});
+
+describe('source anyone can push', () => {
+  // The server checks every push in its one process, so no file may make a check slow. These
+  // took seconds at 2,000 characters before; at 50,000 they would take hours.
+  const long = 50_000;
+  const inputs: Record<string, Record<string, string>> = {
+    "url( in tokens.css that doesn't close": {
+      'master/tokens.css': `${text(sample.read('master/tokens.css'))}a { b: url(${' '.repeat(long)}`,
+    },
+    'style:font-size with no size': { 'lib/a.js': `// style:font-size=${' '.repeat(long)}` },
+    'font: with no size': { 'lib/a.js': `// ${'font:'.repeat(long)}` },
+    'animation: with no end': { 'lib/a.js': `// ${'animation:'.repeat(long)}` },
+  };
+
+  for (const [name, files] of Object.entries(inputs))
+    it(`checks ${name} in linear time`, async () => {
+      const started = performance.now();
+      await checkDeck(variant({ ...files, 'master/master.json': RULES }));
+      expect(performance.now() - started).toBeLessThan(3000);
+    });
+
+  it('still finds what those patterns are for', async () => {
+    const problems = await checkDeck(
+      variant({
+        'master/master.json': RULES,
+        'lib/a.js': [
+          "export const a = 'font: italic 20px serif';",
+          'export const b = \'style:font-size = { "14px" }\';',
+          "export const c = 'animation: pulse 1s infinite';",
+        ].join('\n'),
+        'master/tokens.css': `${text(sample.read('master/tokens.css'))}a { b: url( 'nowhere.png' ); }`,
+      }),
+    );
+    expect(problems.map((p) => [p.file, p.rule, p.line])).toEqual(
+      expect.arrayContaining([
+        ['lib/a.js', 'master/min-font-size', 1],
+        ['lib/a.js', 'master/min-font-size', 2],
+        ['lib/a.js', 'motion/loop', 3],
+        ['master/tokens.css', 'media', expect.any(Number)],
+      ]),
+    );
   });
 });
