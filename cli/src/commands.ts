@@ -240,21 +240,29 @@ const remoteLines = (stderr: string) =>
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /**
+ * How the server's hook refuses a push that would take the deck's account past the media its plan
+ * keeps: the app's LimitError (checkMediaRoom), which tells an editor first whose plan it is. The
+ * app's server suite pushes past it with this CLI and expects 5, which holds the two together.
+ */
+const MEDIA_LIMIT = /^tobos: (This deck belongs to .+, whose )?Tobos \w+ keeps .+ of media/;
+
+/**
  * Why a push failed, as the exit code says it (2 only for problems in the deck, which an agent
- * then sets out to fix; 5 for an archived deck, which only the person opens again), and what to
- * do about it. `output` is git's, `remote` the server's lines.
+ * then sets out to fix; 5 for an archived deck, which only the person opens again, or for media
+ * past the plan, which only they make room for), and what to do about it. `output` is git's,
+ * `remote` the server's lines.
  */
 export function pushFailure(
   output: string,
   remote: string[],
-): { message: string; exit: number; archived?: true } {
+): { message: string; exit: number; archived?: true; limit?: 'media' } {
+  const forThePerson = `${remote.map((line) => line.replace(/^tobos: /, '')).join('\n')}\n${ASK_THE_PERSON}`;
   // The deck is archived (the server's hook says so): its owner's choice, not the agent's.
   if (remote.some((line) => /^tobos: This (deck|template) is archived/.test(line)))
-    return {
-      message: `${remote.map((line) => line.replace(/^tobos: /, '')).join('\n')}\n${ASK_THE_PERSON}`,
-      exit: EXIT.limit,
-      archived: true,
-    };
+    return { message: forThePerson, exit: EXIT.limit, archived: true };
+  // Past the media its plan keeps, as an upload's 402 is: theirs to make room, not the agent's.
+  if (remote.some((line) => MEDIA_LIMIT.test(line)))
+    return { message: forThePerson, exit: EXIT.limit, limit: 'media' };
   if (/non-fast-forward|fetch first/.test(output))
     return {
       message:
@@ -368,8 +376,8 @@ async function pushWorkingCopy(out: Output, deck: Required<DeckDir>, message?: s
   );
   const remote = remoteLines(pushed.stderr);
   if (pushed.code !== 0) {
-    const { message, exit, archived } = pushFailure(pushed.stdout + pushed.stderr, remote);
-    throw new CliError(message, exit, archived ? { remote, archived } : { remote });
+    const { message, exit, ...extra } = pushFailure(pushed.stdout + pushed.stderr, remote);
+    throw new CliError(message, exit, { remote, ...extra });
   }
   const rev = (await gitOk(['rev-parse', 'HEAD'], { cwd: root })).trim();
   return { ok: true as const, rev, committed, uploaded, warnings, remote };

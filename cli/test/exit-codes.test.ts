@@ -31,6 +31,21 @@ describe('a push that failed', () => {
     expect(failure.message).toContain('This is for the person you work for to decide');
   });
 
+  it('says 5, for the person to decide, when the push would take the account past its media', () => {
+    for (const line of [
+      "tobos: Tobos Free keeps 1 GB of media, and this push would take the deck's account past it. Its decks would use 1 GB.",
+      "tobos: Tobos Pro keeps 10 GB of media, and this push would take the deck's account past it.",
+      "tobos: This deck belongs to fay@example.com, whose Tobos Free keeps 1 GB of media, and this push would take the deck's account past it. Only fay@example.com can change that: ask them.",
+    ]) {
+      const failure = pushFailure('! [remote rejected] HEAD -> main (pre-receive hook declined)', [
+        line,
+      ]);
+      expect(failure, line).toMatchObject({ exit: EXIT.limit, limit: 'media' });
+      expect(failure.message).toMatch(/^(Tobos|This deck belongs)/);
+      expect(failure.message).toContain('This is for the person you work for to decide');
+    }
+  });
+
   it('says 3 for a login the server would not take', () => {
     for (const output of [
       "fatal: Authentication failed for 'https://app.tobos.ai/git/x.git/'",
