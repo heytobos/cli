@@ -2,7 +2,14 @@
  * Every command prints human text by default, and exactly one JSON object on stdout with
  * --json. Progress goes to stderr either way.
  */
-export const EXIT = { ok: 0, error: 1, problems: 2, auth: 3, conflict: 4 } as const;
+export const EXIT = { ok: 0, error: 1, problems: 2, auth: 3, conflict: 4, limit: 5 } as const;
+
+/**
+ * Said after a plan's limit or an archived deck (exit 5): what to do is the person's to decide,
+ * whether to make room, buy Pro or open a deck again, so the agent asks rather than works around it.
+ */
+export const ASK_THE_PERSON =
+  'This is for the person you work for to decide: show them the above, and wait for their answer. Don’t work around it, for instance by building the deck outside Tobos.';
 
 export class CliError extends Error {
   readonly exit: number;

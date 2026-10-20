@@ -70,6 +70,8 @@ A deck has one story: the talk as the speaker tells it, paragraph by paragraph, 
 
 Invite only whom the person names, at the level they say: the mail goes to someone else, from the person's name. Can edit builds the deck with their own agent; can present presents it with its notes and polls; can view sees the slides only.
 
-Every command takes `--json`. Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in, 4 the story changed meanwhile.
+Every command takes `--json`. Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in, 4 the story changed meanwhile, 5 a plan's limit or an archived deck.
 
-When a command says a newer `tobos` is out, run `npm i -g @tobos/cli`; the next command updates this skill. When a plan's limit stops a command (Free hosts 3 decks, and lets 1 person besides the owner edit them), the error links to the billing page: give the person the link, since only they can buy Pro.
+When a command says a newer `tobos` is out, run `npm i -g @tobos/cli`; the next command updates this skill.
+
+Exit code 5 means the person decides what happens next: a plan's limit (Free keeps 3 decks open at a time, and lets 1 person besides the owner edit them), or an archived deck. Show them the message, which says what they can do (archive a deck on its page to make room, open one again, or buy Pro; or, on someone else's deck, ask its owner), and wait for their answer. Don't work around it: no deck built outside Tobos to upload later, no media shrunk or hosted elsewhere, no one else's account. An archived deck can still be cloned, read and shared, but takes no pushes and can't be presented.

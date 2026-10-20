@@ -11,7 +11,8 @@ Account
   tobos login --code <code>                   finish: the code they read from the mail
   tobos logout [--everywhere]                 forget this machine's token; --everywhere: every login of the account
   tobos whoami                                who you are, on which server
-  tobos decks                                 your decks and templates, by id
+  tobos decks                                 your decks and templates, by id, and those shared
+                                              with you; an archived one is read-only
 
 Working on a deck
   tobos new "Title"                           create a deck and clone it here, into ./<id>
@@ -56,7 +57,8 @@ Templates (decks people start from: a new deck copies a template's master/)
 
 Every command takes --json and then prints one JSON object.
 Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in, 4 the story changed
-meanwhile (the reply has the paragraph as it is now: anchor on that and try again).
+meanwhile (the reply has the paragraph as it is now: anchor on that and try again), 5 a plan's
+limit or an archived deck: the person decides what to do, so show them the message and wait.
 `;
 
 const COMMON: ParseArgsConfig['options'] = {

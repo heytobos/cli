@@ -1,5 +1,5 @@
 import { settings } from './config.ts';
-import { CliError, EXIT, offerUpdate } from './out.ts';
+import { ASK_THE_PERSON, CliError, EXIT, offerUpdate } from './out.ts';
 
 declare const TOBOS_VERSION: string;
 export const VERSION = typeof TOBOS_VERSION === 'string' ? TOBOS_VERSION : 'dev';
@@ -41,12 +41,17 @@ export async function api<T = Record<string, unknown>>(
   return data as T;
 }
 
-/** A failed response as an error, with what the server says besides (a limit's plan) for --json. */
+/**
+ * A failed response as an error, with what the server says besides (a limit's plan) for --json.
+ * A plan's limit (402) or an archived deck (423) exits with 5, and says whose decision it is.
+ */
 export function failure(response: Response, data: unknown, prefix = ''): CliError {
   const { error, message, ...extra } = data as { error?: string; message?: string };
+  const said = prefix + (error ?? message ?? `${response.status} ${response.statusText}`);
+  const limit = response.status === 402 || response.status === 423;
   return new CliError(
-    prefix + (error ?? message ?? `${response.status} ${response.statusText}`),
-    response.status === 401 ? EXIT.auth : EXIT.error,
+    limit ? `${said}\n${ASK_THE_PERSON}` : said,
+    response.status === 401 ? EXIT.auth : limit ? EXIT.limit : EXIT.error,
     { ...extra, status: response.status },
   );
 }

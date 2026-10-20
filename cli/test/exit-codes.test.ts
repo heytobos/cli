@@ -22,6 +22,15 @@ describe('a push that failed', () => {
     ).toBe(EXIT.problems);
   });
 
+  it('says 5, for the person to decide, when the deck is archived', () => {
+    const failure = pushFailure('! [remote rejected] HEAD -> main (pre-receive hook declined)', [
+      'tobos: This deck is archived: it can still be viewed and cloned, but takes no changes.',
+    ]);
+    expect(failure).toMatchObject({ exit: EXIT.limit, archived: true });
+    expect(failure.message).toMatch(/^This deck is archived/);
+    expect(failure.message).toContain('This is for the person you work for to decide');
+  });
+
   it('says 3 for a login the server would not take', () => {
     for (const output of [
       "fatal: Authentication failed for 'https://app.tobos.ai/git/x.git/'",

@@ -9,7 +9,7 @@ import { findDeck, parseId, requireRemote, type DeckDir } from './deck-dir.ts';
 import { authEnv, configureCredentials, credentialConfig, git, gitOk } from './git.ts';
 import { syncMediaJson, uploadMedia } from './media.ts';
 import { openUrl } from './open-url.ts';
-import { CliError, EXIT, type Output } from './out.ts';
+import { ASK_THE_PERSON, CliError, EXIT, type Output } from './out.ts';
 import { writeFormatGuide } from './format.ts';
 import { install, SKILL_NAME } from './skill.ts';
 
@@ -22,6 +22,12 @@ interface DeckInfo {
   id: string;
   kind: 'deck' | 'template';
   title: string;
+  /** What you may do with it: you own it, or it was shared with you to edit, present or view. */
+  role?: 'owner' | 'editor' | 'presenter' | 'viewer';
+  /** Whose it is; for one shared with you, on their plan. */
+  owner?: string;
+  /** Read-only until its owner opens it again: no pushes, no presenting. */
+  archived?: boolean;
   rev: string | null;
   git: string;
   url: string;
@@ -106,12 +112,23 @@ export async function whoami(out: Output) {
   out.result({ ...me, server: settings().server }, () => `${me.email} on ${settings().server}`);
 }
 
+/** What `tobos decks` says of one besides its title: a template, someone else's, archived. */
+function aboutDeck(d: DeckInfo): string {
+  const can = { editor: 'you edit', presenter: 'you present', viewer: 'you view' } as const;
+  const notes = [
+    d.kind === 'template' && 'template',
+    d.role && d.role !== 'owner' && `${d.owner ?? 'someone else'}’s, ${can[d.role]}`,
+    d.archived && 'archived: read-only',
+  ].filter(Boolean);
+  return notes.length ? `  (${notes.join('; ')})` : '';
+}
+
 export async function decks(out: Output) {
   const { decks } = await api<{ decks: DeckInfo[] }>('/api/decks');
   out.result({ decks }, () =>
     decks.length === 0
       ? 'No decks yet. `tobos new "Title"` starts one.'
-      : decks.map((d) => `${d.id}  ${d.title}`).join('\n'),
+      : decks.map((d) => `${d.id}  ${d.title}${aboutDeck(d)}`).join('\n'),
   );
 }
 
@@ -224,9 +241,20 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /**
  * Why a push failed, as the exit code says it (2 only for problems in the deck, which an agent
- * then sets out to fix), and what to do about it. `output` is git's, `remote` the server's lines.
+ * then sets out to fix; 5 for an archived deck, which only the person opens again), and what to
+ * do about it. `output` is git's, `remote` the server's lines.
  */
-export function pushFailure(output: string, remote: string[]): { message: string; exit: number } {
+export function pushFailure(
+  output: string,
+  remote: string[],
+): { message: string; exit: number; archived?: true } {
+  // The deck is archived (the server's hook says so): its owner's choice, not the agent's.
+  if (remote.some((line) => /^tobos: This (deck|template) is archived/.test(line)))
+    return {
+      message: `${remote.map((line) => line.replace(/^tobos: /, '')).join('\n')}\n${ASK_THE_PERSON}`,
+      exit: EXIT.limit,
+      archived: true,
+    };
   if (/non-fast-forward|fetch first/.test(output))
     return {
       message:
@@ -340,8 +368,8 @@ async function pushWorkingCopy(out: Output, deck: Required<DeckDir>, message?: s
   );
   const remote = remoteLines(pushed.stderr);
   if (pushed.code !== 0) {
-    const { message, exit } = pushFailure(pushed.stdout + pushed.stderr, remote);
-    throw new CliError(message, exit, { remote });
+    const { message, exit, archived } = pushFailure(pushed.stdout + pushed.stderr, remote);
+    throw new CliError(message, exit, archived ? { remote, archived } : { remote });
   }
   const rev = (await gitOk(['rev-parse', 'HEAD'], { cwd: root })).trim();
   return { ok: true as const, rev, committed, uploaded, warnings, remote };
