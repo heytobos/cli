@@ -2,13 +2,15 @@ import { createHash } from 'node:crypto';
 import {
   createReadStream,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { extname, join, relative } from 'node:path';
+import { extname, join, relative, sep } from 'node:path';
 import { Readable } from 'node:stream';
 import type { MediaJson } from '@tobos/deck';
 import { api, failure, request } from './api.ts';
@@ -49,11 +51,52 @@ function hashFile(path: string): Promise<string> {
   });
 }
 
+/**
+ * The files in media/, and in its folders. A link is neither, media/ itself included: what it
+ * points to may be anywhere on this machine, and goes nowhere from it, as git and the server skip
+ * links too.
+ */
 function walk(dir: string): string[] {
-  if (!existsSync(dir)) return [];
+  if (!existsSync(dir) || !lstatSync(dir).isDirectory()) return [];
   return readdirSync(dir, { withFileTypes: true }).flatMap((d) =>
-    d.name.startsWith('.') ? [] : d.isDirectory() ? walk(join(dir, d.name)) : [join(dir, d.name)],
+    d.name.startsWith('.')
+      ? []
+      : d.isDirectory()
+        ? walk(join(dir, d.name))
+        : d.isFile()
+          ? [join(dir, d.name)]
+          : [],
   );
+}
+
+/**
+ * The file in media/ a media.json name stands for, if it is one: a name that leaves media/, or
+ * a link rather than a file, is refused, whoever wrote media.json. So is a link on the way to it,
+ * media/ or a folder in it: the file is found where its name says, once the deck's own folder is.
+ */
+function mediaFile(root: string, name: string): string {
+  // Its folders split at /, and on Windows at \ too, where that separates them as well.
+  const parts = name.split(process.platform === 'win32' ? /[\\/]/ : '/');
+  if (name.startsWith('/') || name.includes('\0') || parts.some((p) => p === '' || p === '..'))
+    throw new CliError(`media.json names "${name}", which isn't a file in media/.`);
+  const path = join(root, 'media', name);
+  const refused = new CliError(
+    `media/${name} is a link or a folder, not a file: media/ holds files only.`,
+  );
+  let entry;
+  try {
+    // The name itself, not where a link leads: a link is refused whether or not its target is there.
+    entry = lstatSync(path, { throwIfNoEntry: false });
+  } catch (error) {
+    // Not here: a file where a folder on the way would be, or a name too long to be one.
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOTDIR' || code === 'ENAMETOOLONG') return path;
+    // A loop of links on the way, say.
+    throw refused;
+  }
+  if (entry && (!entry.isFile() || realpathSync(path) !== join(realpathSync(root), 'media', name)))
+    throw refused;
+  return path;
 }
 
 /**
@@ -72,9 +115,17 @@ export async function syncMediaJson(root: string): Promise<{ media: MediaJson; c
   } catch {
     // no cache yet
   }
+  // A name media.json has from before whose file is a link now, or leaves media/, is refused here,
+  // whether or not the server has its file: it would go on naming what isn't in the deck.
+  // A name with a \ comes from elsewhere on Windows, where it can't be a file: it is left alone
+  // here, as one not here, and refused only if it would have to be uploaded.
+  for (const name of Object.keys(media))
+    if (!(process.platform === 'win32' && name.includes('\\'))) mediaFile(root, name);
   const dir = join(root, 'media');
   for (const path of walk(dir)) {
-    const name = relative(dir, path).split('\\').join('/');
+    // A name with / between its folders, as media.json has it: on Windows, from its \; elsewhere
+    // a \ is part of a name.
+    const name = relative(dir, path).split(sep).join('/');
     const { size, mtimeMs } = statSync(path);
     const cached = cache[name];
     const hash =
@@ -116,7 +167,7 @@ export async function uploadMedia(
   const uploaded: string[] = [];
   for (const hash of missing) {
     const [name, entry] = Object.entries(media).find(([, m]) => m.hash === hash)!;
-    const path = join(root, 'media', name);
+    const path = mediaFile(root, name);
     if (!existsSync(path))
       throw new CliError(
         `media/${name} is in media.json but not on this machine, and the server doesn't have it.`,
