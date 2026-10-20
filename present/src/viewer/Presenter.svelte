@@ -29,6 +29,7 @@
   let position = $state<Position>(START);
   let outline = $state<Outline>({ scenes: [] });
   let chapters = $state<ViewerConfig['manifest']['chapters']>([]);
+  let title = $state('');
   let atEnd = $state(false);
   /** The audience window, when this one opened it. */
   let audience = $state<Window | null>(null);
@@ -206,6 +207,7 @@
     next = new Player(b.stage, config.manifest, { still: true, mountAhead: true });
     outline = current.outline;
     chapters = config.manifest.chapters;
+    title = config.manifest.title;
     session = joinSession(config.deck, 'presenter', {
       current: () => refOf(position),
       // Esc in the audience.
@@ -244,6 +246,11 @@
       () => {
         outline = current.outline;
         chapters = current.manifest.chapters;
+        title = current.manifest.title;
+        // The players carried the place across the push, by scene: this window follows them, so
+        // the count, the list, the notes and where the phones are told the show is match the
+        // stage, and the next arrow steps from there.
+        show(current.position ?? START, false);
       },
     );
     return () => {
@@ -270,7 +277,7 @@
 
 <div class="presenter">
   <header>
-    <strong>{config.manifest.title}</strong>
+    <strong>{title}</strong>
     <span class="mono">{at} / {total}</span>
     {#if elapsed !== null}<span class="mono">{clock(elapsed)}</span>{/if}
     {#if (showing || answered) && config.live && hasActivities}

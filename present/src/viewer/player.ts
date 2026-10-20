@@ -126,8 +126,11 @@ export class Player {
       structure(before) === structure(next) &&
       JSON.stringify(before.media) === JSON.stringify(next.media) &&
       JSON.stringify(before.styles) === JSON.stringify(next.styles)
-    )
+    ) {
+      // Nothing on stage changes, but what is said about the deck may: its title.
+      this.manifest = next;
       return 'same';
+    }
     if (
       removed.some((key) => !beforeScenes.has(key)) ||
       changed.some((key) => !sceneModules.has(key)) ||
