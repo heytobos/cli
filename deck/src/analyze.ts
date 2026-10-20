@@ -25,7 +25,30 @@ export interface Analysis {
   activity?: { activity: Activity; line: number };
   /** Names passed to media(), with where they were used. */
   media: { name: string; pattern?: boolean; line: number; column: number }[];
+  /** The imports and re-exports that take names from a module, if the file could be read. */
+  takes?: Take[];
+  /** What the file exports, if it could be read. */
+  exports?: Exports;
   problems: Problem[];
+}
+
+/** An import or a re-export that takes names from a module: `default` for a default import. */
+export interface Take {
+  specifier: string;
+  names: string[];
+  line: number;
+  column: number;
+}
+
+/** What a module exports: its names, and the modules it re-exports everything of (`export *`). */
+export interface Exports {
+  names: string[];
+  /**
+   * The names it passes on from another module (`export { a as b } from`): the name, the module
+   * and the name there, `*` for the module itself (`export * as b from`).
+   */
+  from: [name: string, specifier: string, there: string][];
+  all: string[];
 }
 
 export interface Rules {
@@ -761,6 +784,98 @@ function readRoot(
     problem(root, `${root.name as string} isn't a layout from the master.`);
 }
 
+const nameOf = (node: Node) =>
+  node.type === 'Identifier' ? (node.name as string) : String(node.value);
+
+/** The names a declaration binds: `export const { a, b: [c] } = …` exports a and c. */
+function bound(pattern: Node | null, names: string[]) {
+  if (!pattern) return;
+  if (pattern.type === 'Identifier') names.push(pattern.name as string);
+  else if (pattern.type === 'ObjectPattern')
+    for (const property of pattern.properties as Node[])
+      bound((property.type === 'RestElement' ? property.argument : property.value) as Node, names);
+  else if (pattern.type === 'ArrayPattern')
+    for (const element of pattern.elements as (Node | null)[]) bound(element, names);
+  else if (pattern.type === 'RestElement') bound(pattern.argument as Node, names);
+  else if (pattern.type === 'AssignmentPattern') bound(pattern.left as Node, names);
+}
+
+/**
+ * What a script's imports and re-exports take from their modules, by name, as the parser decodes
+ * them. TypeScript's type-only imports are gone by the time a browser loads the file, so they
+ * take nothing.
+ */
+function readTakes(source: string, program: Node | null | undefined, takes: Take[]) {
+  for (const node of (program?.body as Node[] | undefined) ?? []) {
+    if (node.importKind === 'type' || node.exportKind === 'type' || !node.source) continue;
+    if (node.type !== 'ImportDeclaration' && node.type !== 'ExportNamedDeclaration') continue;
+    const names = (node.specifiers as Node[]).flatMap((specifier) =>
+      specifier.importKind === 'type' || specifier.exportKind === 'type'
+        ? []
+        : specifier.type === 'ImportDefaultSpecifier'
+          ? ['default']
+          : specifier.type === 'ImportSpecifier'
+            ? [nameOf(specifier.imported as Node)]
+            : specifier.type === 'ExportSpecifier'
+              ? [nameOf(specifier.local as Node)]
+              : [],
+    );
+    const from = node.source as Node;
+    if (names.length > 0)
+      takes.push({ specifier: String(from.value), names, ...position(source, from.start + 1) });
+  }
+}
+
+/** What a script exports, but for its types. */
+function readExports(program: Node | null | undefined, exports: Exports) {
+  const body = (program?.body as Node[] | undefined) ?? [];
+  // `import { a } from './m'; export { a }` passes on m's a, as `export { a } from './m'` does; a
+  // namespace imported and exported is the module's own.
+  const imported = new Map<string, [specifier: string, there: string]>();
+  for (const node of body)
+    if (node.type === 'ImportDeclaration' && node.importKind !== 'type')
+      for (const specifier of node.specifiers as Node[])
+        if (specifier.importKind !== 'type' && specifier.type !== 'ImportNamespaceSpecifier')
+          imported.set((specifier.local as Node).name as string, [
+            String((node.source as Node).value),
+            specifier.type === 'ImportDefaultSpecifier'
+              ? 'default'
+              : nameOf(specifier.imported as Node),
+          ]);
+  for (const node of body) {
+    if (node.exportKind === 'type') continue;
+    if (node.type === 'ExportDefaultDeclaration') exports.names.push('default');
+    else if (node.type === 'ExportAllDeclaration') {
+      const specifier = String((node.source as Node).value);
+      if (!node.exported) exports.all.push(specifier);
+      else {
+        const name = nameOf(node.exported as Node);
+        exports.names.push(name);
+        exports.from.push([name, specifier, '*']);
+      }
+    } else if (node.type === 'ExportNamedDeclaration') {
+      const declaration = node.declaration as Node | null;
+      if (declaration?.type === 'VariableDeclaration')
+        for (const declarator of declaration.declarations as Node[])
+          bound(declarator.id as Node, exports.names);
+      else if (
+        declaration?.type === 'FunctionDeclaration' ||
+        declaration?.type === 'ClassDeclaration'
+      )
+        exports.names.push(nameOf(declaration.id as Node));
+      for (const specifier of node.specifiers as Node[]) {
+        if (specifier.exportKind === 'type') continue;
+        const name = nameOf(specifier.exported as Node);
+        exports.names.push(name);
+        const through = node.source
+          ? ([String((node.source as Node).value), nameOf(specifier.local as Node)] as const)
+          : imported.get(nameOf(specifier.local as Node));
+        if (through) exports.from.push([name, ...through]);
+      }
+    }
+  }
+}
+
 /** Read what Tobos needs from a .svelte file without running it. */
 export function analyzeSvelte(
   file: string,
@@ -791,6 +906,14 @@ export function analyzeSvelte(
   const code = codeOnly(source, proseOf(ast));
   readFontSizes(file, code, rules, problems);
   readBehaviour(file, code, ast, problems);
+  // A component exports itself, and what its module script exports; the instance script's
+  // exports are the component's own, not the file's.
+  const script = ast.module?.content as unknown as Node | undefined;
+  result.takes = [];
+  readTakes(source, script, result.takes);
+  readTakes(source, ast.instance?.content as unknown as Node | undefined, result.takes);
+  result.exports = { names: ['default'], from: [], all: [] };
+  readExports(script, result.exports);
   return result;
 }
 
@@ -839,5 +962,9 @@ export function analyzeScript(file: string, source: string, rules: Rules = {}): 
   const code = codeOnly(source, comments);
   readFontSizes(file, code, rules, problems);
   readBehaviour(file, code, program, problems);
-  return { ...calls, problems };
+  const takes: Take[] = [];
+  readTakes(source, program as Node, takes);
+  const exports: Exports = { names: [], from: [], all: [] };
+  readExports(program as Node, exports);
+  return { ...calls, takes, exports, problems };
 }

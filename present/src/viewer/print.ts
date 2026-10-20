@@ -11,7 +11,7 @@ import { settled } from './ready.ts';
  * Every beat's end state as a 1920×1080 page, for PDF export. `?beats=last` prints only each
  * scene's last beat (handouts).
  */
-export async function showPrint(root: HTMLElement, config: ViewerConfig) {
+export async function showPrint(root: HTMLElement, config: ViewerConfig): Promise<boolean> {
   document.documentElement.classList.add('tobos-print');
   const onlyLast = new URLSearchParams(location.search).get('beats') === 'last';
   const outline = outlineOf(config.manifest);
@@ -34,5 +34,5 @@ export async function showPrint(root: HTMLElement, config: ViewerConfig) {
       new SceneTimeline(page, module.beats).show(beat, false);
     }
   }
-  await settled(root, 30_000);
+  return settled(root, 30_000);
 }

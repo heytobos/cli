@@ -1,10 +1,12 @@
 import { spawn } from 'node:child_process';
 
 /**
- * Open a URL in the person's browser, if there is one. Never fails. An agent's shell is no
+ * Open a web page in the person's browser, if there is one. Never fails. An agent's shell is no
  * terminal, so that is no reason not to; a session over SSH, or Linux without a display, is.
  */
 export async function openUrl(url: string): Promise<boolean> {
+  // A web page, nothing else: the opener would run whatever a URL of another scheme names.
+  if (!/^https?:$/.test(URL.parse(url)?.protocol ?? '')) return false;
   const env = process.env;
   if (env.CI || env.TOBOS_NO_BROWSER || env.SSH_CONNECTION) return false;
   if (process.platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY) return false;

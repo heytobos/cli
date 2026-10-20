@@ -143,6 +143,23 @@ describe('deck.json', () => {
     expect(await checkDeck(variant({ 'deck.json': '{' }))).toMatchObject([{ rule: 'deck-json' }]);
   });
 
+  it('keeps titles to 200 characters, and passes on only what Tobos reads', async () => {
+    const deck = JSON.parse(text(sample.read('deck.json')));
+    deck.chapters[0].title = 'x'.repeat(201);
+    expect(
+      (await checkDeck(variant({ 'deck.json': JSON.stringify(deck) }))).map((p) => p.message),
+    ).toEqual(['chapters[0].title is 201 characters; at most 200.']);
+    deck.chapters[0].title = 'Opening';
+    deck.notes = 'ours';
+    deck.chapters[0].colour = 'red';
+    deck.chapters[0].scenes[0].draft = true;
+    const built = await buildDeck(variant({ 'deck.json': JSON.stringify(deck) }));
+    expect(built.problems).toEqual([]);
+    expect(Object.keys(built.deck!)).toEqual(['title', 'chapters']);
+    expect(Object.keys(built.deck!.chapters[0]!)).toEqual(['id', 'title', 'scenes']);
+    expect(Object.keys(built.deck!.chapters[0]!.scenes[0]!)).toEqual(['id', 'title']);
+  });
+
   it('rejects a scene listed twice and bad IDs', async () => {
     const deck = {
       title: 'x',
@@ -338,7 +355,12 @@ describe('compiling', () => {
     const deep = `export const t = ${Array.from({ length: 10_000 }, (_, i) => `'s${i}'`).join(' + ')};`;
     for (const source of [deep, `${deep}\nexport const = 1;`]) {
       const problems = await checkDeck(
-        variant({ 'lib/deep.js': source, 'lib/format.ts': "export { t } from './deep.js';" }),
+        variant({
+          'lib/deep.js': source,
+          // What scenes/tokens.svelte imports stays, so that the deep file is all that's wrong.
+          'lib/format.ts':
+            "export { t } from './deep.js';\nexport const visible = (s: string) => s;",
+        }),
       );
       expect(problems).toMatchObject([
         {
@@ -355,7 +377,8 @@ describe('compiling', () => {
     const problems = await checkDeck(
       variant({
         'lib/broken.js': "export const s = 'abc",
-        'lib/format.ts': "export { s } from './broken.js';",
+        'lib/format.ts':
+          "export { s } from './broken.js';\nexport const visible = (s: string) => s;",
       }),
     );
     expect(problems).toEqual([
@@ -404,6 +427,25 @@ describe('compiling', () => {
     expect(problems).toMatchObject([
       { file: 'scenes/extra.svelte', rule: 'scenes', severity: 'warning' },
     ]);
+  });
+});
+
+describe('data', () => {
+  it('is JSON to the browser too: a key named __proto__ is a key', async () => {
+    const tree = variant({
+      'data/odd.json': '{"__proto__": {"polluted": true}, "a": 1}',
+      'scenes/title.svelte': scene(
+        "export const beats = [{ id: 'a' }];",
+        '<p>{odd.a}</p>',
+        "import odd from '../data/odd.json';",
+      ),
+    });
+    const { manifest, modules } = await buildDeck(tree);
+    const code = modules.get(manifest!.imports['@deck/data/odd.json']!)!;
+    const odd = (await import(`data:text/javascript,${encodeURIComponent(code)}`)).default;
+    expect(Object.hasOwn(odd, '__proto__')).toBe(true);
+    expect(Object.getPrototypeOf(odd)).toBe(Object.prototype);
+    expect(odd.a).toBe(1);
   });
 });
 
@@ -494,9 +536,211 @@ describe('imports', () => {
     const code = modules.get(manifest!.imports['@deck/scenes/title.svelte']!)!;
     expect(code).toContain('import("@deck/lib/format.ts")');
   });
+
+  it("reject a name the deck's file doesn't export, which stops the browser loading the scene", async () => {
+    const problems = await checkDeck(
+      importing(
+        "import { Content, Chart } from '../master/index.ts';\nimport format, { visible, hidden } from '../lib/format.ts';",
+      ),
+    );
+    expect(problems).toMatchObject([
+      {
+        file: 'scenes/title.svelte',
+        line: 5,
+        rule: 'imports',
+        severity: 'error',
+        message: expect.stringMatching(
+          /^"\.\.\/master\/index\.ts" doesn't export Chart\. It exports Title, .*, Stat, .* and column\. master\/GUIDE\.md says what the master has\.$/,
+        ),
+      },
+      {
+        line: 6,
+        message: '"../lib/format.ts" has no default export. It exports visible.',
+      },
+      {
+        line: 6,
+        message:
+          '"../lib/format.ts" doesn\'t export hidden. It exports visible. A type is imported with `import type`.',
+      },
+    ]);
+  });
+
+  it('follow re-exports, and take a type imported as one', async () => {
+    const tree = variant({
+      'lib/all.ts':
+        "export * from './format.ts';\nexport * as format from './format.ts';\nexport { default as Pill } from './Pill.svelte';\nexport { default as tokens } from '../data/tokens.json';\nexport interface Point { x: number }",
+      'scenes/title.svelte': scene(
+        "export const beats = [{ id: 'a' }];",
+        '<p>hi</p>',
+        "import { visible, format, Pill, tokens, type Point } from '../lib/all.ts';\nimport Question, { beats as asked } from './question.svelte';",
+      ),
+    });
+    expect(await checkDeck(tree)).toEqual([]);
+
+    const problems = await checkDeck(
+      variant({
+        'lib/all.ts': "export * from './format.ts';\nexport { hidden } from './format.ts';",
+        'scenes/title.svelte': scene(
+          "export const beats = [{ id: 'a' }];",
+          '<p>hi</p>',
+          "import { visible, Point } from '../lib/all.ts';",
+        ),
+      }),
+    );
+    expect(problems.map((p) => [p.file, p.message])).toEqual([
+      [
+        'lib/all.ts',
+        '"./format.ts" doesn\'t export hidden. It exports visible. A type is imported with `import type`.',
+      ],
+      [
+        'scenes/title.svelte',
+        '"../lib/all.ts" doesn\'t export Point. It exports hidden and visible. A type is imported with `import type`.',
+      ],
+    ]);
+  });
+
+  it('read names as the browser does, escapes and all', async () => {
+    const tree = variant({
+      'lib/names.js': "const x = 1;\nexport { x as 'a-b' };\nexport const \\u0063 = 2;",
+      'lib/use.js':
+        "import { 'a\\x2db' as y, c } from './names.js';\nimport { \\u0063 as d } from './names.js';\nexport { 'a-b' as e } from './names.js';\nexport const z = y + c + d;",
+      'scenes/title.svelte': scene(
+        "export const beats = [{ id: 'a' }];",
+        '<p>hi</p>',
+        "import { 'a\\u002db' as y } from '../lib/names.js';\nimport { z, e } from '../lib/use.js';",
+      ),
+    });
+    expect(await checkDeck(tree)).toEqual([]);
+  });
+
+  it('point at the import that fails, when a file imports one module twice', async () => {
+    const problems = await checkDeck(
+      variant({
+        'scenes/title.svelte': scene(
+          "import { motion } from '../master/index.ts';\nexport const beats = [{ id: 'a' }];",
+          '<p>hi</p>',
+          "import { Title, Hero } from '../master/index.ts';",
+        ),
+        'lib/x.ts': "import type { T } from './format.ts';\nimport { nope } from './format.ts';",
+      }),
+    );
+    expect(problems.map((p) => [p.file, p.line, p.message.split(' ')[0]]).sort()).toEqual([
+      ['lib/x.ts', 2, '"./format.ts"'],
+      ['scenes/title.svelte', 6, '"../master/index.ts"'],
+    ]);
+  });
+
+  it('refuse a name two `export *` bring from different places, as the browser does', async () => {
+    const importing = (instance: string, files: Record<string, string>) =>
+      checkDeck(
+        variant({
+          ...files,
+          'scenes/title.svelte': scene(
+            "export const beats = [{ id: 'a' }];",
+            '<p>hi</p>',
+            instance,
+          ),
+        }),
+      );
+    const stars = { 'lib/top.ts': "export * from './l.ts';\nexport * from './r.ts';" };
+    // Two declarations of x: neither counts, here or through another `export *`.
+    const two = {
+      ...stars,
+      'lib/l.ts': 'export const x = 1;',
+      'lib/r.ts': 'export const x = 2;',
+      'lib/outer.ts': "export * from './top.ts';",
+    };
+    expect(
+      (
+        await importing(
+          "import { x } from '../lib/top.ts';\nimport { x as y } from '../lib/outer.ts';",
+          two,
+        )
+      ).map((p) => [p.line, p.message]),
+    ).toEqual([
+      [
+        5,
+        '"../lib/top.ts" exports x from two of its `export *` modules, which cancel out: export it by name from the one it means.',
+      ],
+      [
+        6,
+        '"../lib/outer.ts" exports x from two of its `export *` modules, which cancel out: export it by name from the one it means.',
+      ],
+    ]);
+    // One declaration reached twice, two files with the same code (one module to the browser), a
+    // name of the module's own, a namespace, and a circle: all fine.
+    for (const files of [
+      {
+        ...stars,
+        'lib/base.ts': 'export const x = 1;',
+        'lib/l.ts': "export { x } from './base.ts';",
+        'lib/r.ts': "export * from './base.ts';",
+      },
+      { ...stars, 'lib/l.ts': 'export const x = 1;', 'lib/r.ts': 'export const x = 1;' },
+      // An import passed on by name is the imported binding, not one of the file's own.
+      {
+        ...stars,
+        'lib/base.ts': 'export const x = 1;',
+        'lib/l.ts': "import { x } from './base.ts';\nexport { x };\nexport const l = 1;",
+        'lib/r.ts': "export * from './base.ts';\nexport const r = 2;",
+      },
+      // A package is one module, whoever passes its names on.
+      {
+        ...stars,
+        'lib/l.ts': "export { gsap as x } from 'gsap';\nexport const l = 1;",
+        'lib/r.ts': "import { gsap } from 'gsap';\nexport { gsap as x };\nexport const r = 2;",
+      },
+      {
+        ...two,
+        'lib/top.ts': "export * from './l.ts';\nexport * from './r.ts';\nexport const x = 3;",
+      },
+    ])
+      expect(await importing("import { x } from '../lib/top.ts';", files)).toEqual([]);
+    expect(await importing("import * as top from '../lib/top.ts';", two)).toEqual([]);
+    const circle = {
+      'lib/a.ts': "export * from './b.ts';\nexport const x = 1;",
+      'lib/b.ts': "export * from './a.ts';\nexport const y = 2;",
+    };
+    for (const first of ['a', 'b'])
+      expect(
+        await importing(
+          `import { x, y } from '../lib/${first}.ts';\nimport { x as x2, y as y2 } from '../lib/${first === 'a' ? 'b' : 'a'}.ts';`,
+          circle,
+        ),
+      ).toEqual([]);
+  });
+
+  it("leave the names of a package's module, re-exported, to the package", async () => {
+    const tree = variant({
+      'lib/all.ts': "export * from 'gsap';",
+      'scenes/title.svelte': scene(
+        "export const beats = [{ id: 'a' }];",
+        '<p>hi</p>',
+        "import { anything } from '../lib/all.ts';",
+      ),
+    });
+    expect(await checkDeck(tree)).toEqual([]);
+  });
 });
 
 describe('media', () => {
+  it("are the deck's own names: nothing an object inherits counts as a file", async () => {
+    const problems = await checkDeck(
+      variant({
+        'scenes/title.svelte': scene(
+          "export const beats = [{ id: 'a' }];",
+          '<img src={media("constructor")} alt="" />',
+          "import { media } from '@tobos/present';",
+        ),
+        'master/tokens.css': ':root { --x: url(../media/toString); }',
+      }),
+    );
+    expect(problems.map((p) => [p.file, p.rule])).toEqual([
+      ['scenes/title.svelte', 'media'],
+      ['master/tokens.css', 'media'],
+    ]);
+  });
+
   it('must be in media.json', async () => {
     const problems = (await checkDeck(variant({ 'media.json': '{}' }))).filter((p) =>
       p.file.startsWith('scenes/'),
@@ -530,7 +774,7 @@ describe('media', () => {
     const problems = await checkDeck(
       variant({
         'lib/format.ts':
-          "import { media } from '@tobos/present';\nexport const cow = media('cow.jpg');",
+          "import { media } from '@tobos/present';\nexport const cow = media('cow.jpg');\nexport const visible = (text: string) => text;",
       }),
     );
     expect(problems).toMatchObject([{ file: 'lib/format.ts', line: 2, rule: 'media' }]);

@@ -21,12 +21,38 @@ describe('Tobos standard', () => {
     });
   });
 
-  it('exports everything its guide documents', () => {
+  it('exports what its guide documents, and documents what it exports', () => {
     const guide = readFileSync(`${root}/master/GUIDE.md`, 'utf8');
     const index = readFileSync(`${root}/master/index.ts`, 'utf8');
     const documented = [...guide.matchAll(/^\| `([A-Z]\w+)`/gm)].map((m) => m[1]!);
-    expect(documented.length).toBeGreaterThan(5);
-    for (const name of documented) expect(index).toContain(`as ${name} }`);
+    const exported = [...index.matchAll(/default as ([A-Z]\w+) \}/g)].map((m) => m[1]!);
+    expect(exported.length).toBeGreaterThan(0);
+    expect(documented.toSorted()).toEqual(exported.toSorted());
+  });
+
+  it('reads on the dark tone: ink, accent and muted text against the dark, at 4.5:1 or more', () => {
+    const tokens = readFileSync(`${root}/master/tokens.css`, 'utf8');
+    const frame = readFileSync(`${root}/master/components/Frame.svelte`, 'utf8');
+    const value = (name: string) =>
+      new RegExp(`--stage-${name}:\\s*(#[0-9a-f]{6})`).exec(tokens)![1]!;
+    // What Frame's dark tone maps each token to, resolved through tokens.css.
+    const dark = /\.tone-dark \{([^}]*)\}/.exec(frame)![1]!;
+    const mapped = (name: string) =>
+      value(new RegExp(`--stage-${name}:\\s*var\\(--stage-([\\w-]+)\\)`).exec(dark)![1]!);
+    const luminance = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => {
+        const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const contrast = (a: string, b: string) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi! + 0.05) / (lo! + 0.05);
+    };
+    const background = mapped('paper');
+    for (const text of ['ink', 'accent', 'muted'])
+      expect(contrast(mapped(text), background), text).toBeGreaterThanOrEqual(4.5);
   });
 
   it('keeps grid.ts and tokens.css in step', async () => {
@@ -34,6 +60,7 @@ describe('Tobos standard', () => {
     const tokens = readFileSync(`${root}/master/tokens.css`, 'utf8');
     expect(tokens).toContain(`--stage-margin-x: ${grid.marginX}px`);
     expect(tokens).toContain(`--stage-margin-top: ${grid.marginTop}px`);
+    expect(tokens).toContain(`--stage-margin-bottom: ${grid.marginBottom}px`);
     expect(tokens).toContain(`--stage-gutter: ${grid.gutter}px`);
   });
 

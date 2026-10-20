@@ -31,17 +31,17 @@ interface DeckInfo {
 // ─── Account ────────────────────────────────────────────────────────────────
 
 /**
- * Log in, or sign up, by e-mailed code, in two steps an agent can take in a conversation:
- * `tobos login <email>` sends the code; the person reads it from the mail; `tobos login --code
- * <code>` finishes. Both at once work too: `tobos login <email> --code <code>`.
- */
-/**
  * What the person accepts with their first code: said here too, not only in the login mail,
  * since an agent may read the mail for them. The same words for every address, so the answer
  * doesn't tell whether an account exists.
  */
 const TERMS_NOTICE = 'If the address is new, using the code accepts https://tobos.ai/terms.';
 
+/**
+ * Log in, or sign up, by e-mailed code, in two steps an agent can take in a conversation:
+ * `tobos login <email>` sends the code; the person reads it from the mail; `tobos login --code
+ * <code>` finishes. Both at once work too: `tobos login <email> --code <code>`.
+ */
 export async function login(out: Output, args: Args) {
   const server = ((args.values.server as string) || settings().server).replace(/\/$/, '');
   const client = `the tobos CLI on ${hostname()}`;
@@ -188,10 +188,29 @@ export async function pull(out: Output) {
 
 // ─── Check and push ─────────────────────────────────────────────────────────
 
+/**
+ * The files `tobos push` sends: every file git doesn't ignore, when the deck is a repository of
+ * its own, as push needs it to be. Otherwise undefined, for every file: without git, or in a
+ * folder of another repository, whose ignores aren't the deck's.
+ */
+async function pushedFiles(root: string): Promise<string[] | undefined> {
+  try {
+    const prefix = await git(['rev-parse', '--show-prefix'], { cwd: root });
+    if (prefix.code !== 0 || prefix.stdout.trim() !== '') return undefined;
+    const listed = await git(['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
+      cwd: root,
+    });
+    return listed.code === 0 ? listed.stdout.split('\0').filter(Boolean) : undefined;
+  } catch {
+    return undefined; // no git
+  }
+}
+
 async function runCheck(dir: DeckDir) {
   const started = performance.now();
-  const result = await buildDeck(directoryTree(dir.root));
-  return { ...result, ms: Math.round(performance.now() - started) };
+  const files = await pushedFiles(dir.root);
+  const result = await buildDeck(directoryTree(dir.root, files));
+  return { ...result, files, ms: Math.round(performance.now() - started) };
 }
 
 /** The server's messages, which git prints as "remote: …". */
@@ -255,7 +274,11 @@ export async function check(out: Output, args: Args) {
   const result = await runCheck(deck);
   if (args.values.types) {
     const { checkTypes } = await import('./types.ts');
-    result.problems.push(...(await checkTypes(deck.root, (m) => out.note(m))));
+    // Only in what a push sends, as the check above.
+    const sent = result.files && new Set(result.files);
+    result.problems.push(
+      ...(await checkTypes(deck.root, (m) => out.note(m))).filter((p) => sent?.has(p.file) ?? true),
+    );
   }
   const { errors, warnings } = problemSummary(result.problems);
   const scenes = result.manifest?.chapters.reduce((n, c) => n + c.scenes.length, 0) ?? 0;
@@ -601,21 +624,18 @@ async function exportTarget(args: Args, file: string): Promise<string> {
 
 export async function exportDeck(out: Output, args: Args) {
   const kind = args.positionals[0];
+  if (kind !== 'pdf') throw new CliError('Export what? `tobos export pdf`.');
   const id = await deckId(args);
-  if (kind === 'pdf') {
-    const { exportPdf } = await import('./render.ts');
-    const { url, rev } = await viewUrl(id, 'print');
-    const target = await exportTarget(args, `${id}.pdf`);
-    const pages = await exportPdf(url + (args.values.handout ? '&beats=last' : ''), target, (m) =>
-      out.note(m),
-    );
-    out.result(
-      { file: target, pages, rev },
-      () => `Wrote ${relative(process.cwd(), target)} (${pages} pages).`,
-    );
-    return;
-  }
-  throw new CliError('Export what? `tobos export pdf`.');
+  const { exportPdf } = await import('./render.ts');
+  const { url, rev } = await viewUrl(id, 'print');
+  const target = await exportTarget(args, `${id}.pdf`);
+  const print = new URL(url);
+  if (args.values.handout) print.searchParams.set('beats', 'last');
+  const pages = await exportPdf(print.href, target, (m) => out.note(m));
+  out.result(
+    { file: target, pages, rev },
+    () => `Wrote ${relative(process.cwd(), target)} (${pages} pages).`,
+  );
 }
 
 /**
@@ -661,7 +681,12 @@ export async function render(out: Output, args: Args) {
     note: (m) => out.note(m),
   });
   out.result({ rev, pushed, uploaded, files, errors }, () =>
-    files.map((f) => `${f.position.padEnd(28)} ${relative(process.cwd(), f.path)}`).join('\n'),
+    files
+      .map(
+        (f) =>
+          `${f.position.padEnd(28)} ${relative(process.cwd(), f.path)}${f.late ? '  (not fully drawn)' : ''}`,
+      )
+      .join('\n'),
   );
 }
 
@@ -705,7 +730,15 @@ export async function credential(args: Args) {
       .filter((l) => l.includes('='))
       .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]),
   );
-  const { server, token } = settings();
+  let stored;
+  try {
+    stored = settings();
+  } catch (error) {
+    // Git asks quietly: a helper that can't answer gives it nothing, and git says what it lacks.
+    process.stderr.write(`tobos: ${(error as Error).message}\n`);
+    return;
+  }
+  const { server, token } = stored;
   const target = new URL(server);
   if (!token || fields.host !== target.host || `${fields.protocol}:` !== target.protocol) return;
   process.stdout.write(`username=tobos\npassword=${token}\n`);

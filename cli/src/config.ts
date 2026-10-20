@@ -1,8 +1,9 @@
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { CliError } from './out.ts';
 
-export const DEFAULT_SERVER = 'https://app.tobos.ai';
+const DEFAULT_SERVER = 'https://app.tobos.ai';
 
 interface Stored {
   server?: string;
@@ -15,24 +16,48 @@ interface Stored {
 const dir = join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'tobos');
 const file = join(dir, 'config.json');
 
+/**
+ * What's stored: nothing before the first login; said, when the file isn't a JSON object; refused,
+ * when it can't be read at all (a folder, another user's file).
+ */
 function read(): Stored {
+  let text: string;
   try {
-    return JSON.parse(readFileSync(file, 'utf8')) as Stored;
-  } catch {
-    return {};
+    text = readFileSync(file, 'utf8');
+  } catch (error) {
+    const { code } = error as NodeJS.ErrnoException;
+    if (code === 'ENOENT') return {};
+    throw new CliError(`Can't read ${file} (${code}): fix or remove it, then log in again.`);
   }
+  let stored: unknown;
+  try {
+    stored = JSON.parse(text);
+  } catch {
+    // below
+  }
+  if (typeof stored === 'object' && stored !== null && !Array.isArray(stored)) return stored;
+  process.stderr.write(`${file} isn't a JSON object: \`tobos login\` writes it afresh.\n`);
+  return {};
+}
+
+/**
+ * Written whole or not at all, readable only by this user from the start: to a file of its own,
+ * which then takes the old one's place. A reader never sees half of it, or a token another user
+ * could read.
+ */
+function write(stored: Stored) {
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const next = `${file}.${process.pid}`;
+  writeFileSync(next, JSON.stringify(stored, null, 2) + '\n', { mode: 0o600 });
+  renameSync(next, file);
 }
 
 export function save(update: Stored) {
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(file, JSON.stringify({ ...read(), ...update }, null, 2) + '\n', { mode: 0o600 });
-  chmodSync(file, 0o600);
+  write({ ...read(), ...update });
 }
 
 export function forget() {
-  const { server } = read();
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(file, JSON.stringify({ server }, null, 2) + '\n', { mode: 0o600 });
+  write({ server: read().server });
 }
 
 /** TOBOS_SERVER and TOBOS_TOKEN win, so cloud sandboxes and CI need no config file. */
@@ -41,14 +66,18 @@ export function settings(): {
   token?: string;
   email?: string;
   pending?: string;
-  configFile: string;
 } {
-  const stored = read();
+  // With both in the environment, the file isn't needed, and one that can't be read doesn't matter.
+  let stored: Stored = {};
+  try {
+    stored = read();
+  } catch (error) {
+    if (!process.env.TOBOS_SERVER || !process.env.TOBOS_TOKEN) throw error;
+  }
   return {
     server: (process.env.TOBOS_SERVER || stored.server || DEFAULT_SERVER).replace(/\/$/, ''),
     token: process.env.TOBOS_TOKEN || stored.token,
     email: stored.email,
     pending: stored.pending,
-    configFile: file,
   };
 }

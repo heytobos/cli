@@ -23,13 +23,8 @@ import { parseDeckJson, type Problem } from '@tobos/deck';
 import { CliError } from './out.ts';
 
 declare const TOBOS_PRESENT_TYPES: Record<string, string>;
-
-const TOOLCHAIN = {
-  'svelte-check': '4.7.6',
-  typescript: '6.0.3',
-  svelte: '5.57.2',
-  gsap: '3.15.0',
-};
+/** svelte-check, typescript, svelte and gsap, at the versions the engine is built with (build.ts). */
+declare const TOBOS_TOOLCHAIN: Record<string, string>;
 
 function run(command: string, args: string[], cwd: string): Promise<{ code: number; out: string }> {
   return new Promise((resolve, reject) => {
@@ -44,7 +39,7 @@ function run(command: string, args: string[], cwd: string): Promise<{ code: numb
 
 /** The toolchain for these dependencies, installed if it isn't yet. */
 async function toolchain(dependencies: Record<string, string>, note: (m: string) => void) {
-  const wanted = { ...TOOLCHAIN, ...dependencies };
+  const wanted = { ...TOBOS_TOOLCHAIN, ...dependencies };
   const id = createHash('sha256').update(JSON.stringify(wanted)).digest('hex').slice(0, 16);
   const dir = join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'tobos', 'types', id);
   const complete = () => existsSync(join(dir, 'node_modules', 'svelte-check'));
@@ -111,10 +106,6 @@ function linkModules(root: string, dir: string) {
 function writeConfig(root: string): string {
   const dir = join(root, '.tobos', 'types');
   rmSync(dir, { recursive: true, force: true });
-  if (typeof TOBOS_PRESENT_TYPES === 'undefined')
-    throw new CliError(
-      "--types needs the built CLI (dist/tobos.js), which carries the engine's types.",
-    );
   for (const [file, text] of Object.entries(TOBOS_PRESENT_TYPES)) {
     const path = join(dir, 'present', file);
     mkdirSync(dirname(path), { recursive: true });
@@ -186,6 +177,10 @@ export function parseMachineOutput(output: string, root: string): Problem[] {
 }
 
 export async function checkTypes(root: string, note: (m: string) => void): Promise<Problem[]> {
+  if (typeof TOBOS_PRESENT_TYPES === 'undefined' || typeof TOBOS_TOOLCHAIN === 'undefined')
+    throw new CliError(
+      "--types needs the built CLI (dist/tobos.js), which carries the engine's types and toolchain.",
+    );
   const { deck } = parseDeckJson(readFileSync(join(root, 'deck.json'), 'utf8'));
   if (!deck) return [];
   const dir = await toolchain(deck.dependencies ?? {}, note);

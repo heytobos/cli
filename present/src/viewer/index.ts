@@ -24,6 +24,7 @@ export function start(config: ViewerConfig) {
   if (view === 'presenter') {
     mount(Presenter, { target: root, props: { config } });
   } else if (view === 'print') {
+    // Whether every page was drawn in time (settled), for `tobos export pdf` to say so.
     const ready = showPrint(root, config);
     (window as unknown as { __tobos: unknown }).__tobos = { ready };
   } else {

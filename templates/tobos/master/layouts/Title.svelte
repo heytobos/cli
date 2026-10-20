@@ -13,8 +13,8 @@
 
 <Frame layout="title">
   <div class="title-layout">
-    {#if kicker}<div class="kicker" data-region="kicker">{kicker}</div>{/if}
-    <h1 data-region="title">{title ?? deck?.title}</h1>
+    {#if kicker}<div class="kicker stage-label" data-region="kicker">{kicker}</div>{/if}
+    <h1 data-region="title">{title ?? deck.title}</h1>
     {#if subtitle}<p class="subtitle" data-region="subtitle">{subtitle}</p>{/if}
   </div>
   <div class="mark" aria-hidden="true"></div>
@@ -28,11 +28,6 @@
     bottom: 288px;
   }
   .kicker {
-    font-family: var(--stage-font-label);
-    font-size: var(--stage-size-label);
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--stage-accent);
     margin-bottom: 32px;
   }

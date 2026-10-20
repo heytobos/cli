@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -21,24 +22,25 @@ import { compile, compileModule } from 'svelte/compiler';
 const root = dirname(fileURLToPath(import.meta.url));
 const tmp = join(root, 'dist/runtime-tmp');
 
-const SVELTE = [
-  'svelte',
-  'svelte/animate',
-  'svelte/attachments',
-  'svelte/easing',
-  'svelte/events',
-  'svelte/internal/client',
-  'svelte/internal/disclose-version',
-  'svelte/internal/flags/async',
-  'svelte/internal/flags/legacy',
-  'svelte/internal/flags/tracing',
-  'svelte/legacy',
-  'svelte/motion',
-  'svelte/reactivity',
-  'svelte/reactivity/window',
-  'svelte/store',
-  'svelte/transition',
-];
+// Every subpath Svelte exports for the browser, from its own package.json: all but the compiler
+// and the server's. A new one comes in by itself. The types-only ones are an empty module.
+const NOT_FOR_BROWSERS = new Set([
+  './package.json',
+  './compiler',
+  './server',
+  './internal',
+  './internal/server',
+]);
+const TYPES_ONLY = new Set(['./elements', './action']);
+const SVELTE = Object.keys(
+  (
+    JSON.parse(readFileSync(join(root, 'node_modules/svelte/package.json'), 'utf8')) as {
+      exports: Record<string, unknown>;
+    }
+  ).exports,
+)
+  .filter((subpath) => !NOT_FOR_BROWSERS.has(subpath) && !TYPES_ONLY.has(subpath))
+  .map((subpath) => (subpath === '.' ? 'svelte' : `svelte/${subpath.slice(2)}`));
 const GSAP_PLUGINS = readdirSync(join(root, 'node_modules/gsap'))
   .filter((f) => /^[A-Z].*\.js$/.test(f))
   .map((f) => f.slice(0, -3));
@@ -55,6 +57,11 @@ const entries: { in: string; out: string; specifiers: string[] }[] = [
     out: `gsap/${p}`,
     specifiers: [`gsap/${p}`, `gsap/${p}.js`],
   })),
+  {
+    in: join(root, 'src/types-only.ts'),
+    out: 'types-only',
+    specifiers: [...TYPES_ONLY].map((subpath) => `svelte/${subpath.slice(2)}`),
+  },
   { in: join(root, 'src/index.ts'), out: 'present', specifiers: ['@tobos/present'] },
   { in: join(root, 'src/viewer/index.ts'), out: 'viewer', specifiers: ['@tobos/present/viewer'] },
   // The phone page's script: our code, on a page of its own, sharing nothing with decks.
@@ -117,14 +124,30 @@ const walk = (dir: string): string[] =>
 for (const file of walk(tmp).sort()) hash.update(relative(tmp, file)).update(readFileSync(file));
 const id = hash.digest('hex').slice(0, 16);
 
+// The new runtime goes in beside the one runtime.json named, and runtime.json is replaced whole,
+// so there is always one to load. A running server reads it again and serves the new one to new
+// pages (runtime.ts, currentRuntime); pages it served before keep the one they named, which
+// stays until the next build. A build of the same content is in place already (its ID is its
+// content) and changes nothing.
 const out = join(root, 'dist/runtime');
-rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
-renameSync(tmp, join(out, id));
+let before: string | undefined;
+try {
+  before = (JSON.parse(readFileSync(join(out, 'runtime.json'), 'utf8')) as { id?: string }).id;
+} catch {
+  // none built yet
+}
+if (existsSync(join(out, id))) rmSync(tmp, { recursive: true, force: true });
+else renameSync(tmp, join(out, id));
 const imports: Record<string, string> = {};
 for (const entry of entries) for (const s of entry.specifiers) imports[s] = `${entry.out}.js`;
 writeFileSync(
-  join(out, 'runtime.json'),
+  join(out, 'runtime.json.next'),
   JSON.stringify({ id, imports, styles: ['viewer.css'] }, null, 2) + '\n',
 );
+renameSync(join(out, 'runtime.json.next'), join(out, 'runtime.json'));
+if (before !== id)
+  for (const old of readdirSync(out, { withFileTypes: true }))
+    if (old.isDirectory() && old.name !== id && old.name !== before)
+      rmSync(join(out, old.name), { recursive: true, force: true });
 console.log(`runtime ${id}: ${walk(join(out, id)).length} files`);

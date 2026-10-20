@@ -62,7 +62,13 @@ async function download(button: HTMLButtonElement, url: string) {
   button.textContent = 'Preparing the PDF…';
   try {
     const response = await fetch(url);
-    if (!response.ok) throw new Error(await response.text());
+    // The server's own words when it wrote a short one for people; a page or a long body isn't.
+    if (!response.ok) {
+      const said = response.headers.get('content-type')?.startsWith('text/plain')
+        ? (await response.text()).trim()
+        : '';
+      throw new Error(said.length > 0 && said.length <= 160 ? said : '');
+    }
     const blob = await response.blob();
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);

@@ -130,7 +130,9 @@ function compileFile(path: string, source: string, rules: Rules, isScene: boolea
   let analysis: Analysis = { media: [], problems: [] };
   if (path.endsWith('.json')) {
     try {
-      code = `export default ${JSON.stringify(JSON.parse(source))};\n`;
+      // Parsed in the browser as JSON, where `__proto__` is a key like any other; in an object
+      // literal it would set the prototype.
+      code = `export default JSON.parse(${JSON.stringify(JSON.stringify(JSON.parse(source)))});\n`;
     } catch (error) {
       problems.push({
         file: path,
@@ -139,6 +141,7 @@ function compileFile(path: string, source: string, rules: Rules, isScene: boolea
         severity: 'error',
       });
     }
+    if (code) analysis.exports = { names: ['default'], from: [], all: [] };
     return { code, imports: [], analysis, problems };
   }
   if (path.endsWith('.svelte')) {
@@ -331,7 +334,107 @@ async function compileGraph(
         );
     }
   }
+
+  // A name a file imports that its module doesn't export stops the browser loading the scene. So
+  // does one that two of its `export *` bring from different places, which then cancel out: each
+  // name is kept with where it is declared, a module named by its code, since the browser loads
+  // files with the same code once.
+  const known = new Map<string, Named>();
+  const moduleOf = (path: string) => sha256(compiled.get(path)!.code);
+  const relative = (path: string, spec: string) =>
+    spec.startsWith('./') || spec.startsWith('../') ? resolvePath(path, spec) : undefined;
+  const exportsOf = (path: string, seen = new Set<string>()): Named | undefined => {
+    const done = known.get(path);
+    if (done) return done;
+    const exports = compiled.get(path)?.analysis.exports;
+    if (!exports) return undefined;
+    const named: Named = { names: new Map(), ambiguous: new Set(), partial: false };
+    // `export *` in a circle: what the file adds is counted where the circle began, and what was
+    // read on the way round is partial, so it isn't kept.
+    if (seen.has(path)) return { ...named, partial: true };
+    seen.add(path);
+    const here = moduleOf(path);
+    for (const name of exports.names) named.names.set(name, `${here}#${name}`);
+    for (const [name, spec, there] of exports.from) {
+      // A package is one module to the browser, whoever passes its names on.
+      if (!spec.startsWith('./') && !spec.startsWith('../')) {
+        named.names.set(name, `${spec}#${there}`);
+        continue;
+      }
+      const target = relative(path, spec);
+      if (target === undefined || !compiled.has(target)) continue;
+      const from = there === '*' ? undefined : exportsOf(target, new Set(seen));
+      if (from?.partial) named.partial = true;
+      const origin = there === '*' ? `${moduleOf(target)}#*` : from?.names.get(there);
+      if (origin) named.names.set(name, origin);
+    }
+    const starred = new Map<string, string>();
+    for (const spec of exports.all) {
+      const target = relative(path, spec);
+      // A package's names aren't known here.
+      const more = target === undefined ? undefined : exportsOf(target, seen);
+      if (!more) return undefined;
+      if (more.partial) named.partial = true;
+      for (const [name, origin] of more.names) {
+        if (name === 'default' || named.names.has(name)) continue;
+        if (starred.has(name) && starred.get(name) !== origin) named.ambiguous.add(name);
+        else starred.set(name, origin);
+      }
+      for (const name of more.ambiguous) if (!named.names.has(name)) named.ambiguous.add(name);
+    }
+    for (const [name, origin] of starred)
+      if (!named.ambiguous.has(name)) named.names.set(name, origin);
+    if (!named.partial) known.set(path, named);
+    return named;
+  };
+  for (const [path, file] of compiled)
+    for (const { specifier, names, line, column } of file.analysis.takes ?? []) {
+      if (!specifier.startsWith('./') && !specifier.startsWith('../')) continue;
+      const target = resolvePath(path, specifier);
+      const exported = target === undefined ? undefined : exportsOf(target);
+      if (!exported) continue;
+      for (const name of names.filter((name) => !exported.names.has(name)))
+        problems.push({
+          file: path,
+          line,
+          column,
+          rule: 'imports',
+          message: exported.ambiguous.has(name)
+            ? `"${specifier}" exports ${name} from two of its \`export *\` modules, which cancel out: export it by name from the one it means.`
+            : notExported(specifier, target!, name, [...exported.names.keys()]),
+          severity: 'error',
+        });
+    }
   return { compiled, fresh, problems };
+}
+
+/** What a module exports, each name with where it is declared, and the names that cancel out. */
+interface Named {
+  names: Map<string, string>;
+  ambiguous: Set<string>;
+  /** Read with a circle of `export *` cut short. */
+  partial: boolean;
+}
+
+const and = (items: string[]) =>
+  items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+
+/** Why an import of `name` from a deck's file fails, and what the file has instead. */
+function notExported(spec: string, target: string, name: string, exported: string[]): string {
+  const names = [...new Set(exported.filter((other) => other !== 'default'))];
+  const shown = names.length > 20 ? [...names.slice(0, 20), `${names.length - 20} more`] : names;
+  if (exported.includes('default')) shown.push('a default export');
+  return [
+    name === 'default' ? `"${spec}" has no default export.` : `"${spec}" doesn't export ${name}.`,
+    shown.length === 0 ? 'It exports nothing.' : `It exports ${and(shown)}.`,
+    target.startsWith('master/')
+      ? 'master/GUIDE.md says what the master has.'
+      : name !== 'default' && target.endsWith('.ts')
+        ? 'A type is imported with `import type`.'
+        : '',
+  ]
+    .join(' ')
+    .trim();
 }
 
 /**

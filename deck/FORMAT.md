@@ -41,7 +41,7 @@ Besides `media/`, a deck's files may take 100 MB together and number at most 10,
 - `scenes[]`: an `id` and a `title`. The scene's code is in `scenes/<id>.svelte`.
 - `dependencies` (optional): npm packages the scenes import, with exact versions. Svelte and GSAP come with Tobos and aren't listed.
 
-IDs are lowercase letters, digits and dashes, starting with a letter: `same-problem`, `q2`. Scene IDs are unique across the whole deck, chapter IDs across the chapters.
+IDs are lowercase letters, digits and dashes, starting with a letter: `same-problem`, `q2`. Scene IDs are unique across the whole deck, chapter IDs across the chapters. Titles, of the deck, a chapter or a scene, are at most 200 characters. Tobos reads these keys and no others; any others stay in the file.
 
 ## Scenes and beats
 
@@ -64,10 +64,13 @@ A presentation is a sequence of **beats**. One click advances one beat. A scene 
   import { Content } from '../master/index.ts';
 </script>
 
-<Content headline="What is intelligence?">
+<Content>
+  <h2>What is intelligence?</h2>
   <p data-part="answer">Nobody agreed in 1955 either.</p>
 </Content>
 ```
+
+- `Content` is a layout from the deck's master (see [The master](#the-master)). The templates Tobos comes with all have `Title` and `Content`, which the examples here use; `master/GUIDE.md` says what the deck's own master has, and with which props.
 
 - `beats` is exported as an array literal, and every `id` is a string literal. Tobos reads the beats without running your code, so computed lists and IDs are rejected.
 - A scene has at most 100 beats. One that needs more is several scenes.
@@ -173,7 +176,7 @@ Media never goes into git. Put files in `media/`; `tobos push` uploads the ones 
 <img src={media('cow.jpg')} alt="A cow" />
 ```
 
-The name is the path inside `media/`, as a string literal, so Tobos can check it exists. When the names come from data, write a template literal: ``media(`cow/${part}.png`)`` is checked as the pattern `cow/*.png`, which must match at least one file. `tobos check` and `tobos push` record new files in `media.json`; push uploads them. Size media for the stage, not larger: a 4000-pixel scan shown at 800 pixels costs memory on every phone that opens the deck, and `tobos push` warns about files over 25 MB.
+The name is the path inside `media/`, as a string literal, so Tobos can check it exists. When the names come from data, write a template literal: ``media(`cow/${part}.png`)`` is checked as the pattern `cow/*.png`, which must match at least one file. `tobos check` and `tobos push` record new files in `media.json`; push uploads them. Size media for the stage, not larger: a 4000-pixel scan shown at 800 pixels costs memory on every phone that opens the deck, and `tobos push` warns about files over 25 MB. Media stay out of git (`.gitignore` has `media/`): a file in the deck's repository may be 20 MB at most, and a push with a larger one is refused.
 
 ## Video
 
@@ -239,7 +242,8 @@ A scene declares at most one activity, in its module script, beside its beats:
   const responses = useResponses('used-llm-api');
 </script>
 
-<Content headline="Have you called an LLM API yourself?">
+<Content>
+  <h2>Have you called an LLM API yourself?</h2>
   {#if beat === 'result'}
     {#each responses.counts as count, i (i)}<p>{count}</p>{/each}
   {/if}
@@ -271,7 +275,7 @@ export const activity: Activity = {
 
 ## Checks
 
-`tobos check` runs on your machine, and the server runs the same check on every push and rejects the push if it fails. It checks `deck.json`, that every scene compiles, the beats, the imports, the media references, and the master's rules (`master/master.json`). `tobos check --json` prints one object per problem: `{ file, line, column, rule, message, severity }`. Errors stop a push; warnings don't, but each one is a reason the deck may misbehave on stage. `tobos check --types` adds TypeScript's errors (rule `types`): it installs svelte-check once into `~/.cache/tobos/` and links it in as `node_modules`, which git ignores; the push check doesn't run it. The server stops a check that takes more than a minute or a gigabyte of memory, and rejects the push with the rule `check`; any real deck checks in seconds.
+`tobos check` runs on your machine, and the server runs the same check on every push and rejects the push if it fails. It checks `deck.json`, that every scene compiles, the beats, the imports (each file a deck imports of its own is there, and exports every name imported from it), the media references, and the master's rules (`master/master.json`). `tobos check --json` prints one object per problem: `{ file, line, column, rule, message, severity }`. Errors stop a push; warnings don't, but each one is a reason the deck may misbehave on stage. `tobos check --types` adds TypeScript's errors (rule `types`): it installs svelte-check once into `~/.cache/tobos/` and links it in as `node_modules`, which git ignores; the push check doesn't run it. The server stops a check that takes more than a minute or a gigabyte of memory, and rejects the push with the rule `check`; any real deck checks in seconds.
 
 | Rule                                                           | Severity         | What it catches                                                                                                                                                              |
 | -------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -280,6 +284,10 @@ export const activity: Activity = {
 | `master/min-font-size`                                         | error            | type below the master's floor, in `font-size`, the `font` shorthand, `style:font-size`, `rem` and GSAP's `fontSize` (`em` and `calc()` depend on context and aren't checked) |
 | `master/layout-root`                                           | warning          | a scene whose root isn't one layout from the master                                                                                                                          |
 | `network`                                                      | error            | `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, and media or CSS `url()` loaded from another site: the viewer blocks all of them                                      |
+| `compile`                                                      | error            | a `.json` module that isn't valid JSON, or a module whose imports can't be read                                                                                              |
+| `media-json`                                                   | error            | `media.json` that isn't the record `tobos check` and `tobos push` keep: a name, its hash, size and type                                                                      |
+| `master`                                                       | error            | `master/master.json` that isn't JSON, or a rule's value of the wrong kind: `minFontSize` a positive number, `layoutRoot` true or false                                       |
+| `dependencies`                                                 | error            | on push only: a package in `deck.json`'s `dependencies` that npm can't supply or that won't bundle for the browser, or packages over the limits (npm packages, above)        |
 | `motion/timer`                                                 | warning          | `setTimeout`, `setInterval`, `requestAnimationFrame`: they run on their own clock, which the position can't recreate                                                         |
 | `motion/on-mount`                                              | warning          | GSAP animation started in `onMount`, which plays even when the scene is mounted ahead, out of sight                                                                          |
 | `motion/loop`                                                  | warning          | `repeat: -1` and CSS animations that run for ever                                                                                                                            |
@@ -291,7 +299,7 @@ The viewer keeps a connection open to follow pushes, so a browser test that wait
 `master/` is the deck's slide master, and the deck's own code: a new deck gets a copy of a template's master, and from then on nothing outside the deck changes it.
 
 ```
-master/index.ts       what scenes import: `import { Content, Stat } from '../master/index.ts'`
+master/index.ts       what scenes import: `import { Title, Content } from '../master/index.ts'`
 master/layouts/       layouts: Svelte components that fill the 1920×1080 stage
 master/components/    components scenes put inside a layout
 master/tokens.css     colours, fonts, sizes, as CSS variables; the deck's one stylesheet

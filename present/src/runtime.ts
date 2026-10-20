@@ -1,8 +1,8 @@
 /**
- * Node side: where the built runtime is, and the viewer page that loads a deck.
- * Used by the server, by exports, and by the dev preview.
+ * Node side: where the built runtime is, and the viewer page that loads a deck. The app's
+ * server uses it (app/src/lib/server/viewer.ts).
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import type { ViewerConfig } from './viewer/config.ts';
@@ -24,10 +24,28 @@ export function loadRuntime(): Runtime {
   let info: Omit<Runtime, 'dir'>;
   try {
     info = JSON.parse(readFileSync(file, 'utf8'));
-  } catch {
-    throw new Error('The viewer runtime is not built. Run `pnpm --filter @tobos/present build`.');
+  } catch (cause) {
+    throw new Error('The viewer runtime is not built. Run `pnpm --filter @tobos/present build`.', {
+      cause,
+    });
   }
   return { ...info, dir: join(root, 'dist/runtime', info.id) };
+}
+
+let current: { at: number; runtime: Runtime } | undefined;
+/**
+ * The runtime as last built, read again when a build replaces runtime.json: a server that runs
+ * through a rebuild (a checkout's) serves the new one to the pages it serves from then on.
+ */
+export function currentRuntime(): Runtime {
+  let at = 0;
+  try {
+    at = statSync(join(root, 'dist/runtime/runtime.json')).mtimeMs;
+  } catch {
+    // not built: loadRuntime says so
+  }
+  if (current?.at !== at) current = { at, runtime: loadRuntime() };
+  return current.runtime;
 }
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);

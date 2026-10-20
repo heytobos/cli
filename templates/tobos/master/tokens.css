@@ -59,6 +59,13 @@
   --stage-dark: #121a2c;
   /* "Look here now": used for one thing at a time. */
   --stage-highlight: #ef4423;
+  /* The dark tone turns the palette over: paper is the dark, and ink and accent white, so what is
+     drawn in ink still reads; muted, rules and the tint are their own, muted as far from the dark
+     as on paper. */
+  --stage-dark-ink: #ffffff;
+  --stage-dark-muted: #a5adbf;
+  --stage-dark-rule: #2b3550;
+  --stage-dark-soft: #1d2740;
 
   /* Type. Hanken Grotesk for words, Geist Mono capitals for labels, and Geist Mono for code. */
   --stage-font-text: 'Hanken Grotesk', system-ui, sans-serif;
@@ -72,6 +79,8 @@
   --stage-size-title: 64px;
   --stage-size-section: 96px;
   --stage-size-display: 144px;
+  /* Labels' capitals, spaced out (.stage-label). */
+  --stage-label-tracking: 0.08em;
 
   /* The grid: 112px side margins, 96px top and bottom, 12 columns with 32px gutters. */
   --stage-margin-x: 112px;
@@ -97,4 +106,13 @@
 .tobos-stage *::before,
 .tobos-stage *::after {
   box-sizing: border-box;
+}
+/* The label face, Geist Mono capitals: chips, a quote's source, the wayfinder, the kickers, and a
+   scene's own labels take the class rather than copying it. */
+.stage-label {
+  font-family: var(--stage-font-label);
+  font-size: var(--stage-size-label);
+  font-weight: 500;
+  letter-spacing: var(--stage-label-tracking);
+  text-transform: uppercase;
 }

@@ -19,7 +19,7 @@
 <Blank>
   <div class="swatches">
     {#each colours as [label, variable] (label)}
-      <div class="swatch">
+      <div class="swatch stage-label">
         <div class="chip" style="background: var({variable})"></div>
         <span>{label}</span>
       </div>
@@ -30,7 +30,7 @@
 <style>
   .swatches {
     position: absolute;
-    inset: 96px 112px;
+    inset: var(--stage-margin-top) var(--stage-margin-x) var(--stage-margin-bottom);
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 48px 32px;
@@ -39,10 +39,6 @@
   .swatch {
     display: grid;
     gap: 16px;
-    font-family: var(--stage-font-label);
-    font-size: 28px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--stage-muted);
   }
   .swatch .chip {

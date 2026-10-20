@@ -7,7 +7,8 @@ export function setMedia(media: Record<string, { hash: string }>) {
 }
 
 export function mediaUrl(name: string): string {
-  const entry = files[name];
+  // Only its own names: `constructor` is a file like any other, not Object's.
+  const entry = Object.hasOwn(files, name) ? files[name] : undefined;
   if (!entry) {
     console.warn(`[tobos] media("${name}") is not in media.json`);
     return '';

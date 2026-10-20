@@ -1,6 +1,6 @@
 {
   "name": "@tobos/cli",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "The command line of Tobos: https://tobos.ai",
   "type": "module",
   "license": "FSL-1.1-ALv2",
@@ -22,7 +22,7 @@
   "scripts": {
     "build": "node build.ts",
     "typecheck": "tsc -p .",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
     "playwright-core": "^1.63.0"

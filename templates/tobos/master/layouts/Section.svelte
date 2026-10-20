@@ -18,16 +18,16 @@
     tone?: 'dark' | 'paper' | 'soft';
   } = $props();
   const deck = useDeck();
-  const number = $derived(deck ? deck.chapters.findIndex((c) => c.id === deck.chapter.id) + 1 : 0);
+  const number = $derived(deck.chapters.findIndex((c) => c.id === deck.chapter.id) + 1);
   const label = $derived(kicker ?? (number ? `Part ${number}` : ''));
 </script>
 
 <Frame layout="section" {tone}>
   <div class="section-layout">
-    <div class="kicker" data-region="kicker">
+    <div class="kicker stage-label" data-region="kicker">
       {#if label}<span>{label}</span>{/if}
     </div>
-    <h1 data-region="title">{title ?? deck?.chapter.title}</h1>
+    <h1 data-region="title">{title ?? deck.chapter.title}</h1>
     {#if subtitle}<p class="subtitle" data-region="subtitle">{subtitle}</p>{/if}
   </div>
 </Frame>
@@ -41,11 +41,6 @@
     transform: translateY(-50%);
   }
   .kicker {
-    font-family: var(--stage-font-label);
-    font-size: var(--stage-size-label);
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--stage-accent);
     margin-bottom: 32px;
     min-height: 1lh;

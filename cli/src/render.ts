@@ -2,7 +2,9 @@
  * `tobos render` and `tobos export pdf`: a headless Chromium on this machine, pointed at the
  * hosted viewer. Deck code runs here or in viewers' browsers, never on Tobos's servers.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { CliError } from './out.ts';
@@ -11,10 +13,11 @@ type Browser = import('playwright-core').Browser;
 type Page = import('playwright-core').Page;
 
 interface TobosApi {
-  ready: Promise<void>;
-  goto(hash: string): Promise<void>;
-  sample(hash: string, progress: number): Promise<void>;
-  duration(hash: string): number;
+  /** In the print view, whether every page was fully drawn in time. */
+  ready: Promise<unknown>;
+  /** Whether the frame was fully drawn in time: one taken anyway is said to be late. */
+  goto(hash: string): Promise<boolean>;
+  sample(hash: string, progress: number): Promise<boolean>;
 }
 
 async function launch(): Promise<Browser> {
@@ -76,8 +79,6 @@ async function firstToLaunch(
  * which needn't be this one, and would remove other projects' browsers.
  */
 async function installChromium(): Promise<void> {
-  const { createRequire } = await import('node:module');
-  const { execFile } = await import('node:child_process');
   const pkg = createRequire(import.meta.url).resolve('playwright-core/package.json');
   const args = [join(dirname(pkg), 'cli.js'), 'install', '--only-shell', '--no-remove', 'chromium'];
   process.stderr.write(
@@ -101,14 +102,14 @@ async function installChromium(): Promise<void> {
 
 /**
  * Open the viewer. `errors` collects what the deck throws, and what the viewer logs as failing,
- * such as a scene that didn't load.
+ * such as a scene that didn't load. `ready` is what its start resolved to (TobosApi).
  */
 async function openViewer(
   browser: Browser,
   url: string,
   scale: number,
   errors: string[] = [],
-): Promise<Page> {
+): Promise<{ page: Page; ready: unknown }> {
   const page = await browser.newPage({
     viewport: { width: 1920, height: 1080 },
     deviceScaleFactor: scale,
@@ -121,17 +122,21 @@ async function openViewer(
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   try {
     await page.waitForFunction(() => '__tobos' in window, null, { timeout: 30_000 });
-    await page.evaluate(() => (window as unknown as { __tobos: TobosApi }).__tobos.ready);
+    const ready = await page.evaluate(
+      () => (window as unknown as { __tobos: TobosApi }).__tobos.ready,
+    );
+    return { page, ready };
   } catch (error) {
     throw new CliError(`The viewer didn't start: ${errors[0] ?? (error as Error).message}`);
   }
-  return page;
 }
 
 export interface Rendered {
   position: string;
   path: string;
   frames?: string[];
+  /** Taken before everything on screen was drawn in time: fonts, images or video frames. */
+  late?: true;
 }
 
 const CRASHED = /crashed|Target closed|has been closed/i;
@@ -144,38 +149,40 @@ export async function renderBeats(
   mkdirSync(options.dir, { recursive: true });
   const errors: string[] = [];
   let browser = await launch();
-  let page = await openViewer(browser, url, options.scale, errors);
+  let { page } = await openViewer(browser, url, options.scale, errors);
   const files: Rendered[] = [];
 
   const renderOne = async (position: string): Promise<Rendered> => {
     const hash = `#${position}`;
     const base = position.replace('/', '--');
     if (!options.film) {
-      await page.evaluate(
+      const drawn = await page.evaluate(
         (h) => (window as unknown as { __tobos: TobosApi }).__tobos.goto(h),
         hash,
       );
       const path = join(options.dir, `${base}.png`);
       await page.screenshot({ path });
-      return { position, path };
+      return { position, path, ...(drawn ? {} : { late: true }) };
     }
     // A filmstrip: frames through the animation into the beat, side by side. The full-size
     // frames are kept too (`frames`), for reading small text.
     const count = Math.max(2, Math.min(options.frames, 12));
     const frames: string[] = [];
+    let drawn = true;
     for (let i = 0; i < count; i++) {
-      await page.evaluate(
+      const sampled = await page.evaluate(
         ([h, p]) =>
           (window as unknown as { __tobos: TobosApi }).__tobos.sample(h as string, p as number),
         [hash, i / (count - 1)] as const,
       );
+      drawn &&= sampled;
       const path = join(options.dir, `${base}--${i}.png`);
       await page.screenshot({ path });
       frames.push(path);
     }
     const strip = join(options.dir, `${base}--film.png`);
     await stripOf(browser, frames, strip);
-    return { position, path: strip, frames };
+    return { position, path: strip, frames, ...(drawn ? {} : { late: true }) };
   };
 
   try {
@@ -189,7 +196,7 @@ export async function renderBeats(
         options.note(`the browser crashed on ${position}; retrying`);
         await browser.close().catch(() => undefined);
         browser = await launch();
-        page = await openViewer(browser, url, options.scale, errors);
+        ({ page } = await openViewer(browser, url, options.scale, errors));
         try {
           rendered = await renderOne(position);
         } catch (again) {
@@ -200,6 +207,10 @@ export async function renderBeats(
           );
         }
       }
+      if (rendered.late)
+        options.note(
+          `${position} was taken before everything on it was drawn: fonts, images or video frames still loading`,
+        );
       files.push(rendered);
       options.note(
         `rendered ${position}${rendered.frames ? ` (${rendered.frames.length} frames)` : ''}`,
@@ -214,7 +225,6 @@ export async function renderBeats(
 
 /** Put frames in a row, 480px wide each, as one PNG. */
 async function stripOf(browser: Browser, frames: string[], target: string) {
-  const { readFileSync } = await import('node:fs');
   const page = await browser.newPage({ viewport: { width: 488 * frames.length + 8, height: 286 } });
   const images = frames
     .map((f) => `<img src="data:image/png;base64,${readFileSync(f).toString('base64')}">`)
@@ -231,10 +241,13 @@ export async function exportPdf(
   target: string,
   note: (m: string) => void,
 ): Promise<number> {
+  mkdirSync(dirname(target), { recursive: true });
   const browser = await launch();
   try {
     note('rendering every beat…');
-    const page = await openViewer(browser, url, 1);
+    const { page, ready } = await openViewer(browser, url, 1);
+    if (ready === false)
+      note('not everything was drawn in time: some pages may lack fonts, images or video frames');
     const pages = await page.locator('.tobos-page').count();
     const pdf = await page.pdf({
       width: '1920px',

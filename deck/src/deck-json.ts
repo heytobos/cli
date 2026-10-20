@@ -11,6 +11,15 @@ const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const PROVIDED = new Set(['svelte', 'gsap']);
 /** The most scenes a deck lists: a bound on what a push compiles and its shared PDF prints. */
 const SCENES_MAX = 500;
+/** The longest title, of the deck, a chapter or a scene: they show in lists, tabs and file names. */
+const TITLE_MAX = 200;
+
+/**
+ * A map from names a deck chooses (media files, packages) with nothing inherited: `constructor`
+ * or `__proto__` is a name like any other, never a lookup that finds Object's own.
+ */
+const own = <T>(entries: [string, T][]): Record<string, T> =>
+  Object.assign(Object.create(null) as Record<string, T>, Object.fromEntries(entries));
 
 function problem(message: string, rule = 'deck-json'): Problem {
   return { file: FILE, rule, message, severity: 'error' };
@@ -32,8 +41,13 @@ export function parseDeckJson(text: string | undefined): { deck?: DeckJson; prob
   const problems: Problem[] = [];
   if (!isObject(raw)) return { problems: [problem('deck.json must be an object.')] };
 
-  if (typeof raw.title !== 'string' || raw.title.trim() === '')
-    problems.push(problem('"title" must be a non-empty string.'));
+  const titled = (title: unknown, where: string, empty = true) => {
+    if (typeof title !== 'string' || (!empty && title.trim() === ''))
+      problems.push(problem(`${where} must be a${empty ? '' : ' non-empty'} string.`));
+    else if (title.length > TITLE_MAX)
+      problems.push(problem(`${where} is ${title.length} characters; at most ${TITLE_MAX}.`));
+  };
+  titled(raw.title, '"title"', false);
 
   const chapterIds = new Set<string>();
   const sceneIds = new Set<string>();
@@ -48,8 +62,7 @@ export function parseDeckJson(text: string | undefined): { deck?: DeckJson; prob
       else if (chapterIds.has(chapter.id))
         problems.push(problem(`Chapter "${chapter.id}" is listed twice.`));
       else chapterIds.add(chapter.id);
-      if (typeof chapter.title !== 'string')
-        problems.push(problem(`${where}.title must be a string.`));
+      titled(chapter.title, `${where}.title`);
       if (!Array.isArray(chapter.scenes) || chapter.scenes.length === 0)
         return problems.push(problem(`${where}.scenes must be a list with at least one scene.`));
       chapter.scenes.forEach((scene: unknown, s) => {
@@ -60,8 +73,7 @@ export function parseDeckJson(text: string | undefined): { deck?: DeckJson; prob
         else if (sceneIds.has(scene.id))
           problems.push(problem(`Scene "${scene.id}" is listed twice.`));
         else sceneIds.add(scene.id);
-        if (typeof scene.title !== 'string')
-          problems.push(problem(`${at}.title must be a string.`));
+        titled(scene.title, `${at}.title`);
       });
     });
     const count = raw.chapters.reduce(
@@ -94,7 +106,19 @@ export function parseDeckJson(text: string | undefined): { deck?: DeckJson; prob
   }
 
   if (problems.length > 0) return { problems };
-  return { deck: raw as unknown as DeckJson, problems };
+  // What Tobos reads, and nothing else: keys it doesn't know stay in the file.
+  type Raw = { id: string; title: string };
+  const deck: DeckJson = {
+    title: raw.title as string,
+    chapters: (raw.chapters as (Raw & { scenes: Raw[] })[]).map((chapter) => ({
+      id: chapter.id,
+      title: chapter.title,
+      scenes: chapter.scenes.map((scene) => ({ id: scene.id, title: scene.title })),
+    })),
+  };
+  if (raw.dependencies !== undefined)
+    deck.dependencies = own(Object.entries(raw.dependencies as Record<string, string>));
+  return { deck, problems };
 }
 
 /** Parse media.json. A missing file means no media. */
@@ -102,9 +126,9 @@ export function parseMediaJson(text: string | undefined): {
   media: MediaJson;
   problems: Problem[];
 } {
-  if (text === undefined) return { media: {}, problems: [] };
+  if (text === undefined) return { media: own([]), problems: [] };
   const bad = (message: string) => ({
-    media: {},
+    media: own<MediaJson[string]>([]),
     problems: [{ file: 'media.json', rule: 'media-json', message, severity: 'error' as const }],
   });
   let raw: unknown;
@@ -124,7 +148,7 @@ export function parseMediaJson(text: string | undefined): {
     )
       return bad(`media.json entry "${name}" needs a sha256 "hash", a "size" and a "type".`);
   }
-  return { media: raw as MediaJson, problems: [] };
+  return { media: own(Object.entries(raw as MediaJson)), problems: [] };
 }
 
 /** Parse master/master.json: the master's rules. A missing file means no rules. */

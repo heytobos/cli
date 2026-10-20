@@ -1,5 +1,7 @@
 /** Bundle the CLI into one file: the deck compiler included, so `tobos check` runs offline. */
-import { chmodSync, readFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
 import * as esbuild from 'esbuild';
 import ts from 'typescript';
 import { readTree, SKILL_NAME } from './src/skill.ts';
@@ -33,6 +35,24 @@ function presentTypes(): Record<string, string> {
   return files;
 }
 
+/**
+ * What `tobos check --types` installs to check a deck: the versions installed here for the engine,
+ * so they follow the workspace's, as the engine's types do.
+ */
+function toolchain(): Record<string, string> {
+  const present = createRequire(new URL('../present/package.json', import.meta.url));
+  const version = (name: string) => {
+    for (const dir of present.resolve.paths(name) ?? []) {
+      const file = join(dir, name, 'package.json');
+      if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8')).version as string;
+    }
+    throw new Error(`No ${name} installed for @tobos/present.`);
+  };
+  return Object.fromEntries(
+    ['svelte-check', 'typescript', 'svelte', 'gsap'].map((name) => [name, version(name)]),
+  );
+}
+
 const pkg = JSON.parse(readFileSync(new URL('package.json', import.meta.url), 'utf8'));
 await esbuild.build({
   entryPoints: ['src/main.ts'],
@@ -48,6 +68,7 @@ await esbuild.build({
   define: {
     TOBOS_VERSION: JSON.stringify(pkg.version),
     TOBOS_PRESENT_TYPES: JSON.stringify(presentTypes()),
+    TOBOS_TOOLCHAIN: JSON.stringify(toolchain()),
     // The agent pack's skill, which `tobos skill install` writes into the person's harnesses.
     TOBOS_SKILL: JSON.stringify(
       readTree(new URL(`../agent-pack/skills/${SKILL_NAME}/`, import.meta.url).pathname),

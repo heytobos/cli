@@ -17,7 +17,7 @@ tobos login you@example.com       # e-mails the person a 6-digit code (and signs
 tobos login --code 123456         # the code they paste to you from the mail
 ```
 
-Ask the person for their e-mail address first, then for the code in one line: it's in their e-mail, maybe in spam, and using it accepts https://tobos.ai/terms. Only they can read it; never guess or reuse one. It works for 10 minutes. In CI, set `TOBOS_TOKEN` instead.
+Ask the person for their e-mail address first, then for the code in one line: it's in their e-mail, maybe in spam, and using it accepts https://tobos.ai/terms. Only they can read it; never guess or reuse one. It works for 10 minutes. In CI or a sandbox with no login, set `TOBOS_TOKEN` to the token `tobos login` stored (and `TOBOS_SERVER`, if not tobos.ai) instead.
 
 ## Start or continue a deck
 
@@ -25,6 +25,7 @@ Ask the person for their e-mail address first, then for the code in one line: it
 tobos decks                       # the decks you can work on, by id
 tobos new "Title of the talk"     # create one and clone it into ./<id>
 tobos clone <id>                  # or clone an existing one
+tobos pull                        # in a clone: the latest pushes and format guide
 ```
 
 Then **read the deck's `AGENTS.md`**. It, `.tobos/FORMAT.md` and `master/GUIDE.md` are the instructions for everything that follows: the loop (`check` → `render` → look → `push`), the format, the slide master's layouts and rules.
@@ -48,20 +49,24 @@ A deck has one story: the talk as the speaker tells it, paragraph by paragraph, 
 
 ## Commands
 
-| Command                                                  | Does                                                   |
-| -------------------------------------------------------- | ------------------------------------------------------ |
-| `tobos check`                                            | compile and check the deck, offline                    |
-| `tobos push -m "…"`                                      | upload media, commit, push; the server checks it again |
-| `tobos render scene/beat` · `scene` · `--all` · `--film` | PNGs of beats; pushes what changed first               |
-| `tobos open [scene/beat] [--presenter]`                  | the deck in a browser; pushes what changed first       |
-| `tobos open` (outside a deck)                            | Tobos in the browser, logged in: decks and templates   |
-| `tobos export pdf`                                       | a PDF of every beat                                    |
-| `tobos story`                                            | the story, by ¶ id                                     |
-| `tobos story edit <¶> "old" "new"`                       | change it, anchored on the exact text                  |
-| `tobos story add [--after <¶>] "…"` · `delete <¶>`       | add a paragraph, or delete one                         |
-| `tobos people`                                           | who is on the deck, and what each may do               |
-| `tobos invite <email> --can edit` · `present` · `view`   | put someone on the deck; they get a mail               |
-| `tobos uninvite <email>`                                 | take them off; their access ends at once               |
+| Command                                                  | Does                                                           |
+| -------------------------------------------------------- | -------------------------------------------------------------- |
+| `tobos check` · `--types`                                | compile and check the deck, offline; `--types`: TypeScript too |
+| `tobos push -m "…"`                                      | upload media, commit, push; the server checks it again         |
+| `tobos render scene/beat` · `scene` · `--all` · `--film` | PNGs of beats; pushes what changed first                       |
+| `tobos open [scene/beat] [--presenter]`                  | the deck in a browser; pushes what changed first               |
+| `tobos open` (outside a deck)                            | Tobos in the browser, logged in: decks and templates           |
+| `tobos export pdf`                                       | a PDF of every beat                                            |
+| `tobos story`                                            | the story, by ¶ id                                             |
+| `tobos story edit <¶> "old" "new"`                       | change it, anchored on the exact text                          |
+| `tobos story add [--after <¶>] "…"` · `delete <¶>`       | add a paragraph, or delete one                                 |
+| `tobos new "Title" --from <id>`                          | a deck from that template (default: the person's own)          |
+| `tobos new "Our brand" --template`                       | a new template: a copy of the default, or of `--from`          |
+| `tobos whoami` · `tobos logout`                          | who is logged in, on which server; or log this machine out     |
+| `tobos skill install`                                    | this skill, where the person's harnesses read skills           |
+| `tobos people`                                           | who is on the deck, and what each may do                       |
+| `tobos invite <email> --can edit` · `present` · `view`   | put someone on the deck; they get a mail                       |
+| `tobos uninvite <email>`                                 | take them off; their access ends at once                       |
 
 Invite only whom the person names, at the level they say: the mail goes to someone else, from the person's name. Can edit builds the deck with their own agent; can present presents it with its notes and polls; can view sees the slides only.
 

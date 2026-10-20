@@ -64,19 +64,19 @@ The main region of `Content` is `position: relative`, so a scene can place thing
 | `Quote`     | `text`, `by`                                                                 | `text`, `by`                           |
 | `Stat`      | `value` (a string, formatted), `label`, `tone`: `accent`, `ink`, `highlight` | `value`, `label`                       |
 | `Chip`      | `tone`: `soft`, `outline`, `ink`, `highlight`; children                      | `chip`                                 |
-| `Code`      | `code`, `focus` (line numbers to keep bright; the rest dims)                 | `code`; each line is `[data-line="n"]` |
+| `Code`      | `code`, `bright` (line numbers to keep bright; the rest dims)                | `code`; each line is `[data-line="n"]` |
 | `Wayfinder` | `label` (default: the chapter's title)                                       | `wayfinder`                            |
 
 Components only render; scenes do the animating. Target parts with `q('[data-part=value]')`.
 
-To walk through code, drive `focus` from the beat rather than animating it:
+To walk through code, drive `bright` from the beat rather than animating it:
 
 ```svelte
 <script lang="ts">
   let { index }: { index: number } = $props();
 </script>
 
-<Code {code} focus={[[1], [2, 3], [4]][index]} />
+<Code {code} bright={[[1], [2, 3], [4]][index]} />
 ```
 
 ## Motion
@@ -137,7 +137,7 @@ A video is motion like any other: it plays in a beat, with `playVideo` from `@to
 CSS variables, for scenes that draw their own things:
 
 - Colour: `--stage-paper`, `--stage-ink`, `--stage-muted`, `--stage-rule`, `--stage-accent` (the ink, unless a deck sets its own), `--stage-dark`, `--stage-highlight` (red); `--stage-soft`, the ink's tint, for surfaces only.
-- Type: `--stage-font-text` (Hanken Grotesk), `--stage-font-label` (Geist Mono; capitals, tracked 0.08em), `--stage-font-mono` (Geist Mono). Sizes: `--stage-size-label` 28, `-code` 32, `-body` 40, `-lead` 52, `-title` 64, `-section` 96, `-display` 144.
+- Type: `--stage-font-text` (Hanken Grotesk), `--stage-font-label` (Geist Mono; capitals, tracked `--stage-label-tracking`, 0.08em), `--stage-font-mono` (Geist Mono). Sizes: `--stage-size-label` 28, `-code` 32, `-body` 40, `-lead` 52, `-title` 64, `-section` 96, `-display` 144. A label of a scene's own takes `class="stage-label"`, the face the master's chips, kickers and wayfinder use, rather than copying it.
 - Grid: `--stage-margin-x` 112, `--stage-margin-top` 96, `--stage-margin-bottom` 96, 12 columns, `--stage-gutter` 32. `import { grid, column } from '../master/index.ts'` gives the same numbers in TypeScript. Press L in the viewer to see the guides.
 
 ## The source

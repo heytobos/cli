@@ -32,7 +32,7 @@
   {#if wayfinder}
     <Wayfinder label={typeof wayfinder === 'string' ? wayfinder : undefined} />
   {/if}
-  <div class="content-layout" class:has-headline={headline}>
+  <div class="content-layout">
     {#if headline}<h2 data-region="headline">{headline}</h2>{/if}
     <div class="body split-{split} align-{align}" class:has-aside={aside}>
       <div class="main" data-region="main">{@render children?.()}</div>

@@ -540,6 +540,11 @@
     display: flex;
     gap: 4px;
   }
+  .scene:focus-visible,
+  .beat:focus-visible {
+    outline: 2px solid var(--pop);
+    outline-offset: 2px;
+  }
   .beat {
     all: unset;
     width: 8px;

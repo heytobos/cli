@@ -12,7 +12,7 @@
   <div class="scale">
     {#each sizes as size (size)}
       <div style="font-size: var(--stage-size-{size})">
-        <span class="name">{size}</span> Same problem
+        <span class="name stage-label">{size}</span> Same problem
       </div>
     {/each}
   </div>
@@ -20,16 +20,12 @@
 
 <style>
   .scale {
-    padding: 64px 112px;
+    padding: var(--stage-margin-top) var(--stage-margin-x) var(--stage-margin-bottom);
     line-height: 1.1;
   }
   .name {
     display: inline-block;
     width: 320px;
-    font-family: var(--stage-font-label);
-    font-size: 28px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--stage-muted);
   }
 </style>

@@ -7,13 +7,13 @@
 
   let { label }: { label?: string } = $props();
   const deck = useDeck();
-  const text = $derived(label ?? deck?.chapter.title ?? '');
+  const text = $derived(label ?? deck.chapter.title);
 </script>
 
 {#if text}
   <div class="wayfinder" data-part="wayfinder">
     <span class="bar"></span>
-    <span class="label">{text}</span>
+    <span class="label stage-label">{text}</span>
   </div>
 {/if}
 
@@ -32,11 +32,6 @@
     background: var(--stage-accent);
   }
   .label {
-    font-family: var(--stage-font-label);
-    font-size: var(--stage-size-label);
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--stage-muted);
   }
 </style>

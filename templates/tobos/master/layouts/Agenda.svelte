@@ -20,7 +20,12 @@
   } = $props();
   const deck = useDeck();
   const chapters = $derived((deck?.chapters ?? []).filter((c) => !skip.includes(c.id)));
-  const highlight = $derived(current === undefined ? deck?.chapter.id : current);
+  // Only a chapter the list shows: on a slide in a chapter it leaves out (the opening, say),
+  // none is highlighted, and none dimmed.
+  const highlight = $derived.by(() => {
+    const id = current === undefined ? deck?.chapter.id : current;
+    return chapters.some((c) => c.id === id) ? id : null;
+  });
 </script>
 
 <Frame layout="agenda">

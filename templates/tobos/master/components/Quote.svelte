@@ -5,7 +5,7 @@
 
 <figure class="quote">
   <blockquote data-part="text">{text}</blockquote>
-  {#if by}<figcaption data-part="by">{by}</figcaption>{/if}
+  {#if by}<figcaption class="stage-label" data-part="by">{by}</figcaption>{/if}
 </figure>
 
 <style>
@@ -27,11 +27,6 @@
   }
   figcaption {
     margin-top: 32px;
-    font-family: var(--stage-font-label);
-    font-size: var(--stage-size-label);
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--stage-muted);
   }
 </style>

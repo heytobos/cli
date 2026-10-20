@@ -54,20 +54,21 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   });
 
   if (render) {
-    // The API `tobos render` drives through a headless browser.
+    // The API `tobos render` drives through a headless browser. goto and sample say whether the
+    // frame was fully drawn in time (settled): a render taken anyway says so.
     (window as unknown as { __tobos: unknown }).__tobos = {
-      ready: ready.then(() => settled(stage)),
+      ready: ready.then(async () => void (await settled(stage))),
       outline: () => player.outline,
       async goto(hash: string) {
         await player.goHash(hash, false);
-        await settled(stage);
+        return settled(stage);
       },
       async sample(hash: string, progress: number) {
         const position = parseHash(player.outline, hash) ?? START;
         // Frames of one beat in a row: move only for the first, so a video seeks once a frame.
         if (!same(player.position, position)) await player.go(position, false);
         player.stage.shown?.timeline.sample(position.beat, progress);
-        await settled(stage);
+        return settled(stage);
       },
       duration(hash: string) {
         const position = parseHash(player.outline, hash) ?? START;

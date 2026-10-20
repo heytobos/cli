@@ -18,12 +18,10 @@ export interface StageOptions {
   count: () => number;
   /** The deck context for scene `index`. */
   context: (index: number) => DeckContext;
-  /** Mount the next scene ahead, out of sight. Off for presenter previews and print. */
+  /** Mount the next scene ahead, out of sight. Off for render and the presenter's current view. */
   mountAhead?: boolean;
   /** Never play animations: every cue lands on its end state (the presenter's own view). */
   still?: boolean;
-  /** Called after every cue has been applied. */
-  onShow?: (cue: Cue) => void;
 }
 
 interface Layer {
@@ -88,7 +86,6 @@ export class Stage {
     const animate = cue.animate && !this.options.still;
     if (animate && entering && cue.beat === 0) layer.timeline.hold();
     layer.timeline.show(cue.beat, animate);
-    this.options.onShow?.(cue);
 
     this.prune(cue.scene);
     if (this.options.mountAhead !== false && cue.scene + 1 < this.options.count()) {
@@ -107,19 +104,6 @@ export class Stage {
   /** Finish whatever is playing, at once. */
   finish() {
     this.current?.timeline.finish();
-  }
-
-  /** Swap in a changed scene module, keeping the position. */
-  async replace(index: number, module: SceneModule, cue: Cue): Promise<void> {
-    const old = this.layers.get(index);
-    if (old) this.unmountLayer(old);
-    this.cancelMounting((m) => m.index === index);
-    this.pending.delete(index);
-    const loaded = this.mountLayer(index, module);
-    this.pending.set(index, loaded);
-    if (this.current === old) this.current = null;
-    await loaded;
-    if (cue.scene === index) await this.show({ ...cue, animate: false });
   }
 
   /** Forget every mounted scene (after the deck's structure changed). */

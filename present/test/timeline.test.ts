@@ -70,7 +70,7 @@ describe('a scene timeline', () => {
   });
 
   it('after any sequence of moves, equals a fresh load at that beat', () => {
-    // The engine's central invariant (from the course engine, TUW-20).
+    // The engine's central invariant, from the course engine it grew out of.
     let seed = 7;
     const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const tl = new SceneTimeline(root, beats);

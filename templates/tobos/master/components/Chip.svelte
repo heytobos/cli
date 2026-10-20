@@ -8,7 +8,7 @@
   }: { tone?: 'soft' | 'outline' | 'ink' | 'highlight'; children: Snippet } = $props();
 </script>
 
-<span class="chip tone-{tone}" data-part="chip">{@render children()}</span>
+<span class="chip stage-label tone-{tone}" data-part="chip">{@render children()}</span>
 
 <style>
   .chip {
@@ -16,11 +16,6 @@
     align-items: center;
     padding: 8px 24px;
     border: 2px solid transparent;
-    font-family: var(--stage-font-label);
-    font-size: var(--stage-size-label);
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--stage-ink);
   }
   .tone-soft {

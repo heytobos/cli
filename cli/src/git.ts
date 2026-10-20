@@ -21,9 +21,12 @@ export function git(
     });
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
-    child.stderr.on('data', (d: Buffer) => {
-      stderr += d.toString();
+    // Decoded as streams, so a character split between two chunks stays whole.
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (d: string) => (stdout += d));
+    child.stderr.on('data', (d: string) => {
+      stderr += d;
       if (options.echo) process.stderr.write(d);
     });
     child.on('error', (error) =>
