@@ -1,6 +1,6 @@
 import { parse as parseJs } from 'acorn';
 import { parse as parseSvelte } from 'svelte/compiler';
-import { walk } from 'zimmerframe';
+import { walk, type Context } from 'zimmerframe';
 import { TEXT_MAX } from './activity.ts';
 import { position } from './tree.ts';
 import type { Activity, Problem, TextField } from './types.ts';
@@ -18,13 +18,35 @@ export interface BeatInfo {
   line: number;
 }
 
+/** A name passed to media(), a template literal's as a pattern (`cow/*.png`), with where. */
+export interface MediaRef {
+  name: string;
+  pattern?: boolean;
+  line: number;
+  column: number;
+}
+
+/**
+ * What a file does with the `media` one of the deck's own files exports (`import { media } from
+ * '../lib/index.ts'`, or that file's namespace): the media() calls it makes and the problems it
+ * would have, if that file passes the engine's media() on. Only the build, which reads every
+ * file's exports, knows whether it does.
+ */
+export interface Through {
+  specifier: string;
+  media: MediaRef[];
+  problems: Problem[];
+}
+
 export interface Analysis {
   /** The scene's beats, if the file is a scene and they could be read. */
   beats?: BeatInfo[];
   /** The scene's activity, if it declares one without problems, and the line of its id. */
   activity?: { activity: Activity; line: number };
-  /** Names passed to media(), with where they were used. */
-  media: { name: string; pattern?: boolean; line: number; column: number }[];
+  /** Names passed to the engine's media(), with where they were used. */
+  media: MediaRef[];
+  /** What holds only if one of the deck's files passes the engine's media() on. */
+  through?: Through[];
   /** The imports and re-exports that take names from a module, if the file could be read. */
   takes?: Take[];
   /** What the file exports, if it could be read. */
@@ -426,65 +448,430 @@ function readActivity(
   return { activity: { activity, line: position(source, idLiteral!.node.start).line }, problems };
 }
 
+/** Why media() is only ever called by its name, as the check's messages say it. */
+const MEDIA_BY_NAME =
+  "Tobos reads each media() call to know which files a scene shows, and a share link gets only those; it can't follow media() under another name.";
+
+const ENGINE = '@tobos/present';
+
+const isRelative = (specifier: string) => specifier.startsWith('./') || specifier.startsWith('../');
+
+/** TypeScript's nodes that hold a value, unlike those that are types. */
+const TS_VALUES = new Set([
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSNonNullExpression',
+  'TSInstantiationExpression',
+]);
+
+/** Nodes whose value is the one inside them: `(media)`, `media!`, `media as M`. */
+const WRAPPERS = new Set([...TS_VALUES, 'ParenthesizedExpression']);
+
+/** The names a block's own declarations take for it alone: `let`, `const`, `class`, `function`. */
+function lexical(statements: Node[]): string[] {
+  const names: string[] = [];
+  for (const statement of statements) {
+    if (statement.type === 'VariableDeclaration' && statement.kind !== 'var')
+      for (const declarator of statement.declarations as Node[])
+        bound(declarator.id as Node, names);
+    else if (statement.type === 'FunctionDeclaration' || statement.type === 'ClassDeclaration')
+      bound(statement.id as Node | null, names);
+  }
+  return names;
+}
+
+/** The names `var` declares in a function's body, anywhere but in the functions inside it. */
+function hoisted(body: Node): string[] {
+  const names: string[] = [];
+  const skip = () => {};
+  walk(body, null, {
+    VariableDeclaration(node, { next }) {
+      if (node.kind === 'var')
+        for (const declarator of node.declarations as Node[]) bound(declarator.id as Node, names);
+      next();
+    },
+    FunctionDeclaration: skip,
+    FunctionExpression: skip,
+    ArrowFunctionExpression: skip,
+  });
+  return names;
+}
+
+/** Whether an identifier, where it is, names a value: not a key, a label or what it declares. */
+function isReference(node: Node, parent: Node, grandparent: Node | undefined): boolean {
+  switch (parent.type) {
+    case 'MemberExpression':
+      return parent.object === node || Boolean(parent.computed);
+    case 'Property':
+    case 'MethodDefinition':
+    case 'PropertyDefinition':
+    case 'AccessorProperty':
+      return parent.value === node || (Boolean(parent.computed) && parent.key === node);
+    // `export { media } from './x'` names x's.
+    case 'ExportSpecifier':
+      return parent.local === node && !grandparent?.source;
+    case 'FunctionDeclaration':
+    case 'FunctionExpression':
+    case 'ClassDeclaration':
+    case 'ClassExpression':
+      return parent.id !== node;
+    case 'VariableDeclarator':
+      return parent.init === node;
+    case 'ImportSpecifier':
+    case 'ImportDefaultSpecifier':
+    case 'ImportNamespaceSpecifier':
+    case 'ExportAllDeclaration':
+    case 'LabeledStatement':
+    case 'BreakStatement':
+    case 'ContinueStatement':
+    case 'MetaProperty':
+    case 'CatchClause':
+      return false;
+    default:
+      return true;
+  }
+}
+
+/** A scope, as the walk below goes: the file's names that its own declarations hide there. */
+type Scope = { hidden: Set<string> };
+
 /**
- * media() calls. A string literal names one file. A template literal with a fixed text around
- * its holes (`media(`cow/${part}.png`)`) names a pattern, which must match at least one file.
+ * The engine's media() calls. A string literal names one file. A template literal with a fixed
+ * text around its holes (`media(`cow/${part}.png`)`) names a pattern, which must match at least
+ * one file. media() is the one a file imports from '@tobos/present', or from one of the deck's
+ * files that passes it on, and a call through the engine's namespace (`present.media('cow.jpg')`)
+ * is one too; a name of the file's own, or a package's, that is also `media` is not it, nor is
+ * what a function or a block declares under that name. media() under another name, or passed on
+ * as a value, is refused: a call there is one the check can't read, so a share would miss its
+ * file.
  */
 function readCalls(
   file: string,
   source: string,
   root: unknown,
   problems: Problem[],
-): Pick<Analysis, 'media'> {
-  const media: Analysis['media'] = [];
-  walk(root as Node, null, {
-    CallExpression(node, { next }) {
-      const callee = node.callee as Node;
-      const arg = (node.arguments as Node[])[0];
-      const literal = arg?.type === 'Literal' && typeof arg.value === 'string';
-      if (callee.type === 'Identifier' && callee.name === 'media') {
-        if (literal) {
-          media.push({ name: arg.value as string, ...position(source, arg.start) });
-        } else if (arg?.type === 'TemplateLiteral') {
-          const quasis = (arg.quasis as Node[]).map(
-            (q) => ((q.value as { cooked: string | null }).cooked ?? '') as string,
+): Pick<Analysis, 'media' | 'through'> {
+  const media: MediaRef[] = [];
+  const through = new Map<string, Through>();
+  /** Where a finding goes: the file's own, or what holds if `from`, a deck's file, passes media() on. */
+  const into = (from: string | undefined) => {
+    if (from === undefined) return { media, problems };
+    let found = through.get(from);
+    if (!found) through.set(from, (found = { specifier: from, media: [], problems: [] }));
+    return found;
+  };
+  const refuse = (from: string | undefined, node: Node, message: string) =>
+    into(from).problems.push({
+      file,
+      ...position(source, node.start),
+      rule: 'media',
+      message,
+      severity: 'error',
+    });
+  const passedOn = (from: string | undefined, node: Node) =>
+    refuse(
+      from,
+      node,
+      `Call media() where the file is needed, as \`media('cow.jpg')\`, rather than passing it on or giving it another name. ${MEDIA_BY_NAME}`,
+    );
+  const exportedAs = (from: string | undefined, node: Node, name: string) =>
+    refuse(
+      from,
+      node,
+      `Export media() under its own name, or import it from '@tobos/present' where it is called, not as ${name}. ${MEDIA_BY_NAME}`,
+    );
+  const readCall = (from: string | undefined, call: Node) => {
+    const found = into(from);
+    const arg = (call.arguments as Node[])[0];
+    if (arg?.type === 'Literal' && typeof arg.value === 'string') {
+      found.media.push({ name: arg.value, ...position(source, arg.start) });
+    } else if (arg?.type === 'TemplateLiteral') {
+      const quasis = (arg.quasis as Node[]).map(
+        (q) => ((q.value as { cooked: string | null }).cooked ?? '') as string,
+      );
+      found.media.push({ name: quasis.join('*'), pattern: true, ...position(source, arg.start) });
+    } else
+      found.problems.push({
+        file,
+        ...position(source, call.start),
+        rule: 'media',
+        message:
+          'media() takes the file name as a string literal, or a template literal like `cow/${part}.png`, so Tobos can check the files exist.',
+        severity: 'error',
+      });
+  };
+
+  /** The engine (undefined), one of the deck's files (its specifier), or a package (null). */
+  const origin = (node: Node | null | undefined): string | undefined | null => {
+    const value = node?.value;
+    if (value === ENGINE) return undefined;
+    return typeof value === 'string' && isRelative(value) ? value : null;
+  };
+  // The names the file imports that may be media() or a namespace with it: from the engine they
+  // are, from one of the deck's files if it passes media() on, and a package's `media` is its own.
+  // Imports and exports are a module's own statements: a component's are its scripts'.
+  const bindings = new Map<string, { namespace: boolean; from: string | undefined }>();
+  const svelte = root as { type: string; instance?: { content: Node }; module?: { content: Node } };
+  const scripts =
+    svelte.type === 'Program'
+      ? [root as Node]
+      : [svelte.instance?.content, svelte.module?.content].filter((s) => s !== undefined);
+  const statements = scripts
+    .flatMap((script) => script.body as Node[])
+    .filter((node) => node.importKind !== 'type' && node.exportKind !== 'type');
+  for (const node of statements) {
+    const from = origin(node.source as Node | null | undefined);
+    if (from === null) continue;
+    if (node.type === 'ImportDeclaration')
+      for (const specifier of node.specifiers as Node[]) {
+        const local = (specifier.local as Node).name as string;
+        if (specifier.type === 'ImportNamespaceSpecifier')
+          bindings.set(local, { namespace: true, from });
+        else if (
+          specifier.type !== 'ImportSpecifier' ||
+          specifier.importKind === 'type' ||
+          nameOf(specifier.imported as Node) !== 'media'
+        )
+          continue;
+        else if (local === 'media') bindings.set(local, { namespace: false, from });
+        else
+          refuse(
+            from,
+            specifier,
+            `Import media() under its own name, \`import { media } from '@tobos/present'\`, not as ${local}. ${MEDIA_BY_NAME}`,
           );
-          media.push({ name: quasis.join('*'), pattern: true, ...position(source, arg.start) });
-        } else {
-          problems.push({
-            file,
-            ...position(source, node.start),
-            rule: 'media',
-            message:
-              'media() takes the file name as a string literal, or a template literal like `cow/${part}.png`, so Tobos can check the files exist.',
-            severity: 'error',
-          });
-        }
       }
-      next();
+    // `export * as present from '@tobos/present'`: media() as `present.media`.
+    else if (node.type === 'ExportAllDeclaration' && node.exported)
+      exportedAs(from, node, `${nameOf(node.exported as Node)}.media`);
+    else if (node.type === 'ExportNamedDeclaration')
+      for (const specifier of node.specifiers as Node[]) {
+        const name = nameOf(specifier.exported as Node);
+        if (
+          specifier.exportKind !== 'type' &&
+          nameOf(specifier.local as Node) === 'media' &&
+          name !== 'media'
+        )
+          exportedAs(from, specifier, name);
+      }
+  }
+
+  const named = new Set(bindings.keys());
+  /** The scope inside a node that declares `names`: one of the file's names they take is hidden. */
+  const hide = (scope: Scope, names: string[]): Scope => {
+    const more = names.filter((name) => named.has(name) && !scope.hidden.has(name));
+    return more.length ? { hidden: new Set([...scope.hidden, ...more]) } : scope;
+  };
+  const declares = (pattern: unknown) => {
+    const names: string[] = [];
+    bound((pattern ?? null) as Node | null, names);
+    return names;
+  };
+  const fn = (node: Node, { state, next }: Context<Node, Scope>) => {
+    const names = named.size ? (node.params as Node[]).flatMap(declares) : [];
+    if (named.size && node.type === 'FunctionExpression') names.push(...declares(node.id));
+    if (named.size && (node.body as Node).type === 'BlockStatement')
+      names.push(...hoisted(node.body as Node));
+    next(hide(state, names));
+  };
+  const block = (node: Node, { state, next }: Context<Node, Scope>) => {
+    next(hide(state, lexical(node.body as Node[])));
+  };
+  const loop = (node: Node, { state, next }: Context<Node, Scope>) => {
+    const head = (node.init ?? node.left) as Node | null;
+    next(hide(state, head?.type === 'VariableDeclaration' ? lexical([head]) : []));
+  };
+  const directive = (node: Node, { state, next }: Context<Node, Scope>) => {
+    // `use:media`, `transition:present.media`: the directive calls what it names.
+    const [first, second] = (node.name as string).split('.');
+    const binding = bindings.get(first!);
+    if (
+      binding &&
+      !state.hidden.has(first!) &&
+      (!binding.namespace || second === undefined || second === 'media')
+    )
+      passedOn(binding.from, node);
+    next();
+  };
+  const seen = new Set<number>();
+  walk<Node, Scope>(
+    root as Node,
+    { hidden: new Set() },
+    {
+      // Svelte's `let:` directives declare their names for the element's content.
+      _(node, { state, next }) {
+        const lets = Array.isArray(node.attributes)
+          ? (node.attributes as Node[]).filter((a) => a.type === 'LetDirective')
+          : [];
+        next(
+          hide(
+            state,
+            lets.flatMap((d) => (d.expression ? declares(d.expression) : [d.name as string])),
+          ),
+        );
+      },
+      FunctionDeclaration: fn,
+      FunctionExpression: fn,
+      ArrowFunctionExpression: fn,
+      BlockStatement: block,
+      StaticBlock: block,
+      ForStatement: loop,
+      ForInStatement: loop,
+      ForOfStatement: loop,
+      SwitchStatement(node, { state, visit }) {
+        visit(node.discriminant as Node, state);
+        const cases = node.cases as Node[];
+        const inner = hide(state, lexical(cases.flatMap((c) => c.consequent as Node[])));
+        for (const c of cases) visit(c, inner);
+      },
+      CatchClause(node, { state, next }) {
+        next(hide(state, declares(node.param)));
+      },
+      ClassExpression(node, { state, next }) {
+        next(hide(state, declares(node.id)));
+      },
+      // Svelte's markup: what a fragment's tags declare, and what a block declares for its content.
+      Fragment(node, { state, next }) {
+        const names: string[] = [];
+        for (const child of node.nodes as Node[])
+          if (child.type === 'ConstTag') names.push(...lexical([child.declaration as Node]));
+          else if (child.type === 'SnippetBlock') names.push(...declares(child.expression));
+        next(hide(state, names));
+      },
+      EachBlock(node, { state, visit }) {
+        visit(node.expression as Node, state);
+        const names = declares(node.context);
+        if (typeof node.index === 'string') names.push(node.index);
+        const inner = hide(state, names);
+        for (const part of [node.context, node.key, node.body] as (Node | null)[])
+          if (part) visit(part, inner);
+        if (node.fallback) visit(node.fallback as Node, state);
+      },
+      AwaitBlock(node, { state, visit }) {
+        visit(node.expression as Node, state);
+        if (node.pending) visit(node.pending as Node, state);
+        for (const [pattern, content] of [
+          [node.value, node.then],
+          [node.error, node.catch],
+        ] as (Node | null)[][]) {
+          const inner = hide(state, declares(pattern));
+          for (const part of [pattern, content]) if (part) visit(part, inner);
+        }
+      },
+      SnippetBlock(node, { state, visit }) {
+        // Its name is declared in the fragment it is in.
+        const parameters = node.parameters as Node[];
+        const inner = hide(state, parameters.flatMap(declares));
+        for (const part of [...parameters, node.body as Node]) visit(part, inner);
+      },
+      UseDirective: directive,
+      TransitionDirective: directive,
+      AnimateDirective: directive,
+      ImportExpression(node, { next }) {
+        const specifier = node.source as Node;
+        const value =
+          specifier.type === 'Literal'
+            ? specifier.value
+            : specifier.type === 'TemplateLiteral' && (specifier.expressions as Node[]).length === 0
+              ? (specifier.quasis as Node[])[0]!.value
+              : undefined;
+        const name = typeof value === 'object' ? (value as { cooked?: string })?.cooked : value;
+        if (name === ENGINE)
+          refuse(
+            undefined,
+            node,
+            `Import media() with an import statement, \`import { media } from '@tobos/present'\`, not with import(). ${MEDIA_BY_NAME}`,
+          );
+        else if (typeof name === 'string' && isRelative(name))
+          refuse(
+            name,
+            node,
+            `${name} passes media() on, which import() would give as a value: import that file with an import statement. ${MEDIA_BY_NAME}`,
+          );
+        next();
+      },
+      Identifier(node, { path, state }) {
+        const name = node.name as string;
+        const binding = bindings.get(name);
+        if (!binding || state.hidden.has(name) || seen.has(node.start)) return;
+        const parent = path.at(-1);
+        if (!parent || path.some((n) => n.type.startsWith('TS') && !TS_VALUES.has(n.type))) return;
+        if (!isReference(node, parent, path.at(-2))) return;
+        // `export { media }` and its shorthand twin are the same name twice: read once.
+        seen.add(node.start);
+        /** What holds a value in `path` from `at` up, past `(media)`, `media!` and the like. */
+        const holding = (value: Node, at: number) => {
+          while (at > 0 && WRAPPERS.has(path[at]!.type)) value = path[at--]!;
+          return { value, holder: path[at], at };
+        };
+        const { value: held, holder, at } = holding(node, path.length - 1);
+        if (!holder) return;
+        if (!binding.namespace) {
+          if (holder.type === 'CallExpression' && holder.callee === held)
+            readCall(binding.from, holder);
+          else if (holder.type !== 'ExportSpecifier') passedOn(binding.from, node);
+          else if (nameOf(holder.exported as Node) !== 'media')
+            exportedAs(binding.from, holder, nameOf(holder.exported as Node));
+          return;
+        }
+        // The namespace: `present.media('cow.jpg')`, and its other names.
+        if (holder.type !== 'MemberExpression' || holder.object !== held) {
+          passedOn(binding.from, node);
+          return;
+        }
+        const property = holder.property as Node;
+        const key = !holder.computed
+          ? nameOf(property)
+          : property.type === 'Literal'
+            ? String(property.value)
+            : undefined;
+        if (key !== undefined && key !== 'media') return;
+        const { value: member, holder: call } = holding(holder, at - 1);
+        if (key === 'media' && call?.type === 'CallExpression' && call.callee === member)
+          readCall(binding.from, call);
+        else passedOn(binding.from, holder);
+      },
     },
-  });
-  return { media };
+  );
+  return { media, ...(through.size ? { through: [...through.values()] } : {}) };
 }
 
 /**
  * Whether a media() pattern matches a name: `*` matches anything, the rest literally. The deck
- * writes both, so no regex: each part is found leftmost in turn, which never backtracks.
+ * writes both, so no regex: each part is found leftmost in turn, which never backtracks. The
+ * pattern is split once, for the many names it is matched against.
  */
-export function mediaMatches(pattern: string, name: string): boolean {
+export function mediaMatcher(pattern: string): (name: string) => boolean {
   const parts = pattern.split('*');
-  if (parts.length === 1) return name === pattern;
+  if (parts.length === 1) return (name) => name === pattern;
   const first = parts[0]!;
   const last = parts.at(-1)!;
-  const end = name.length - last.length;
-  if (end < first.length || !name.startsWith(first) || !name.endsWith(last)) return false;
-  let at = first.length;
-  for (const part of parts.slice(1, -1)) {
-    at = name.indexOf(part, at);
-    if (at < 0 || at + part.length > end) return false;
-    at += part.length;
-  }
-  return true;
+  const middle = parts.slice(1, -1);
+  return (name) => {
+    const end = name.length - last.length;
+    if (end < first.length || !name.startsWith(first) || !name.endsWith(last)) return false;
+    let at = first.length;
+    for (const part of middle) {
+      at = name.indexOf(part, at);
+      if (at < 0 || at + part.length > end) return false;
+      at += part.length;
+    }
+    return true;
+  };
+}
+
+export const mediaMatches = (pattern: string, name: string): boolean => mediaMatcher(pattern)(name);
+
+/**
+ * The names that any of `patterns` matches: each pattern matched once, however many media() calls
+ * write it, and one that is only holes (``media(`${name}`)``) matching every name.
+ */
+export function mediaMatching(names: string[], patterns: Iterable<string>): string[] {
+  const distinct = [...new Set(patterns)];
+  if (distinct.length === 0) return [];
+  if (distinct.some((pattern) => /^\*+$/.test(pattern))) return names;
+  const matchers = distinct.map(mediaMatcher);
+  return names.filter((name) => matchers.some((matches) => matches(name)));
 }
 
 /**

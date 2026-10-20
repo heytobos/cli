@@ -10,7 +10,13 @@ export function mediaUrl(name: string): string {
   // Only its own names: `constructor` is a file like any other, not Object's.
   const entry = Object.hasOwn(files, name) ? files[name] : undefined;
   if (!entry) {
-    console.warn(`[tobos] media("${name}") is not in media.json`);
+    // A share has only the files the check saw the scenes it shows use (sharedManifest): a file
+    // missing there may well be in media.json.
+    console.warn(
+      isShared()
+        ? `[tobos] media("${name}") isn't available here`
+        : `[tobos] media("${name}") is not in media.json`,
+    );
     return '';
   }
   return 'media/' + entry.hash;

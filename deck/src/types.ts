@@ -104,6 +104,25 @@ export interface Manifest {
    * the packages it imports (`p/<bundle>/katex/dist/katex.min.css`), which the server adds.
    */
   styles?: string[];
+  /**
+   * What the deck's code uses of the deck, so a share gets only what the scenes it shows reach
+   * (share.ts). Not in a manifest pushed before the build recorded it, which sharedManifest()
+   * shares as it did then.
+   */
+  uses?: Uses;
+}
+
+/** What each of a deck's modules uses of the deck itself, and what its stylesheet does. */
+export interface Uses {
+  /**
+   * By specifier (`@deck/scenes/a.svelte`): the deck's modules it imports, statically or not; the
+   * media.json names its media() calls name; and their patterns (`frames/*.png`), which a share
+   * matches against media.json, so a pattern is here once, not as every name it matches. Each is
+   * left out when it has none.
+   */
+  modules: Record<string, { imports?: string[]; media?: string[]; patterns?: string[] }>;
+  /** The media.json names tokens.css links, which every page that shows the deck loads. */
+  styles: string[];
 }
 
 /** A deck's files, from a directory or from a git revision. Paths use `/` and have no leading slash. */

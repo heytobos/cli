@@ -85,6 +85,106 @@ describe('sharedManifest', () => {
   });
 });
 
+describe('sharedManifest, with what each module uses', () => {
+  const entry = (hash: string) => ({ hash: hash.repeat(64), size: 1000, type: 'image/png' });
+  const recorded: Manifest = {
+    ...manifest,
+    imports: {
+      '@deck/data/answers.json': 'm/5555555555eeeeeeeeee.js',
+      '@deck/lib/Chart.svelte': 'm/3333333333cccccccccc.js',
+      '@deck/lib/unused.ts': 'm/6666666666ffffffffff.js',
+      '@deck/master/index.ts': 'm/7777777777aaaaaaaaaa.js',
+      '@deck/scenes/draft.svelte': 'm/8888888888bbbbbbbbbb.js',
+      '@deck/scenes/poll.svelte': 'm/1111111111aaaaaaaaaa.js',
+      '@deck/scenes/poll/Reveal.svelte': 'm/9999999999cccccccccc.js',
+      '@deck/scenes/title.svelte': 'm/0123456789abcdef0123.js',
+      '@deck/scenes/wishes.svelte': 'm/2222222222bbbbbbbbbb.js',
+      d3: 'p/0123456789abcdef/d3.js',
+    },
+    media: {
+      'cover.png': entry('a'),
+      'chart/a.png': entry('b'),
+      'chart/b.png': entry('c'),
+      'quiz/answer.png': entry('d'),
+      'quiz/reveal.png': entry('e'),
+      'old/deleted.png': entry('f'),
+      'draft.png': entry('0'),
+      'master/fonts/a.woff2': entry('1'),
+      'master/logo.svg': entry('2'),
+    },
+    uses: {
+      modules: {
+        '@deck/data/answers.json': {},
+        '@deck/lib/Chart.svelte': { patterns: ['chart/*.png'] },
+        '@deck/lib/unused.ts': {},
+        '@deck/master/index.ts': { media: ['master/logo.svg'] },
+        '@deck/scenes/draft.svelte': { media: ['draft.png'] },
+        '@deck/scenes/poll.svelte': {
+          imports: ['@deck/lib/Chart.svelte', '@deck/scenes/poll/Reveal.svelte'],
+          media: ['quiz/answer.png'],
+        },
+        '@deck/scenes/poll/Reveal.svelte': {
+          imports: ['@deck/data/answers.json'],
+          patterns: ['quiz/*.png'],
+        },
+        '@deck/scenes/title.svelte': {
+          imports: ['@deck/lib/Chart.svelte', '@deck/master/index.ts'],
+          media: ['cover.png'],
+        },
+        '@deck/scenes/wishes.svelte': { imports: ['@deck/master/index.ts'] },
+      },
+      styles: ['master/fonts/a.woff2'],
+    },
+  };
+  const shared = sharedManifest(recorded);
+
+  it('gives the modules the scenes it shows reach, and the packages, and no other', () => {
+    expect(Object.keys(shared.imports)).toEqual([
+      '@deck/lib/Chart.svelte',
+      '@deck/master/index.ts',
+      '@deck/scenes/title.svelte',
+      'd3',
+    ]);
+  });
+
+  it('gives the media the scenes it shows use, and the stylesheet’s, and no other', () => {
+    expect(Object.keys(shared.media).sort()).toEqual([
+      'chart/a.png',
+      'chart/b.png',
+      'cover.png',
+      'master/fonts/a.woff2',
+      'master/logo.svg',
+    ]);
+    expect(shared.media['cover.png']).toEqual(recorded.media['cover.png']);
+  });
+
+  it('says nothing of what the scenes it leaves out use', () => {
+    expect(shared).not.toHaveProperty('uses');
+    expect(JSON.stringify(shared)).not.toMatch(/quiz|Reveal|draft|deleted|unused|answers/);
+    expect(servesModule(shared, 'm/9999999999cccccccccc.js')).toBe(false);
+    expect(servesModule(shared, 'm/8888888888bbbbbbbbbb.js')).toBe(false);
+    expect(servesModule(shared, 'm/3333333333cccccccccc.js')).toBe(true);
+  });
+
+  it('leaves out what it has no record of, rather than giving more', () => {
+    const { modules } = recorded.uses!;
+    const unrecorded = sharedManifest({
+      ...recorded,
+      uses: { modules: { ...modules, '@deck/scenes/title.svelte': {} }, styles: [] },
+    });
+    expect(Object.keys(unrecorded.imports)).toEqual(['@deck/scenes/title.svelte', 'd3']);
+    expect(unrecorded.media).toEqual({});
+  });
+
+  it('shares a manifest pushed before the build recorded it as it did then', () => {
+    expect(shared.chapters).toEqual(sharedManifest(manifest).chapters);
+    const before = sharedManifest({ ...recorded, uses: undefined });
+    expect(Object.keys(before.imports)).not.toContain('@deck/scenes/poll.svelte');
+    expect(Object.keys(before.imports)).toContain('@deck/scenes/poll/Reveal.svelte');
+    expect(before.media).toEqual(recorded.media);
+  });
+});
+
 describe('servesModule', () => {
   it('serves the modules and stylesheets a manifest names, and no other', () => {
     const shared = sharedManifest(manifest);

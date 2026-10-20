@@ -3,15 +3,25 @@ import { compile as compileSvelte, VERSION as SVELTE_VERSION } from 'svelte/comp
 import {
   analyzeScript,
   analyzeSvelte,
-  mediaMatches,
+  mediaMatcher,
+  mediaMatching,
   type Analysis,
+  type MediaRef,
   type Rules,
 } from './analyze.ts';
 import { parseDeckJson, parseMasterJson, parseMediaJson } from './deck-json.ts';
 import { sha256 } from './hash.ts';
 import { stripTypes } from './strip-types.ts';
 import { position, readText, resolvePath } from './tree.ts';
-import type { DeckJson, DeckTree, Manifest, ManifestChapter, Problem } from './types.ts';
+import type {
+  DeckJson,
+  DeckTree,
+  Manifest,
+  ManifestChapter,
+  MediaJson,
+  Problem,
+  Uses,
+} from './types.ts';
 
 const DECK_PREFIX = '@deck/';
 const SOURCE = /\.(svelte|ts|js|mjs|json)$/;
@@ -471,6 +481,93 @@ function emitModules(compiled: Map<string, CompiledFile>): {
 }
 
 /**
+ * Whether a deck's file passes the engine's media() on as `media`: `export { media } from
+ * '@tobos/present'`, the same from a file that does, or `export *` of either. A `media` of its
+ * own, or a package's, is not it.
+ */
+function passingMedia(compiled: Map<string, CompiledFile>): (path: string) => boolean {
+  const known = new Map<string, boolean>();
+  // Only what a whole walk finds is kept: one cut short by a circle of `export *` may say less.
+  const passes = (path: string, seen: Set<string>): boolean => {
+    if (known.has(path)) return known.get(path)!;
+    const exports = compiled.get(path)?.analysis.exports;
+    if (!exports || seen.has(path)) return false;
+    seen.add(path);
+    const from = (spec: string) =>
+      spec === '@tobos/present' ||
+      ((spec.startsWith('./') || spec.startsWith('../')) &&
+        passes(resolvePath(path, spec) ?? '', seen));
+    const named = exports.from.find(([name]) => name === 'media');
+    if (named) return named[2] === 'media' && from(named[1]);
+    return !exports.names.includes('media') && exports.all.some(from);
+  };
+  return (path) => {
+    if (!known.has(path)) known.set(path, passes(path, new Set()));
+    return known.get(path)!;
+  };
+}
+
+/**
+ * What each compiled file uses of the deck: the deck's files it imports, the same imports
+ * emitModules rewrites, so none is missed; the media.json names its media() calls name; and
+ * their patterns as written (`frames/*.png`), which a share matches against media.json. So the
+ * manifest grows with the deck's code and media.json, never with the one times the other.
+ */
+function modulesUses(
+  compiled: Map<string, CompiledFile>,
+  mediaOf: Map<string, MediaRef[]>,
+): Uses['modules'] {
+  const modules: Uses['modules'] = {};
+  for (const [path, file] of [...compiled].sort(([a], [b]) => a.localeCompare(b))) {
+    const imports = new Set<string>();
+    for (const { specifier } of file.imports)
+      if (specifier?.startsWith('./') || specifier?.startsWith('../'))
+        imports.add(DECK_PREFIX + resolvePath(path, specifier)!);
+    const names = new Set<string>();
+    const patterns = new Set<string>();
+    for (const ref of mediaOf.get(path) ?? []) (ref.pattern ? patterns : names).add(ref.name);
+    modules[DECK_PREFIX + path] = {
+      ...(imports.size ? { imports: [...imports].sort() } : {}),
+      ...(names.size ? { media: [...names].sort() } : {}),
+      ...(patterns.size ? { patterns: [...patterns].sort() } : {}),
+    };
+  }
+  return modules;
+}
+
+/** A size as the check says it: `840 KB`, `12.5 MB`. */
+const sizeText = (bytes: number) =>
+  bytes < 1_000_000 ? `${Math.ceil(bytes / 1000)} KB` : `${+(bytes / 1_000_000).toFixed(1)} MB`;
+
+/**
+ * The files media.json lists that nothing in the deck shows: neither a media() call in any file
+ * it compiles, nor tokens.css. A share never gets them, but each still takes its room. The
+ * master's own files, under media/master/, come and go with it (masterOf), its fonts' licences
+ * among them, so they aren't counted.
+ */
+function unusedMedia(media: MediaJson, uses: Uses): Problem | undefined {
+  const used = new Set(uses.styles);
+  const patterns = new Set<string>();
+  for (const { media: names, patterns: more } of Object.values(uses.modules)) {
+    for (const name of names ?? []) used.add(name);
+    for (const pattern of more ?? []) patterns.add(pattern);
+  }
+  const named = Object.keys(media).filter((name) => !used.has(name) && !name.startsWith('master/'));
+  const matched = new Set(mediaMatching(named, patterns));
+  const unused = named.filter((name) => !matched.has(name));
+  if (unused.length === 0) return undefined;
+  const bytes = unused.reduce((sum, name) => sum + media[name]!.size, 0);
+  const shown =
+    unused.length > 10 ? [...unused.slice(0, 10), `${unused.length - 10} more`] : unused;
+  return {
+    file: 'media.json',
+    rule: 'media',
+    message: `media.json lists ${unused.length === 1 ? '1 file' : `${unused.length} files`} no scene or master uses (${sizeText(bytes)}): ${and(shown)}. Remove ${unused.length === 1 ? 'it' : 'them'} from media/ and media.json to free their room.`,
+    severity: 'warning',
+  };
+}
+
+/**
  * Check and compile a deck. Reads text and writes text; never runs deck code.
  * The manifest and modules are only returned when there are no errors.
  */
@@ -525,15 +622,33 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
         severity: 'warning',
       });
 
-  // Media: every media() name must be in media.json (unless media.json itself is broken).
+  // What each file shows of media(): its own calls, and those through one of the deck's files,
+  // if it passes the engine's media() on, which is known only now that every file is read.
+  const passes = passingMedia(graph.compiled);
+  const mediaOf = new Map<string, MediaRef[]>();
+  for (const [path, file] of graph.compiled) {
+    const refs = [...file.analysis.media];
+    for (const found of file.analysis.through ?? []) {
+      const target = resolvePath(path, found.specifier);
+      if (target === undefined || !passes(target)) continue;
+      refs.push(...found.media);
+      problems.push(...found.problems);
+    }
+    mediaOf.set(path, refs);
+  }
+
+  // Media: every media() name must be in media.json (unless media.json itself is broken). A
+  // pattern is matched once, however many calls write it.
+  const names = Object.keys(media);
+  const matching = new Map<string, boolean>();
+  const matches = (pattern: string) => {
+    if (!matching.has(pattern)) matching.set(pattern, names.some(mediaMatcher(pattern)));
+    return matching.get(pattern)!;
+  };
   if (mediaProblems.length === 0)
-    for (const [path, file] of graph.compiled)
-      for (const ref of file.analysis.media)
-        if (
-          ref.pattern
-            ? !Object.keys(media).some((name) => mediaMatches(ref.name, name))
-            : !(ref.name in media)
-        )
+    for (const [path, refs] of mediaOf)
+      for (const ref of refs)
+        if (ref.pattern ? !matches(ref.name) : !(ref.name in media))
           problems.push({
             file: path,
             line: ref.line,
@@ -568,6 +683,12 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
 
   const emitted = emitModules(graph.compiled);
   if (stylesheet) emitted.modules.set(stylesheet.name, stylesheet.code);
+  const uses: Uses = {
+    modules: modulesUses(graph.compiled, mediaOf),
+    styles: stylesheet?.media ?? [],
+  };
+  const unused = unusedMedia(media, uses);
+  if (unused) problems.push(unused);
   const chapters: ManifestChapter[] = deck.chapters.map((chapter) => ({
     id: chapter.id,
     title: chapter.title,
@@ -599,6 +720,7 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
       dependencies,
       packages: packageImports(graph.compiled, dependencies),
       ...(stylesheet ? { styles: [stylesheet.name] } : {}),
+      uses,
     },
   };
 }
@@ -606,16 +728,17 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
 /**
  * The master's tokens.css: the deck's one stylesheet, linked on every page that shows it. Its
  * url()s name files in media/, relative to master/ (`url(../media/master/fonts/x.woff2)`), and
- * become those files' addresses.
+ * become those files' addresses; `media` is their names.
  */
 function masterStylesheet(
   tree: DeckTree,
   media: Record<string, { hash: string }>,
   problems: Problem[],
-): { name: string; code: string } | undefined {
+): { name: string; code: string; media: string[] } | undefined {
   const file = 'master/tokens.css';
   const source = readText(tree, file);
   if (source === undefined) return undefined;
+  const linked = new Set<string>();
   // Quoted, or bare with no space: parts that can't take the same characters, so a run of
   // spaces with no `)` is one pass, not one for every way to split it.
   const code = source.replace(
@@ -631,7 +754,10 @@ function masterStylesheet(
       if (url.startsWith('data:') || url.startsWith('#')) return whole;
       const target = /^[a-z][a-z0-9+.-]*:|^\//i.test(url) ? undefined : resolvePath(file, url);
       const name = target?.startsWith('media/') ? target.slice('media/'.length) : undefined;
-      if (name !== undefined && media[name]) return `url(../media/${media[name].hash})`;
+      if (name !== undefined && media[name]) {
+        linked.add(name);
+        return `url(../media/${media[name].hash})`;
+      }
       problems.push({
         file,
         ...position(source, offset),
@@ -642,5 +768,5 @@ function masterStylesheet(
       return whole;
     },
   );
-  return { name: `m/${sha256(code).slice(0, 20)}.css`, code };
+  return { name: `m/${sha256(code).slice(0, 20)}.css`, code, media: [...linked].sort() };
 }
