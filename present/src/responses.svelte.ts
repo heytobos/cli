@@ -9,7 +9,10 @@ import { stream } from './viewer/stream.ts';
 
 /** One activity's responses in the current show. */
 export interface Responses {
-  /** People whose phones opened the deck's join link during this show. */
+  /**
+   * The most phones that had the deck's join link open at once during this show, and never fewer
+   * than answered.
+   */
   readonly joined: number;
   /** People who have answered this activity during this show. */
   readonly answered: number;

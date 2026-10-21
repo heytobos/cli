@@ -1,7 +1,7 @@
 /**
  * The phone page, at `<content origin>/<code>`: whatever activity the presenter is on, to answer
- * once. Our code only, never a deck's. No account and no cookies: the phone makes an id of its
- * own for each deck, and remembers in localStorage what it has sent in this show and its drafts.
+ * once. Our code only, never a deck's. No account and no cookies: what the phone keeps in
+ * localStorage is for one show only (Kept), and a phone that only looks keeps and sends nothing.
  */
 import type { PhoneActivity, PhoneState } from '../activities.ts';
 
@@ -10,6 +10,8 @@ const root = document.getElementById('tobos-phone')!;
 
 /** How often a phone looks whether the deck went live, while it isn't. */
 const POLL_MS = 30_000;
+/** How long what the phone keeps lasts after the page was last open. */
+const KEEP_MS = 3 * 60 * 60_000;
 
 const store = {
   get(key: string): string | null {
@@ -45,21 +47,51 @@ function uuid(): string {
 }
 
 /**
- * The phone's id for this deck, the same for all its activities and shows: a deck's responses
- * can be lined up by person, without anyone known. Another deck gets another id, so two decks'
- * responses can't be.
+ * What the phone keeps for the deck, under `tobos:phone:<code>`, for one show: its id in it,
+ * made when it sends its first answer, so that its answers stay together and each counts once;
+ * what it has answered, so that a reload doesn't offer it again; and what it has typed but not
+ * sent. All of it goes when the phone sees another show live, or 3 hours after the page was last
+ * open (`until`, renewed while it is). The next show, or another deck, gets another id, so one
+ * phone's answers can't be lined up across them.
  */
-const participantKey = `tobos:participant:${code}`;
-const participant =
-  store.get(participantKey) ??
-  (() => {
-    const id = uuid();
-    store.set(participantKey, id);
-    return id;
-  })();
+interface Kept {
+  show: string;
+  participant?: string;
+  until: number;
+  sent: string[];
+  drafts: Record<string, Record<string, string>>;
+}
+const KEPT = 'tobos:phone:';
+const keptKey = `${KEPT}${code}`;
 
-const sentKey = (show: string, activity: string) => `tobos:sent:${code}:${show}:${activity}`;
-const draftKey = (activity: string) => `tobos:draft:${code}:${activity}`;
+function parse(text: string | null): Kept | null {
+  try {
+    const kept = JSON.parse(text ?? 'null') as Partial<Kept> | null;
+    return typeof kept?.show === 'string' &&
+      typeof kept.until === 'number' &&
+      Array.isArray(kept.sent) &&
+      typeof kept.drafts === 'object' &&
+      kept.drafts !== null
+      ? (kept as Kept)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+// On every load, since localStorage expires nothing by itself: what earlier versions of this page
+// kept, among it an id per deck for good, and whatever has expired, for any deck, goes.
+try {
+  for (const key of Object.keys(localStorage)) {
+    const legacy = /^tobos:(participant|sent|draft):/.test(key);
+    const expired = key.startsWith(KEPT) && !((parse(store.get(key))?.until ?? 0) > Date.now());
+    if (legacy || expired) localStorage.removeItem(key);
+  }
+} catch {
+  // Storage refused: nothing was kept.
+}
+
+let kept = parse(store.get(keptKey));
 
 let state: PhoneState | null = null;
 /** An activity closed while it was open here, unsent. */
@@ -71,9 +103,83 @@ const pending = new Map<string, string>();
 /** The option picked in the open poll. */
 let picked: string | null = null;
 
+/**
+ * The objection's mail, in the notice the server puts on the page: the join code goes in, and the
+ * phone's id in this show, which only the phone knows, so that its answers can be found.
+ */
+const objection = document.querySelector<HTMLAnchorElement>('a[data-object]');
+const mailto = objection?.getAttribute('href') ?? '';
+
+/** The show in which the person started answering here, by picking or typing. */
+let started: string | null = null;
+
+/** What follows from what the phone keeps, outside the screen the script draws. */
+function changed() {
+  // Answering in this show, here or before a reload: the notice, which was on the first screen,
+  // gives way to the question's Send button (phone.css). Another show, the next or a cleared one,
+  // isn't answered yet, and has it on the first screen again.
+  const show = state?.live ? state.show : null;
+  document.body.classList.toggle(
+    'answering',
+    !!kept?.sent.length || (show !== null && started === show),
+  );
+  if (!objection) return;
+  const [ask, codeIs, idIs] =
+    objection.closest('[lang]')?.getAttribute('lang') === 'de'
+      ? ['Bitte löschen Sie meine Antworten.', 'Code', 'Zufallszahl dieses Handys']
+      : ['Please delete my answers.', 'Join code', "This phone's random number"];
+  const id = kept?.participant;
+  const lines = [ask, '', `${codeIs}: ${code}`, ...(id ? [`${idIs}: ${id}`] : [])];
+  objection.href = `${mailto}&body=${encodeURIComponent(lines.join('\r\n'))}`;
+}
+
+/** Keep this, for 3 hours from now. */
+function keep(next: Omit<Kept, 'until'>) {
+  kept = { ...next, until: Date.now() + KEEP_MS };
+  store.set(keptKey, JSON.stringify(kept));
+  changed();
+}
+
+/** Forget all the phone kept for the deck, its id with it. */
+function forget() {
+  kept = null;
+  store.remove(keptKey);
+  pending.clear();
+  changed();
+}
+
+/**
+ * What the phone keeps, while it may still use it: before its time is up, and for the show that
+ * is live, if one is. Otherwise it is forgotten.
+ */
+function mine(): Kept | null {
+  if (kept && (kept.until <= Date.now() || (state?.live && kept.show !== state.show))) forget();
+  return kept;
+}
+
+const blank = (show: string): Omit<Kept, 'until'> => ({ show, sent: [], drafts: {} });
+
+/** The page is open: what the phone keeps lasts 3 hours from now, unless its time is up. */
+function renew() {
+  const here = mine();
+  if (here) keep(here);
+}
+// Renewed as the page opens, wakes and stays open. A page asleep in the background renews
+// nothing, and finds it gone if it wakes more than 3 hours later.
+window.setInterval(renew, 60_000);
+
+// The page open twice, as after a second scan: what one keeps, the other uses, so that the phone
+// has one id in the show.
+window.addEventListener('storage', (event) => {
+  if (event.key !== keptKey && event.key !== null) return;
+  kept = parse(store.get(keptKey));
+  changed();
+  render();
+});
+
 const open = (): PhoneActivity | null => (state?.live ? state.activity : null);
 const sent = (activity: PhoneActivity) =>
-  state?.live === true && store.get(sentKey(state.show, activity.id)) === '1';
+  state?.live === true && mine()?.sent.includes(activity.id) === true;
 
 function apply(next: PhoneState) {
   const before = open();
@@ -85,27 +191,39 @@ function apply(next: PhoneState) {
   }
   if (after) closed = false;
   state = next;
+  // Another show live: what the phone kept for the last one goes.
+  mine();
+  changed();
   if (next.live) follow();
   else stopFollowing();
   render();
 }
 
-// While nothing is live: a look every 30 s, and whenever the page is shown again.
+/** What is open now, from the server: whether it could be asked. */
+async function look(): Promise<boolean> {
+  try {
+    const response = await fetch(`/${code}/state`, { cache: 'no-store' });
+    if (!response.ok) return false;
+    apply((await response.json()) as PhoneState);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// While nothing is live: a look every 30 s, and whenever the page is shown again. Offline for a
+// moment, the next look tries again.
 let timer = 0;
 async function poll() {
   window.clearTimeout(timer);
-  try {
-    const response = await fetch(`/${code}/state?participant=${participant}`, {
-      cache: 'no-store',
-    });
-    if (response.ok) apply((await response.json()) as PhoneState);
-  } catch {
-    // Offline for a moment: the next look tries again.
-  }
+  await look();
   if (!events) timer = window.setTimeout(poll, POLL_MS);
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && !events) void poll();
+  if (document.visibilityState !== 'visible') return;
+  renew();
+  render();
+  if (!events) void poll();
 });
 
 // While live: the server's stream of the same state.
@@ -113,7 +231,7 @@ let events: EventSource | null = null;
 function follow() {
   if (events) return;
   window.clearTimeout(timer);
-  events = new EventSource(`/${code}/events?participant=${participant}`);
+  events = new EventSource(`/${code}/events`);
   events.addEventListener('state', (event) =>
     apply(JSON.parse((event as MessageEvent<string>).data) as PhoneState),
   );
@@ -132,17 +250,15 @@ function stopFollowing() {
   timer = window.setTimeout(poll, POLL_MS);
 }
 
-function draft(activity: PhoneActivity): Record<string, string> {
-  try {
-    return JSON.parse(store.get(draftKey(activity.id)) ?? '{}') as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
+const draft = (activity: PhoneActivity) => mine()?.drafts[activity.id] ?? {};
 
 async function send(activity: PhoneActivity, value: unknown) {
   if (sending || !state?.live) return;
   const show = state.show;
+  // The phone's id in this show: made with its first answer, and kept for the rest of the show.
+  const here = mine() ?? blank(show);
+  const participant = here.participant ?? uuid();
+  if (!here.participant) keep({ ...here, participant });
   sending = true;
   error = '';
   update();
@@ -152,15 +268,29 @@ async function send(activity: PhoneActivity, value: unknown) {
     const response = await fetch(`/${code}/responses`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id, participant, activity: activity.id, value }),
+      // The show goes with the answer: the server takes it in that show only, as the id is.
+      body: JSON.stringify({ id, participant, show, activity: activity.id, value }),
     });
     if (response.status === 202) {
-      store.set(sentKey(show, activity.id), '1');
-      store.remove(draftKey(activity.id));
+      // Unless another show went live meanwhile, which the answer is no part of.
+      const now = mine();
+      if (now?.show === show) {
+        const drafts = { ...now.drafts };
+        delete drafts[activity.id];
+        keep({ ...now, sent: [...now.sent, activity.id], drafts });
+      }
       pending.delete(activity.id);
     } else if (response.status === 409) {
-      closed = true;
-      if (state?.live) state = { ...state, activity: null };
+      // Closed, or the show is over: the presenter cleared the responses as it went. What is open
+      // now says which. Open again in the next show, it may be sent again, with an id of that one.
+      if (!(await look())) {
+        closed = true;
+        if (state?.live) state = { ...state, activity: null };
+      } else if (open()?.id === activity.id)
+        error =
+          state?.live && state.show !== show
+            ? 'The session started over. Send again.'
+            : "That couldn't be sent.";
     } else if (response.status === 429) error = 'Too many tries. Wait a minute, then send again.';
     else error = "That couldn't be sent.";
   } catch {
@@ -245,7 +375,15 @@ function actions(onSend: () => void): HTMLElement {
   return el('div', { className: 'actions' }, sendButton, errorLine);
 }
 
+/** The person picks or types: they have started answering in this show. */
+function start() {
+  if (state?.live) started = state.show;
+  changed();
+}
+
 function showChoice(activity: Extract<PhoneActivity, { kind: 'choice' }>) {
+  // Nothing picked yet on this screen: not what was picked before it was sent, or another show.
+  picked = null;
   const buttons = activity.options.map((option) =>
     el(
       'button',
@@ -257,6 +395,7 @@ function showChoice(activity: Extract<PhoneActivity, { kind: 'choice' }>) {
         onclick: () => {
           picked = option;
           for (const b of buttons) b.setAttribute('aria-checked', String(b.textContent === option));
+          start();
           update();
         },
       },
@@ -288,7 +427,11 @@ function showText(activity: Extract<PhoneActivity, { kind: 'text' }>) {
     input.value = (saved[field.id] ?? '').slice(0, field.max);
     input.addEventListener('input', () => {
       const values = Object.fromEntries(inputs.map((i) => [i.name, i.value]));
-      store.set(draftKey(activity.id), JSON.stringify(values));
+      if (state?.live) {
+        const here = mine() ?? blank(state.show);
+        keep({ ...here, drafts: { ...here.drafts, [activity.id]: values } });
+      }
+      start();
       update();
     });
     return input;
@@ -304,5 +447,7 @@ function showText(activity: Extract<PhoneActivity, { kind: 'text' }>) {
   );
 }
 
+renew();
+changed();
 render();
 void poll();

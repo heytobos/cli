@@ -71,8 +71,11 @@
         ? `${results.joined} joined · ${results.activities[activityHere.id]?.answered ?? 0} answered`
         : `${results.joined} joined`,
   );
-  /** Responses the room has given in this show, or the last one: what Clear clears. */
-  const answered = $derived(results.joined > 0 || Object.keys(results.activities).length > 0);
+  /**
+   * Responses the room has given in this show, or the last one: what Clear clears. Not who
+   * joined: phones still following are in the next show too.
+   */
+  const answered = $derived(Object.keys(results.activities).length > 0);
 
   function refOf(p: Position): BeatRef {
     const scene = current.outline.scenes[p.scene]!;
