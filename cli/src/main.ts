@@ -38,11 +38,12 @@ a beat: [Title](scene:<id>/<beat>))
                                               TOBOS_AGENT=<name> says which agent you are: the
                                               deck's page marks what you wrote
 
-People on a deck (from its working copy, or --deck <id>)
+People on a deck or template (from its working copy, or --deck <id>)
   tobos people                                who is on it, and what each may do
   tobos invite <email> --can edit|present|view
-                                              put them on it, mailed the way in; someone on it
-                                              already gets the new level
+                                              its owner puts them on it, mailed the way in;
+                                              someone on it already gets the new level. On a
+                                              template, --can edit|use
   tobos uninvite <email>                      take them off, and their access ends at once;
                                               with your own address, leave the deck
 

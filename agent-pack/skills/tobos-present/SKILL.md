@@ -64,11 +64,11 @@ A deck has one story: the talk as the speaker tells it, paragraph by paragraph, 
 | `tobos new "Our brand" --template`                       | a new template: a copy of the default, or of `--from`          |
 | `tobos whoami` · `tobos logout`                          | who is logged in, on which server; or log this machine out     |
 | `tobos skill install`                                    | this skill, where the person's harnesses read skills           |
-| `tobos people`                                           | who is on the deck, and what each may do                       |
-| `tobos invite <email> --can edit` · `present` · `view`   | put someone on the deck; they get a mail                       |
+| `tobos people`                                           | who is on the deck or template, and what each may do           |
+| `tobos invite <email> --can edit` · `present` · `view`   | put someone on it; they get a mail (a template: edit · `use`)  |
 | `tobos uninvite <email>`                                 | take them off; their access ends at once                       |
 
-Invite only whom the person names, at the level they say: the mail goes to someone else, from the person's name. Can edit builds the deck with their own agent; can present presents it with its notes and polls; can view sees the slides only.
+Invite only whom the person names, at the level they say: the mail goes to someone else, from the person's name. Only the deck's owner puts people on it and takes them off; anyone else sees the owner and themselves in `tobos people`, and leaves with `tobos uninvite` and their own address. Can edit builds the deck with their own agent and turns its link on or off; can present presents it with its notes and polls; can view sees the slides only. A template is shared the same way, at can edit or can use (`--can use`): using it is seeing its gallery and starting decks from it.
 
 Every command takes `--json`. Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in, 4 the story changed meanwhile, 5 a plan's limit or an archived deck.
 

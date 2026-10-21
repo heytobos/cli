@@ -575,11 +575,15 @@ interface Person {
   paused: boolean;
 }
 
-/** `--can`'s words, as the Share menu says them (Can edit, Can present, Can view), and the level. */
+/**
+ * `--can`'s words, as the Share menu says them (Can edit, Can present, Can view), and the level.
+ * A template's are Can edit and Can use, which is the viewer's level there.
+ */
 const CAN: Record<string, Exclude<Person['role'], 'owner'>> = {
   edit: 'editor',
   present: 'presenter',
   view: 'viewer',
+  use: 'viewer',
 };
 const CAN_WORDS: Record<Person['role'], string> = {
   owner: 'owner',
@@ -612,7 +616,7 @@ export async function invite(out: Output, args: Args) {
   const level = CAN[String(args.values.can)];
   if (!email || !level)
     throw new CliError(
-      'Invite whom, to do what? `tobos invite <email> --can edit`, `--can present` or `--can view`.',
+      'Invite whom, to do what? `tobos invite <email> --can edit`, `--can present` or `--can view`; to a template, `--can edit` or `--can use`.',
     );
   const id = await deckId(args);
   const done = await api<{
