@@ -26,6 +26,8 @@ const DRIFT = 0.25;
 const opened = new WeakSet<HTMLVideoElement>();
 /** Videos whose play() the browser refused: they follow the timeline by seeking. */
 const unplayable = new WeakSet<HTMLVideoElement>();
+/** Paused videos whose landing frame is still to be put on screen again (`repaint`). */
+const repaints = new WeakMap<HTMLVideoElement, Promise<void>>();
 
 /**
  * Play a video (or the clip `from`–`to` of it) as part of a beat. Stepping forward plays it in
@@ -58,7 +60,7 @@ export function playVideo(
     const duration = Number.isFinite(to) ? Math.abs(to - from) / rate : 0;
     if (!opened.has(video)) {
       opened.add(video);
-      seek(video, from);
+      land(video, from);
     }
 
     // GSAP calls a function-valued property as a setter on every render, seek or play, with
@@ -127,13 +129,76 @@ function follow(video: HTMLVideoElement, time: number, playing: boolean, rate: n
     }
     return;
   }
-  if (!video.paused) video.pause();
-  seek(video, time);
+  // A video stopped a hair before `time` shows the frame before it where `time` is a frame's
+  // first instant (a clip ending at a whole second), so a stop from playing lands exactly.
+  const stopping = !video.paused;
+  if (stopping) video.pause();
+  land(video, time, stopping ? 0 : undefined);
 }
 
-function seek(video: HTMLVideoElement, time: number) {
-  if (Math.abs(video.currentTime - time) > 0.0005) video.currentTime = time;
+/** Seek a paused video to `time`, and see that the frame there reaches the screen. */
+function land(video: HTMLVideoElement, time: number, tolerance?: number) {
+  if (seek(video, time, tolerance)) repaint(video);
 }
+
+/** Seek, unless the video is within `tolerance` seconds of `time` already. */
+function seek(video: HTMLVideoElement, time: number, tolerance = 0.0005): boolean {
+  if (Math.abs(video.currentTime - time) <= tolerance) return false;
+  video.currentTime = time;
+  return true;
+}
+
+/**
+ * Once a paused video's seek is done and two frames have gone by, have the browser hand the
+ * frame it decoded to the screen once more.
+ *
+ * Chromium can leave the frame from before the seek on screen, for good: a paused video hands
+ * each new frame to the compositor once, and drops it while the compositor hasn't acknowledged
+ * the frame before (VideoFrameSubmitter::SubmitFrame). A video that has just loaded paints its
+ * first frame, and the seek's frame follows 10–20 ms later. So a reload or a jump onto a beat
+ * that lands mid-clip or on a clip's end could show the clip's first frame, with currentTime,
+ * `seeked` and a canvas drawImage all right: 1 reload in 10 in headless Chromium on two cores,
+ * nearly every one in Chromium's full build on one core.
+ *
+ * Asking for a video frame callback makes Chromium submit the current frame again, and once more
+ * a second later. Two frames after the seek, the acknowledgement has come; asked at once, it
+ * often hadn't. It costs no seek and leaves the time alone. The callback itself is cancelled: it
+ * would only wait for the next new frame.
+ */
+function repaint(video: HTMLVideoElement) {
+  if (repaints.has(video) || typeof video.requestVideoFrameCallback !== 'function') return;
+  // Seeks begun while it waits, even one done again before its frames are: that seek's frame is
+  // the one to show, two frames after it.
+  let seeks = 0;
+  const sought = () => seeks++;
+  video.addEventListener('seeking', sought);
+  const done = (async () => {
+    let again: boolean;
+    do {
+      while (video.seeking) await anyOf(video, ['seeked', 'emptied', 'error']);
+      const seen = seeks;
+      await nextFrame();
+      await nextFrame();
+      again = video.seeking || seeks !== seen;
+    } while (again);
+    if (video.paused) video.cancelVideoFrameCallback(video.requestVideoFrameCallback(() => {}));
+  })().finally(() => {
+    video.removeEventListener('seeking', sought);
+    repaints.delete(video);
+  });
+  repaints.set(video, done);
+}
+
+const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+const anyOf = (video: HTMLVideoElement, names: readonly string[]) =>
+  new Promise<void>((resolve) => {
+    const done = () => {
+      for (const name of names) video.removeEventListener(name, done);
+      resolve();
+    };
+    for (const name of names) video.addEventListener(name, done);
+  });
 
 /**
  * Wait until the videos inside `root` know their length, so `playVideo` can size their clips
@@ -166,7 +231,8 @@ export function videosKnowTheirLength(root: Element, timeout = 5000): Promise<vo
 
 /**
  * Wait until every video inside `root` shows the frame it was last sought to: no seek pending,
- * and a frame decoded. Videos that won't load don't hold it up.
+ * a frame decoded, and that frame handed to the screen again (`repaint`). Videos that won't load
+ * don't hold it up.
  */
 export async function videoFramesReady(root: Element): Promise<void> {
   const pending = (video: HTMLVideoElement) =>
@@ -189,6 +255,7 @@ export async function videoFramesReady(root: Element): Promise<void> {
           for (const name of EVENTS) video.addEventListener(name, done);
           const tick = window.setTimeout(done, 250);
         });
+      await repaints.get(video);
     }),
   );
 }

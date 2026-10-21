@@ -12,7 +12,15 @@ import { playVideo, videoFramesReady, videosKnowTheirLength } from '../src/video
 function fakeVideo(duration = 2) {
   const video = document.createElement('video');
   video.setAttribute('src', 'clip.webm');
-  const state = { time: 0, paused: true, seeking: false, readyState: 4, refuse: false };
+  const state = {
+    time: 0,
+    paused: true,
+    seeking: false,
+    readyState: 4,
+    refuse: false,
+    /** Video frame callbacks asked for, which is how the viewer has a frame drawn again. */
+    repaints: 0,
+  };
   const log: string[] = [];
   Object.defineProperties(video, {
     duration: { get: () => (state.readyState >= 1 ? duration : NaN) },
@@ -45,6 +53,8 @@ function fakeVideo(duration = 2) {
         log.push('pause');
       },
     },
+    requestVideoFrameCallback: { value: () => ++state.repaints },
+    cancelVideoFrameCallback: { value: () => {} },
   });
   return {
     video,
@@ -194,6 +204,18 @@ describe('playVideo', () => {
     expect(fake.state).toMatchObject({ time: 1, paused: true });
   });
 
+  it('lands exactly on the end of a step that stopped playing a hair short of it', () => {
+    // At 0.9998 s the screen shows the frame before the one at 1 s.
+    const scene = new SceneTimeline(root, beats);
+    scene.show(0, false);
+    scene.show(1, true);
+    playTo(scene, 0.1);
+    fake.advance(0.9998);
+    fake.take();
+    playTo(scene, 1);
+    expect(fake.take()).toEqual(['pause', 'seek 1']);
+  });
+
   it('follows the timeline even when GSAP seeks with events suppressed', () => {
     const scene = new SceneTimeline(root, beats);
     scene.timeline.seek(1.5, true);
@@ -228,6 +250,72 @@ describe('playVideo', () => {
     expect(scene.duration(0)).toBe(2);
     scene.show(0, false);
     expect([fake.state.time, other.state.time]).toEqual([2, 1]);
+  });
+});
+
+describe('the frame a paused video lands on', () => {
+  const frames = async (n: number) => {
+    for (let i = 0; i < n; i++) await new Promise((r) => requestAnimationFrame(r));
+  };
+
+  it('is handed to the screen again once its seek is done, and the time stays', async () => {
+    // Chromium drops a paused video's new frame while the one before is still unacknowledged:
+    // the first frame after loading, then a seek's 10–20 ms later, left the first on screen.
+    const scene = new SceneTimeline(root, beats);
+    fake.state.seeking = true;
+    scene.show(2, false);
+    let drawn = false;
+    const waiting = videoFramesReady(root).then(() => (drawn = true));
+    await frames(3);
+    expect(fake.state.repaints, 'not while it seeks').toBe(0);
+    fake.state.seeking = false;
+    fake.video.dispatchEvent(new Event('seeked'));
+    await waiting;
+    expect(fake.state.repaints).toBe(1);
+    expect(drawn).toBe(true);
+    expect(fake.state).toMatchObject({ time: 2, paused: true });
+  });
+
+  it('waits for the last of several seeks', async () => {
+    const scene = new SceneTimeline(root, beats);
+    fake.state.seeking = true;
+    scene.show(2, false);
+    fake.state.seeking = false;
+    fake.video.dispatchEvent(new Event('seeked'));
+    fake.state.seeking = true;
+    scene.show(1, false);
+    await frames(3);
+    expect(fake.state.repaints).toBe(0);
+    fake.state.seeking = false;
+    fake.video.dispatchEvent(new Event('seeked'));
+    await videoFramesReady(root);
+    expect(fake.state.repaints).toBe(1);
+  });
+
+  it('waits two frames again after a seek that begins and ends within them', async () => {
+    const scene = new SceneTimeline(root, beats);
+    scene.show(2, false);
+    const ready = videoFramesReady(root);
+    await frames(1);
+    // Another seek, begun and done before the wait's second frame.
+    fake.video.dispatchEvent(new Event('seeking'));
+    fake.video.dispatchEvent(new Event('seeked'));
+    await frames(2);
+    expect(fake.state.repaints, 'not two frames after the first seek').toBe(0);
+    await ready;
+    expect(fake.state.repaints).toBe(1);
+  });
+
+  it('needs nothing more while a step plays', async () => {
+    const scene = new SceneTimeline(root, beats);
+    scene.show(0, false);
+    scene.show(1, true);
+    for (const progress of [0.1, 0.2, 0.3]) {
+      fake.advance(0.1);
+      playTo(scene, progress);
+    }
+    await frames(3);
+    expect(fake.state.repaints).toBe(0);
   });
 });
 
