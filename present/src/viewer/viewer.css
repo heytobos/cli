@@ -122,19 +122,50 @@ html.tobos-print .tobos-page {
   opacity: 1;
   pointer-events: auto;
 }
+/* Square, in capitals, as the app's buttons are (brand/BRAND.md); dark, to read on any slide. */
 .tobos-share-bar button {
-  padding: 10px 16px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.72);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 0;
+  background: rgba(18, 26, 44, 0.78);
   color: #fff;
   font:
-    14px/1 system-ui,
+    500 10.5px/1 'Hanken Grotesk',
+    system-ui,
     sans-serif;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
   cursor: pointer;
+  transition:
+    background-color 0.3s,
+    border-color 0.3s;
+}
+.tobos-share-bar button svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tobos-share-bar .tobos-animations[aria-pressed='false'] {
+  color: rgba(255, 255, 255, 0.6);
 }
 .tobos-share-bar button:hover {
-  background: rgba(0, 0, 0, 0.88);
+  border-color: #fff;
+  background: rgba(18, 26, 44, 0.92);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tobos-share-bar,
+  .tobos-share-bar button {
+    transition: none;
+  }
 }
 .tobos-share-bar button:disabled {
   cursor: progress;

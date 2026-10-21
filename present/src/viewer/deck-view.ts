@@ -138,7 +138,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     if (what === 'next' || what === 'prev') {
       event.preventDefault();
       player.step(what === 'next' ? 1 : -1);
-    } else if (what === 'fullscreen') toggleFullscreen();
+    } else if (what === 'fullscreen' && !shared) toggleFullscreen();
     else if (what === 'present' && view === 'deck' && !shared) void present();
     else if (what === 'guides') document.documentElement.classList.toggle('tobos-guides');
   });
@@ -168,7 +168,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
       toggleFullscreen();
     else player.step(delta);
   });
-  if (config.shared) shareBar(root, config.shared, toggleFullscreen);
+  if (config.shared) shareBar(root, config.shared, (on) => player.stage.animate(on));
   follow(
     config,
     () => [player],
