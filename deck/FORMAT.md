@@ -84,7 +84,7 @@ A presentation is a sequence of **beats**. One click advances one beat. A scene 
 - **Scenes are mounted ahead**, out of sight, and their media preloads, so stepping into a scene never blinks.
 - **The stage is 1920×1080**, scaled to the screen. Write all sizes in stage pixels.
 
-So: don't animate in `onMount`, don't start timers, and don't keep state that the position can't recreate. Anything that moves belongs in a beat's `enter`, video too (see [Video](#video)).
+So: don't animate in `onMount`, don't start timers, and don't keep state that the position can't recreate. Anything that moves belongs in a beat's `enter`, video and sound too (see [Video](#video) and [Sound](#sound)).
 
 ### Props
 
@@ -105,7 +105,7 @@ A scene receives two props, if it wants them: `beat` (the current beat's ID) and
 
 ### Loading ahead: `preload()`
 
-A scene's module script may export an async `preload()`. The engine calls it once, when it loads the scene to mount it ahead, and doesn't wait for it; a failure is logged. Use it for what the scene's markup doesn't already load, such as an image a later beat swaps in. Media the markup shows (`<img>`, `<video preload="auto">`) already loads while the scene is mounted ahead.
+A scene's module script may export an async `preload()`. The engine calls it once, when it loads the scene to mount it ahead, and doesn't wait for it; a failure is logged. Use it for what the scene's markup doesn't already load, such as an image a later beat swaps in. Media the markup shows (`<img>`, `<video preload="auto">`, `<audio preload="auto">`) already loads while the scene is mounted ahead.
 
 ```svelte
 <script module lang="ts">
@@ -129,13 +129,13 @@ The URL names a position as `#scene/beat`. `#scene/2` is the scene's third beat,
 
 A scene, and anything in `master/` and `lib/`, may import:
 
-| Import                      | What it is                                                                                                                           |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `svelte`, `svelte/*`        | Svelte 5                                                                                                                             |
-| `gsap`, `gsap/*`            | GSAP 3, all plugins                                                                                                                  |
-| `@tobos/present`            | the engine's API for scenes: `Beat`, `media()`, `playVideo()`, `useDeck()`, `Activity`, `useResponses()`, `useJoin()`, `<JoinCode/>` |
-| `./…`, `../…`               | files inside the deck: `.svelte`, `.ts`, `.js`, `.json`; the master is `../master/index.ts` from a scene                             |
-| a package in `dependencies` | any npm package that runs in a browser                                                                                               |
+| Import                      | What it is                                                                                                                                          |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `svelte`, `svelte/*`        | Svelte 5                                                                                                                                            |
+| `gsap`, `gsap/*`            | GSAP 3, all plugins                                                                                                                                 |
+| `@tobos/present`            | the engine's API for scenes: `Beat`, `media()`, `playVideo()`, `playAudio()`, `useDeck()`, `Activity`, `useResponses()`, `useJoin()`, `<JoinCode/>` |
+| `./…`, `../…`               | files inside the deck: `.svelte`, `.ts`, `.js`, `.json`; the master is `../master/index.ts` from a scene                                            |
+| a package in `dependencies` | any npm package that runs in a browser                                                                                                              |
 
 Nothing else: no Node APIs, no URLs, no files outside the deck.
 
@@ -209,10 +209,47 @@ A video plays as part of a beat: `playVideo(tl, q('video'))` in the beat's `ente
 - **Stepping forward plays it** in real time. Going back, jumping or reloading shows the frame for that position at once. A click while it plays lands on its last frame and starts the next beat.
 - **Before its beat it shows the clip's first frame**, also while the scene waits mounted ahead; nothing plays out of sight. Above, `cow` shows the first frame and `turn` plays the video.
 - **The presenter's view, `tobos render` and PDF show the frame the beat ends on**; `tobos render --film` shows frames through it.
-- **Options**, `playVideo(tl, target, { from, to, rate, position })`: the clip's start and end in seconds of the video (default: all of it), its speed (default `1`), and where in the beat it starts, as GSAP's position parameter (default: after what the beat has added so far; `'<'` after it means "at the same time as the video"). To play a video over several beats, give each beat a clip: `{ to: 4 }`, then `{ from: 4 }`.
-- **The timeline starts and stops the video.** Write `muted playsinline preload="auto"`, and no `autoplay` or `loop`; don't call `play()` yourself. `playVideo` makes the element muted, inline and preloading if you forget. Video is silent for now.
+- **Options**, `playVideo(tl, target, { from, to, rate, position, sound })`: the clip's start and end in seconds of the video (default: all of it), its speed (default `1`), and where in the beat it starts, as GSAP's position parameter (default: after what the beat has added so far; `'<'` after it means "at the same time as the video"). To play a video over several beats, give each beat a clip: `{ to: 4 }`, then `{ from: 4 }`. `sound: true` plays the video's own sound with it (see [Sound](#sound)); without it, a video is muted.
+- **The timeline starts and stops the video.** Write `muted playsinline preload="auto"`, and no `autoplay` or `loop`; don't call `play()` yourself. `playVideo` makes the element inline and preloading if you forget, and muted unless `sound` is set.
 - **The engine builds a scene's timeline once its videos know their length**, so `to` defaults to the video's end. A video that can't load is skipped after a few seconds; pass `to` for one that loads late.
 - **Encode for jumping:** WebM (VP9) or MP4 (H.264), at the size shown, with a keyframe at least every two seconds (`ffmpeg … -g 60` at 30 fps). A jump decodes from the keyframe before it.
+
+## Sound
+
+A sound plays as part of a beat, as a video does: `playAudio(tl, q('audio'))` in the beat's `enter`. A click or key press steps into the beat, and the sound plays.
+
+```svelte
+<script module lang="ts">
+  import { playAudio, type Beat } from '@tobos/present';
+
+  export const beats: Beat[] = [
+    { id: 'bird' },
+    {
+      id: 'song',
+      enter: (tl, q) => {
+        playAudio(tl, q('audio'));
+        tl.from(q('[data-part=caption]'), { opacity: 0, duration: 0.6 }, '<');
+      },
+    },
+  ];
+</script>
+
+<script lang="ts">
+  import { media } from '@tobos/present';
+</script>
+
+<audio src={media('blackbird.m4a')} preload="auto"></audio>
+<p data-part="caption">A blackbird, at dawn.</p>
+```
+
+- **Stepping forward plays it** in real time, and the beat lasts as long as the clip. A click while it plays stops it and starts the next beat. Going back, jumping or reloading is silent, and so is a scene waiting mounted ahead.
+- **Options**, `playAudio(tl, target, { from, to, rate, position })`, as for a video.
+- **Playing on through beats**: `playAudio(tl, q('audio'), { until: 'outro' })` starts the sound on this beat and lets it play on, while the presenter clicks on, or back, through the beats before `outro`. It fades out over a second when `outro`, or a beat before its own, is shown, or the scene is left; `fade` sets the seconds, `0` stops it at once (iPhone and iPad always stop it at once). The beat it starts in doesn't wait for it, so `to` and `position` don't apply: it plays from `from` to its end, or until then. Only a step forward onto its beat starts it: a jump or a reload into the middle of the range is silent. `until` is a string literal naming a later beat of the same scene; the check refuses any other. A range ends with its scene at the latest.
+- **The timeline starts and stops the sound.** Write `<audio src={media(…)} preload="auto">`, without `controls`, `autoplay` or `loop`, and don't call `play()` yourself. Nothing of it shows on stage: where the room needs to know what it hears, say so on the slide, which is also all a PDF shows.
+- **A video's own sound**: `playVideo(tl, q('video'), { sound: true })`, by the same rules.
+- **One window is heard**: the one someone clicks through, a share link's among them, and, while presenting, the audience window, which plays the presenter's clicks aloud. The presenter's view, other windows that follow the show, `tobos render` and PDFs are silent, and so is a deck with its animations turned off.
+- **A browser lets a page make sound once someone has clicked or pressed a key in it.** Presenting, the click that makes the audience window fullscreen does it. Where a browser refuses all the same, the window says "Click for sound": a click there plays on with sound. A sound waits meanwhile, and a video plays on muted.
+- **Encode for the room:** AAC (`.m4a`) or MP3 plays in every browser. Speech at 64–96 kbps mono and music at 128–192 kbps stereo take 0.5 to 1.5 MB a minute, so half an hour of speech stays under the 25 MB `tobos push` notes. Opus (`.webm`) is smaller still, but older Safari doesn't play it. WAV, AIFF and FLAC are five to ten times the size for nothing a room hears, and `tobos push` notes those over 1 MB: `ffmpeg -i media/song.wav -c:a aac -b:a 128k media/song.m4a`.
 
 ## Activities: polls and forms on phones
 

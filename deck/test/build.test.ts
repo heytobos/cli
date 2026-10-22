@@ -65,7 +65,10 @@ describe('the sample deck', () => {
         ['question', ['scan', 'ask']],
       ],
       [['tokens', ['text', 'ids']]],
-      [['clip', ['start', 'half', 'rest']]],
+      [
+        ['clip', ['start', 'half', 'rest']],
+        ['sound', ['quiet', 'listen', 'more', 'bed', 'over', 'after']],
+      ],
     ]);
     expect(Object.keys(manifest!.imports).filter((k) => !k.startsWith('@deck/master/'))).toEqual([
       '@deck/data/tokens.json',
@@ -73,6 +76,7 @@ describe('the sample deck', () => {
       '@deck/lib/Pill.svelte',
       '@deck/scenes/clip.svelte',
       '@deck/scenes/question.svelte',
+      '@deck/scenes/sound.svelte',
       '@deck/scenes/title.svelte',
       '@deck/scenes/tokens.svelte',
     ]);
@@ -273,6 +277,31 @@ describe('beats', () => {
     );
     expect(problems).toMatchObject([
       { rule: 'beats', line: 2, message: 'Beat "a" is declared twice in this scene.' },
+    ]);
+  });
+
+  it('play a sound until a later beat of the scene, named by a literal', async () => {
+    const until = async (value: string) =>
+      (
+        await checkDeck(
+          variant({
+            'scenes/title.svelte': scene(
+              "import { playAudio } from '@tobos/present';\n" +
+                "export const beats = [{ id: 'a' }, { id: 'b', enter: (tl, q) => " +
+                `playAudio(tl, q('audio'), { until: ${value} }) }, { id: 'c' }];`,
+            ),
+          }),
+        )
+      ).map((p) => p.message);
+    expect(await until("'c'")).toEqual([]);
+    expect(await until("'a'")).toEqual([
+      '`until` names "a", which doesn\'t come after "b", where the sound starts: it would never play. Name a later beat (c).',
+    ]);
+    expect(await until("'nope'")).toEqual([
+      '`until` names "nope", which is not a beat of this scene (a, b, c).',
+    ]);
+    expect(await until('name')).toEqual([
+      '`until` must be a string literal naming a later beat of this scene, so Tobos can check it.',
     ]);
   });
 
@@ -754,6 +783,8 @@ describe('media', () => {
         rule: 'media',
         message: expect.stringContaining('scan.png'),
       },
+      { file: 'scenes/sound.svelte', rule: 'media', message: expect.stringContaining('tone.wav') },
+      { file: 'scenes/sound.svelte', rule: 'media', message: expect.stringContaining('tone.wav') },
     ]);
   });
 
@@ -913,7 +944,7 @@ describe('what a share gets', () => {
       Object.keys(shared.media)
         .filter((name) => !name.startsWith('master/'))
         .sort(),
-    ).toEqual(['clip.webm', 'frames/a.png', 'frames/b.png', 'later.png', 'scan.png']);
+    ).toEqual(['clip.webm', 'frames/a.png', 'frames/b.png', 'later.png', 'scan.png', 'tone.wav']);
     expect(Object.keys(shared.media)).toContain('master/fonts/hanken-grotesk-latin.woff2');
   });
 

@@ -83,18 +83,22 @@ export class Player {
     return this.position ? formatHash(this.outline, this.position) : '';
   }
 
-  /** Go to a position. Only a single step forward animates, unless told otherwise. */
-  go(to: Position, animate?: boolean): Promise<void> {
+  /**
+   * Go to a position. Only a single step forward animates, unless told otherwise; `aloud: false`
+   * plays it without its sound.
+   */
+  go(to: Position, animate?: boolean, aloud = true): Promise<void> {
     if (same(this.position, to) && animate === undefined) return Promise.resolve();
     const cue = cueFor(this.outline, this.position, to);
     if (animate !== undefined) cue.animate = animate;
+    cue.aloud = aloud;
     this.position = to;
     this.options.onMove?.(to, cue);
     return this.stage.show(cue);
   }
 
-  goHash(hash: string, animate?: boolean): Promise<void> {
-    return this.go(parseHash(this.outline, hash) ?? START, animate);
+  goHash(hash: string, animate?: boolean, aloud?: boolean): Promise<void> {
+    return this.go(parseHash(this.outline, hash) ?? START, animate, aloud);
   }
 
   step(delta: 1 | -1) {

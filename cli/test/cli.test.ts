@@ -174,7 +174,7 @@ describe('tobos', () => {
       env: { ...process.env, XDG_CONFIG_HOME: config },
     });
     expect(ok.status).toBe(0);
-    expect(JSON.parse(ok.stdout)).toMatchObject({ ok: true, scenes: 4, beats: 8 });
+    expect(JSON.parse(ok.stdout)).toMatchObject({ ok: true, scenes: 5, beats: 14 });
 
     // In git, it checks what a push would send: a broken file git ignores isn't, one it doesn't is.
     spawnSync('git', ['init', '-q'], { cwd: fixture });

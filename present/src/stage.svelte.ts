@@ -2,7 +2,7 @@ import { flushSync, mount, unmount, type Component } from 'svelte';
 import { DECK_CONTEXT, type Beat, type DeckContext, type SceneProps } from './index.ts';
 import type { Cue } from './position.ts';
 import { SceneTimeline } from './timeline.ts';
-import { videosKnowTheirLength } from './video.ts';
+import { mediaKnowTheirLength } from './playback.ts';
 
 /** A compiled scene file. */
 export interface SceneModule {
@@ -46,7 +46,7 @@ const idle = (fn: () => void) =>
 export class Stage {
   private layers = new Map<number, Layer>();
   private pending = new Map<number, Promise<Layer | undefined>>();
-  /** Scenes mounted but still waiting for their videos, by their element. */
+  /** Scenes mounted but still waiting for their videos and sounds, by their element. */
   private mounting = new Map<HTMLElement, { index: number; instance: Record<string, unknown> }>();
   private current: Layer | null = null;
   private seq = 0;
@@ -75,6 +75,7 @@ export class Stage {
     const entering = this.current !== layer;
     if (entering) {
       this.current?.timeline.finish();
+      this.current?.timeline.leave();
       for (const other of this.layers.values()) if (other !== layer) this.hide(other);
       this.reveal(layer);
       this.current = layer;
@@ -85,7 +86,7 @@ export class Stage {
 
     const animate = cue.animate && !this.options.still;
     if (animate && entering && cue.beat === 0) layer.timeline.hold();
-    layer.timeline.show(cue.beat, animate);
+    layer.timeline.show(cue.beat, animate, cue.aloud !== false);
 
     this.prune(cue.scene);
     if (this.options.mountAhead !== false && cue.scene + 1 < this.options.count()) {
@@ -148,8 +149,8 @@ export class Stage {
   }
 
   /**
-   * Mount a scene, hidden, and build its timeline once its videos know their length (a clip
-   * that plays to a video's end needs it).
+   * Mount a scene, hidden, and build its timeline once its videos and sounds know their length
+   * (a clip that plays to the end needs it).
    */
   private async mountLayer(index: number, module: SceneModule): Promise<Layer | undefined> {
     const element = document.createElement('div');
@@ -165,7 +166,7 @@ export class Stage {
     });
     flushSync();
     this.mounting.set(element, { index, instance });
-    await videosKnowTheirLength(element);
+    await mediaKnowTheirLength(element);
     // Cancelled meanwhile (a reset, or a newer version of the scene): already unmounted.
     if (!this.mounting.delete(element)) return undefined;
     const timeline = new SceneTimeline(element, module.beats);
@@ -191,10 +192,26 @@ export class Stage {
     this.pending.delete(layer.index);
   }
 
-  /** Keep the current scene and the next; drop the rest. */
+  /**
+   * Keep the current scene and the next; drop the rest, each once its sound has faded out (it
+   * goes with its elements), unless it is one of those two again by then.
+   */
   private prune(scene: number) {
-    for (const layer of [...this.layers.values()])
-      if (layer.index !== scene && layer.index !== scene + 1) this.unmountLayer(layer);
+    for (const layer of [...this.layers.values()]) {
+      if (layer.index === scene || layer.index === scene + 1) continue;
+      const fading = layer.timeline.fading;
+      if (!fading) this.unmountLayer(layer);
+      else
+        void fading.then(() => {
+          const now = this.current?.index ?? -1;
+          if (
+            this.layers.get(layer.index) === layer &&
+            layer.index !== now &&
+            layer.index !== now + 1
+          )
+            this.unmountLayer(layer);
+        });
+    }
   }
 
   private hide(layer: { element: HTMLElement }) {

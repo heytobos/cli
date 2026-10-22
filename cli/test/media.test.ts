@@ -140,3 +140,24 @@ describe("a deck's media", () => {
     uploads.length = 0;
   });
 });
+
+describe('what push says about a large file', () => {
+  it('gives lossless sound over 1 MB the line that makes it AAC, however large', async () => {
+    const { sizeNote } = await import('../src/media.ts');
+    expect(sizeNote('talk.wav', 900_000)).toBeUndefined();
+    expect(sizeNote('talk.wav', 30_000_000)).toBe(
+      'note: media/talk.wav is lossless sound, 30 MB. As AAC it takes a fraction of that, and sounds the same in a room: ffmpeg -i media/talk.wav -c:a aac -b:a 128k media/talk.m4a',
+    );
+    expect(sizeNote('clip.mp4', 30_000_000)).toBe(
+      'note: media/clip.mp4 is 30 MB. Every viewer downloads it; size it for the stage.',
+    );
+    expect(sizeNote('song.m4a', 3_000_000)).toBeUndefined();
+  });
+
+  it('quotes a path the shell would split or read', async () => {
+    const { sizeNote } = await import('../src/media.ts');
+    expect(sizeNote("Bob's take 2.FLAC", 5_000_000)).toContain(
+      "ffmpeg -i 'media/Bob'\\''s take 2.FLAC' -c:a aac -b:a 128k 'media/Bob'\\''s take 2.m4a'",
+    );
+  });
+});

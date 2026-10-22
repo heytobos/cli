@@ -32,6 +32,10 @@
         {
           "id": "clip",
           "title": "A clip"
+        },
+        {
+          "id": "sound",
+          "title": "A sound"
         }
       ]
     }

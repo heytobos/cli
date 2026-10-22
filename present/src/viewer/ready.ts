@@ -1,4 +1,4 @@
-import { videoFramesReady } from '../video.ts';
+import { videoFramesReady } from '../playback.ts';
 
 /**
  * Wait until what is on screen is fully drawn: fonts, images, video frames. True when it is;

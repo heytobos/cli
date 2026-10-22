@@ -6,7 +6,7 @@ import { getContext, type Component } from 'svelte';
 import JoinCodeComponent from './JoinCode.svelte';
 import { joinInfo, mediaUrl, type JoinInfo } from './registry.ts';
 
-export { playVideo, type PlayVideoOptions } from './video.ts';
+export { playAudio, playVideo, type PlayAudioOptions, type PlayVideoOptions } from './playback.ts';
 export { useResponses, type Responses } from './responses.svelte.ts';
 export type { Activity, ChoiceActivity, TextActivity, TextField } from '@tobos/deck/types';
 

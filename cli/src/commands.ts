@@ -7,7 +7,7 @@ import { api, VERSION } from './api.ts';
 import { forget, save, settings } from './config.ts';
 import { findDeck, parseId, requireRemote, type DeckDir } from './deck-dir.ts';
 import { authEnv, configureCredentials, credentialConfig, git, gitOk } from './git.ts';
-import { syncMediaJson, uploadMedia } from './media.ts';
+import { sizeNote, syncMediaJson, uploadMedia } from './media.ts';
 import { openUrl } from './open-url.ts';
 import { ASK_THE_PERSON, CliError, EXIT, type Output } from './out.ts';
 import { writeFormatGuide } from './format.ts';
@@ -350,12 +350,10 @@ async function pushWorkingCopy(out: Output, deck: Required<DeckDir>, message?: s
   const { errors, warnings } = problemSummary(result.problems);
   if (errors > 0) return { ok: false as const, errors, warnings, problems: result.problems };
 
-  for (const [name, entry] of Object.entries(media))
-    if (entry.size > 25_000_000)
-      out.note(
-        `note: media/${name} is ${Math.round(entry.size / 1_000_000)} MB. Every viewer downloads it; size it for the stage.`,
-        true,
-      );
+  for (const [name, entry] of Object.entries(media)) {
+    const note = sizeNote(name, entry.size);
+    if (note) out.note(note, true);
+  }
   const uploaded = await uploadMedia(root, media, server, deck.id, (m) => out.note(m));
 
   await gitOk(['add', '-A'], { cwd: root });

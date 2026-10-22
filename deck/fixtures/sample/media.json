@@ -8,5 +8,10 @@
     "hash": "6401030ebbca6be3c487836bb67fed74504e5472ca7b05c3cd85dc91d8b6ecce",
     "size": 19706,
     "type": "image/png"
+  },
+  "tone.wav": {
+    "hash": "de9249db1941fa8f8198baa2dff361a1281962b248473e01a803f640000faa36",
+    "size": 16044,
+    "type": "audio/wav"
   }
 }

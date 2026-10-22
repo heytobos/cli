@@ -1,4 +1,5 @@
 import { letterbox } from '../letterbox.ts';
+import { onSoundRefused } from '../playback.ts';
 import { formatHash, parseHash, same, START } from '../position.ts';
 import { urlForView, type View, type ViewerConfig } from './config.ts';
 import { action } from './keys.ts';
@@ -85,9 +86,10 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
       onState: (at) => {
         // go() reports the move synchronously, before the scene has loaded. Only that report is
         // the other window's: a click here while the scene still loads is this window's own.
+        // Of the windows that follow a show, only the audience is heard: the room has one sound.
         applyingRemote = true;
         try {
-          void player.goHash(`#${at.scene}/${at.beat}`);
+          void player.goHash(`#${at.scene}/${at.beat}`, undefined, view === 'audience');
         } finally {
           applyingRemote = false;
         }
@@ -163,6 +165,16 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     hint.textContent = 'Click or press F for fullscreen';
     root.append(hint);
   }
+  // A browser lets a window make sound once it has had a click or key press. Until then, a
+  // sound it refuses waits for one (playback.ts), and this says so.
+  const soundHint = document.createElement('div');
+  soundHint.className = 'tobos-sound-hint';
+  soundHint.textContent = 'Click for sound';
+  soundHint.hidden = true;
+  root.append(soundHint);
+  onSoundRefused(() => (soundHint.hidden = false));
+  for (const type of ['pointerup', 'keydown'] as const)
+    window.addEventListener(type, () => (soundHint.hidden = true));
   onTap(root, (delta) => {
     if (view === 'audience' && !document.fullscreenElement && document.fullscreenEnabled)
       toggleFullscreen();

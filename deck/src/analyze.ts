@@ -141,6 +141,8 @@ function readBeats(
   }
 
   const beats: BeatInfo[] = [];
+  /** Each beat read, by its index among them. */
+  const read: Node[] = [];
   const seen = new Set<string>();
   for (const element of list.elements as (Node | null)[]) {
     const beat = unwrap(element ?? undefined);
@@ -178,7 +180,9 @@ function readBeats(
     }
     seen.add(id);
     beats.push({ id, line: position(source, value.start).line });
+    read.push(beat);
   }
+  read.forEach((beat, index) => readUntil(beat, index, beats, at));
   if (beats.length === 0 && problems.length === 0) at(list, 'A scene needs at least one beat.');
   if (beats.length > BEATS_MAX)
     at(
@@ -186,6 +190,61 @@ function readBeats(
       `The scene has ${beats.length} beats; it may have ${BEATS_MAX}. Split it into several scenes.`,
     );
   return { beats, problems };
+}
+
+/**
+ * Check each `playAudio(…, { until })` in a beat: a string literal naming a later beat of the
+ * scene, which the engine plays the sound until.
+ */
+function readUntil(
+  beat: Node,
+  index: number,
+  beats: BeatInfo[],
+  at: (node: Node, message: string) => void,
+) {
+  walk(beat, null, {
+    CallExpression(node, { next }) {
+      const callee = node.callee as Node;
+      const named =
+        (callee.type === 'Identifier' && callee.name === 'playAudio') ||
+        (callee.type === 'MemberExpression' &&
+          (callee.property as Node).type === 'Identifier' &&
+          (callee.property as Node).name === 'playAudio');
+      const options = unwrap((node.arguments as Node[])[2]);
+      const until =
+        named && options?.type === 'ObjectExpression'
+          ? (options.properties as Node[]).find(
+              (p) =>
+                p.type === 'Property' &&
+                !p.computed &&
+                (((p.key as Node).type === 'Identifier' && (p.key as Node).name === 'until') ||
+                  ((p.key as Node).type === 'Literal' && (p.key as Node).value === 'until')),
+            )
+          : undefined;
+      const value = unwrap(until?.value as Node | undefined);
+      if (until && value) {
+        const id = value.type === 'Literal' ? value.value : undefined;
+        const names = beats.map((b) => b.id);
+        const later = names.slice(index + 1);
+        if (typeof id !== 'string')
+          at(
+            value,
+            '`until` must be a string literal naming a later beat of this scene, so Tobos can check it.',
+          );
+        else if (!names.includes(id))
+          at(
+            value,
+            `\`until\` names "${id}", which is not a beat of this scene (${names.join(', ')}).`,
+          );
+        else if (!later.includes(id))
+          at(
+            value,
+            `\`until\` names "${id}", which doesn't come after "${names[index]}", where the sound starts: it would never play. Name a later beat${later.length ? ` (${later.join(', ')})` : ', or add one'}.`,
+          );
+      }
+      next();
+    },
+  });
 }
 
 /** A value written as literals, with where each part is, for messages. */

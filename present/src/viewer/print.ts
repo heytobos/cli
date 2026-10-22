@@ -2,7 +2,7 @@ import { flushSync, mount } from 'svelte';
 import { DECK_CONTEXT } from '../index.ts';
 import type { SceneModule } from '../stage.svelte.ts';
 import { SceneTimeline } from '../timeline.ts';
-import { videosKnowTheirLength } from '../video.ts';
+import { mediaKnowTheirLength } from '../playback.ts';
 import type { ViewerConfig } from './config.ts';
 import { contextFor, outlineOf } from './player.ts';
 import { settled } from './ready.ts';
@@ -30,7 +30,7 @@ export async function showPrint(root: HTMLElement, config: ViewerConfig): Promis
         context: new Map([[DECK_CONTEXT, contextFor(config.manifest, index)]]),
       });
       flushSync();
-      await videosKnowTheirLength(page);
+      await mediaKnowTheirLength(page);
       new SceneTimeline(page, module.beats).show(beat, false);
     }
   }
