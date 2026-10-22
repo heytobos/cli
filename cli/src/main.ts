@@ -9,7 +9,7 @@ const HELP = `tobos ${VERSION}: the command line of Tobos, the office suite your
 Account
   tobos login <email> [--server URL]          e-mail a login code to the person (signs them up if new)
   tobos login --code <code>                   finish: the code they read from the mail
-  tobos logout [--everywhere]                 forget this machine's token; --everywhere: every login of the account
+  tobos logout                                forget this machine's token
   tobos whoami                                who you are, on which server
   tobos decks                                 your decks and templates, by id, and those shared
                                               with you; an archived one is read-only
@@ -74,7 +74,7 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
     run: commands.login,
     options: { server: { type: 'string' }, code: { type: 'string' } },
   },
-  logout: { run: commands.logout, options: { everywhere: { type: 'boolean' } } },
+  logout: { run: commands.logout },
   whoami: { run: commands.whoami },
   decks: { run: commands.decks },
   new: {

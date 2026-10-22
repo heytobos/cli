@@ -83,27 +83,21 @@ export async function login(out: Output, args: Args) {
   out.result({ email: me.email, server }, () => `Logged in as ${me.email}.`);
 }
 
-/**
- * Revoke this machine's token on the server, then forget it here. `--everywhere` revokes every
- * token and browser session of the account: for a token that got away, or a machine that did.
- */
-export async function logout(out: Output, args: Args) {
-  const everywhere = Boolean(args.values.everywhere);
+/** Revoke this machine's token on the server, then forget it here. */
+export async function logout(out: Output) {
   let revoked = false;
   if (settings().token)
     try {
-      await api('/api/logout', { method: 'POST', body: everywhere ? { everywhere } : {} });
+      await api('/api/logout', { method: 'POST', body: {} });
       revoked = true;
     } catch (error) {
       out.note(`(couldn't revoke the token on the server: ${(error as Error).message})`, true);
     }
   forget();
-  out.result({ loggedOut: true, revoked, ...(everywhere ? { everywhere: revoked } : {}) }, () =>
-    !revoked
-      ? 'Logged out on this machine; the server still knows the token.'
-      : everywhere
-        ? 'Logged out everywhere: no token or browser session of this account works any more.'
-        : 'Logged out. The token no longer works anywhere.',
+  out.result({ loggedOut: true, revoked }, () =>
+    revoked
+      ? 'Logged out. The token no longer works anywhere.'
+      : 'Logged out on this machine; the server still knows the token.',
   );
 }
 
