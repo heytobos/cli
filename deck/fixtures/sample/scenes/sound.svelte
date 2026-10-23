@@ -9,7 +9,7 @@
     { id: 'more', enter: (tl, q) => playAudio(tl, q('[data-part=tone]'), { from: 1 }) },
     {
       id: 'bed',
-      enter: (tl, q) => playAudio(tl, q('[data-part=bed]'), { until: 'after', fade: 0.3 }),
+      enter: (tl, q) => playAudio(tl, q('[data-part=bed]'), { until: 'after' }),
     },
     { id: 'over' },
     { id: 'after' },
