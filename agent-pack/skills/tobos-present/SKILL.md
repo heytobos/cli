@@ -68,10 +68,12 @@ A deck has one story: the talk as the speaker tells it, paragraph by paragraph, 
 | `tobos invite <email> --can edit` · `present` · `view`   | put someone on it; they get a mail (a template: edit · `use`)  |
 | `tobos uninvite <email>`                                 | take them off; their access ends at once                       |
 
-Invite only whom the person names, at the level they say: the mail goes to someone else, from the person's name. Only the deck's owner puts people on it and takes them off; anyone else sees the owner and themselves in `tobos people`, and leaves with `tobos uninvite` and their own address. Can edit builds the deck with their own agent and turns its link on or off; can present presents it with its notes and polls; can view sees the slides only. A template is shared the same way, at can edit or can use (`--can use`): using it is seeing its gallery and starting decks from it.
+Invite only whom the person names, at the level they say: the mail goes to someone else, from the person's name. Only the deck's owner puts people on it and takes them off; anyone else who may edit or present it, or is on a template, sees the owner and themselves in `tobos people`, a deck's viewers no one, and anyone leaves with `tobos uninvite` and their own address. Can edit builds the deck with their own agent and turns its link on or off; can present presents it with its notes and polls; can view sees the slides only. A template is shared the same way, at can edit or can use (`--can use`): using it is seeing its gallery and starting decks from it.
 
 Every command takes `--json`. Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in, 4 the story changed meanwhile, 5 a plan's limit or an archived deck.
 
 When a command says a newer `tobos` is out, run `npm i -g @tobos/cli`; the next command updates this skill.
 
 Exit code 5 means the person decides what happens next: a plan's limit (Free keeps 3 decks open at a time, and lets 1 person besides the owner edit them), or an archived deck. Show them the message, which says what they can do (archive a deck on its page to make room, open one again, or buy Pro; or, on someone else's deck, ask its owner), and wait for their answer. Don't work around it: no deck built outside Tobos to upload later, no media shrunk or hosted elsewhere, no one else's account. An archived deck can still be cloned, read and shared, but takes no pushes and can't be presented.
+
+Archiving a deck, opening it again, deleting it, and deleting a session with its answers are the person's own, on the deck's page: leave them to the person, also in a browser `tobos open` logged in.

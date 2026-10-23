@@ -45,7 +45,7 @@ People on a deck or template (from its working copy, or --deck <id>)
                                               someone on it already gets the new level. On a
                                               template, --can edit|use
   tobos uninvite <email>                      take them off, and their access ends at once;
-                                              with your own address, leave the deck
+                                              with your own address, leave it
 
 The skill (what your harness reads to know Tobos without this help)
   tobos skill install                         put it where Claude Code, Codex, OpenCode and others

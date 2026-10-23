@@ -584,15 +584,22 @@ const CAN_WORDS: Record<Person['role'], string> = {
   viewer: 'can view',
 };
 
+/** Whether the server answered for a deck or a template: one that doesn't say means a deck. */
+type Kind = 'deck' | 'template';
+
+/** A level's words on a deck or a template, where viewing it is using it. */
+const canWords = (role: Person['role'], kind: Kind = 'deck') =>
+  kind === 'template' && role === 'viewer' ? 'can use' : CAN_WORDS[role];
+
 /** Who is on the deck, the owner first, and what each may do. */
 export async function people(out: Output, args: Args) {
   const id = await deckId(args);
-  const { people } = await api<{ people: Person[] }>(`/api/decks/${id}/people`);
-  out.result({ people }, () =>
+  const { people, kind } = await api<{ people: Person[]; kind?: Kind }>(`/api/decks/${id}/people`);
+  out.result({ ...(kind ? { kind } : {}), people }, () =>
     people
       .map(
         (p) =>
-          `${p.email.padEnd(32)} ${CAN_WORDS[p.role]}${p.paused ? ', paused: views until the plan allows more editors' : ''}${p.joined ? '' : ' (invited, not logged in yet)'}`,
+          `${p.email.padEnd(32)} ${canWords(p.role, kind)}${p.paused ? ', paused: views until the plan allows more editors' : ''}${p.joined ? '' : ' (invited, not logged in yet)'}`,
       )
       .join('\n'),
   );
@@ -614,12 +621,13 @@ export async function invite(out: Output, args: Args) {
   const done = await api<{
     email: string;
     level: Person['role'];
+    kind?: Kind;
     mailed: boolean;
     /** The mail couldn't be sent; they are on the deck all the same. */
     mailFailed?: boolean;
     link?: string;
   }>(`/api/decks/${id}/people`, { body: { email, level } });
-  const now = `${done.email} ${CAN_WORDS[done.level]} now`;
+  const now = `${done.email} ${canWords(done.level, done.kind)} now`;
   out.result(done, () =>
     done.mailed
       ? `${now}; they got a mail with the way in.`
@@ -636,11 +644,14 @@ export async function uninvite(out: Output, args: Args) {
   const email = args.positionals[0];
   if (!email) throw new CliError('Take whom off? `tobos uninvite <email>`.');
   const id = await deckId(args);
-  const done = await api<{ removed: string }>(`/api/decks/${id}/people`, {
+  const done = await api<{ removed: string; kind?: Kind }>(`/api/decks/${id}/people`, {
     method: 'DELETE',
     body: { email },
   });
-  out.result(done, () => `${done.removed} is off the deck; their access has ended.`);
+  out.result(
+    done,
+    () => `${done.removed} is off the ${done.kind ?? 'deck'}; their access has ended.`,
+  );
 }
 
 // ─── Exports and rendering ──────────────────────────────────────────────────
