@@ -7,7 +7,7 @@ description: Build presentations as code with Tobos Present. Use when the user w
 
 # Tobos Present
 
-Tobos hosts presentations that you write as code: one Svelte 5 file per scene, with beats (one click each) and GSAP animations. You build; Tobos checks every push, hosts the deck, and puts it on stage with a presenter view. There is no AI on Tobos's side and no MCP server: everything goes through the `tobos` command and git.
+Tobos hosts presentations that you write as code: one Svelte 5 file per scene, with beats (one click each) and GSAP animations. You build; Tobos checks every push, hosts the deck, and puts it on stage with a presenter view. There is no AI on Tobos's side, and no MCP server in a harness: everything goes through the `tobos` command and git.
 
 ## Set up (once per machine)
 
