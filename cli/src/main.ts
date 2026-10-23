@@ -39,7 +39,8 @@ a beat: [Title](scene:<id>/<beat>))
                                               deck's page marks what you wrote
 
 People on a deck or template (from its working copy, or --deck <id>)
-  tobos people                                who is on it, and what each may do
+  tobos people                                who is on it, what each may do, and when a
+                                              waiting invite lapses
   tobos invite <email> --can edit|present|view
                                               its owner puts them on it, mailed the way in;
                                               someone on it already gets the new level. On a

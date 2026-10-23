@@ -565,7 +565,15 @@ interface Person {
   joined: boolean;
   /** An editor beyond what the owner's plan allows, who views the deck meanwhile. */
   paused: boolean;
+  /** When an invite nobody has logged in with lapses, as the server says it. */
+  lapsesAt?: string;
 }
+
+/** An invite nobody has logged in with yet, and when it lapses: 5 Nov. */
+const waiting = (p: Person) =>
+  p.joined
+    ? ''
+    : ` (invited, not logged in yet${p.lapsesAt ? `; lapses ${new Date(p.lapsesAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''})`;
 
 /**
  * `--can`'s words, as the Share menu says them (Can edit, Can present, Can view), and the level.
@@ -599,7 +607,7 @@ export async function people(out: Output, args: Args) {
     people
       .map(
         (p) =>
-          `${p.email.padEnd(32)} ${canWords(p.role, kind)}${p.paused ? ', paused: views until the plan allows more editors' : ''}${p.joined ? '' : ' (invited, not logged in yet)'}`,
+          `${p.email.padEnd(32)} ${canWords(p.role, kind)}${p.paused ? ', paused: views until the plan allows more editors' : ''}${waiting(p)}`,
       )
       .join('\n'),
   );
