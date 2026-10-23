@@ -1,7 +1,7 @@
 import { letterbox } from '../letterbox.ts';
 import { onSoundRefused } from '../playback.ts';
 import { formatHash, parseHash, same, START } from '../position.ts';
-import { urlForView, type View, type ViewerConfig } from './config.ts';
+import { showHash, urlForView, type View, type ViewerConfig } from './config.ts';
 import { action } from './keys.ts';
 import { follow } from './live.ts';
 import { Player } from './player.ts';
@@ -31,7 +31,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     mountAhead: !render,
     onMove: (position) => {
       const hash = formatHash(player.outline, position);
-      if (location.hash !== hash) history.replaceState(null, '', hash);
+      showHash(hash);
       if (!applyingRemote) session?.publish(refOf());
       if (embedded)
         window.parent.postMessage({ type: 'tobos:position', hash, rev: currentRev }, '*');
@@ -129,9 +129,18 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   // A key press may open one window, never make it fullscreen too: the audience opens, and this
   // window (or the page around this preview) becomes the presenter.
   const present = async () => {
-    await openAudience(urlForView('audience'));
-    if (embedded) window.parent.postMessage({ type: 'tobos:present', hash: player.hash }, '*');
-    else location.href = urlForView('presenter');
+    const audience = await openAudience(urlForView(config, 'audience'));
+    if (embedded) {
+      window.parent.postMessage({ type: 'tobos:present', hash: player.hash }, '*');
+      return;
+    }
+    // Without a link of its own, this window can't become the presenter: no show, then.
+    try {
+      location.href = await urlForView(config, 'presenter');
+    } catch (error) {
+      audience?.close();
+      console.warn('[tobos] the presenter window has no link', error);
+    }
   };
 
   window.addEventListener('keydown', (event) => {

@@ -59,6 +59,11 @@ export interface ViewerPage {
   /** Stylesheets, relative to the page. */
   styles: string[];
   config: ViewerConfig;
+  /**
+   * Where the relative URLs go instead of beside the page: a window's capability, when the link
+   * in the address bar opens once. The tab keeps it, for a reload (the app's content.ts).
+   */
+  base?: string;
 }
 
 export function viewerHtml(page: ViewerPage): string {
@@ -67,7 +72,13 @@ export function viewerHtml(page: ViewerPage): string {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+${
+  page.base
+    ? `<base href="${escapeHtml(page.base)}">
+<script>try { for (const at of [location.pathname, new URL(document.baseURI).pathname]) sessionStorage.setItem('tobos:' + at, document.baseURI); } catch {}</script>
+`
+    : ''
+}<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>${escapeHtml(page.title)}</title>
 <meta property="og:title" content="${escapeHtml(page.title)}">

@@ -16,9 +16,23 @@ interface ScreenDetails {
 /**
  * Open the audience window, on another screen if there is one. The Window Management API
  * (Chrome, secure context, allowed once) tells us where the screens are; without it the
- * window opens beside this one, to be dragged across.
+ * window opens beside this one, to be dragged across. A URL still on its way (a new link, which
+ * opens once) goes into a window opened empty, while the key press may still open one.
  */
-export async function openAudience(url: string): Promise<Window | null> {
+export async function openAudience(url: string | Promise<string>): Promise<Window | null> {
+  if (typeof url === 'string') return openWindow(url);
+  const audience = await openWindow('about:blank');
+  url.then(
+    (href) => audience?.location.replace(href),
+    (error) => {
+      audience?.close();
+      console.warn('[tobos] the audience window has no link', error);
+    },
+  );
+  return audience;
+}
+
+async function openWindow(url: string): Promise<Window | null> {
   const name = 'tobos-audience';
   const getScreenDetails = (
     window as unknown as { getScreenDetails?: () => Promise<ScreenDetails> }

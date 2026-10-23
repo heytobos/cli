@@ -70,6 +70,8 @@ A deck has one story: the talk as the speaker tells it, paragraph by paragraph, 
 
 Invite only whom the person names, at the level they say: the mail goes to someone else, from the person's name. An invite nobody logs in with lapses after 14 days (`tobos people` says when). Inviting them again before then sends no mail and doesn't move the date; once it has lapsed, and they are gone from `tobos people`, invite them again if the person still wants them on it. Only the deck's owner puts people on it and takes them off; anyone else who may edit or present it, or is on a template, sees the owner and themselves in `tobos people`, a deck's viewers no one, and anyone leaves with `tobos uninvite` and their own address. Can edit builds the deck with their own agent and turns its link on or off; can present presents it with its notes and polls; can view sees the slides only. A template is shared the same way, at can edit or can use (`--can use`): using it is seeing its gallery and starting decks from it.
 
+The URL `tobos open` prints opens once, for whoever opens it first: don't fetch it to check it, and run the command again for another window or another computer.
+
 Every command takes `--json`. Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in, 4 the story changed meanwhile, 5 a plan's limit or an archived deck.
 
 When a command says a newer `tobos` is out, run `npm i -g @tobos/cli`; the next command updates this skill.

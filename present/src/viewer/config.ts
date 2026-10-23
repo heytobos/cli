@@ -32,6 +32,11 @@ export interface ViewerConfig {
    * another window.
    */
   shared?: { pdf?: string };
+  /**
+   * Where this window gets a new link to the deck, in a view: the one in the address bar opens
+   * once. Absent in a static folder, whose address opens as often as it likes.
+   */
+  link?: string;
 }
 
 /** The view the URL asks for. A share link is only ever clicked through, or printed. */
@@ -43,10 +48,49 @@ export function viewFromUrl(shared = false): View {
     : 'deck';
 }
 
-/** The same page in another view, keeping the position. */
-export function urlForView(view: View): string {
+/**
+ * The position in the address bar. Spelled out, since a bare `#hash` goes beside the page's base,
+ * and a page opened by a link that opens once has its window's folder for one (content.ts).
+ */
+export function showHash(hash: string) {
+  if (location.hash !== hash)
+    history.replaceState(null, '', `${location.pathname}${location.search}${hash}`);
+}
+
+/**
+ * The same page in another view, at `hash`: by default the position it is at. A new link, which
+ * opens once, is on its way; a static folder's address is there at once, so a window opens on it
+ * rather than empty first.
+ */
+export function urlForView(
+  config: ViewerConfig,
+  view: View,
+  hash = location.hash,
+): string | Promise<string> {
+  if (config.link) return newLink(config.link, view, hash);
   const url = new URL(location.href);
   if (view === 'deck') url.searchParams.delete('view');
   else url.searchParams.set('view', view);
+  url.hash = hash;
   return url.href;
+}
+
+async function newLink(link: string, view: View, hash: string): Promise<string> {
+  const response = await fetch(link, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ view: view === 'deck' ? undefined : view }),
+  });
+  if (!response.ok) throw new Error(`No link for the ${view} view: ${response.status}`);
+  return `${((await response.json()) as { url: string }).url}${hash}`;
+}
+
+/**
+ * The page again, as a push it can't swap in asks: at a new link where the one in the address bar
+ * opens once, which works in a frame the browser keeps nothing for too.
+ */
+export async function reload(config: ViewerConfig) {
+  if (!config.link) return location.reload();
+  const view = new URLSearchParams(location.search).get('view');
+  location.replace(await newLink(config.link, (view ?? 'deck') as View, location.hash));
 }

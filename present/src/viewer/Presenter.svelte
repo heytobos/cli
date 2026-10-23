@@ -14,7 +14,7 @@
     type Position,
   } from '../position.ts';
   import { liveResults } from '../responses.svelte.ts';
-  import { urlForView, type ViewerConfig } from './config.ts';
+  import { showHash, urlForView, type ViewerConfig } from './config.ts';
   import { action } from './keys.ts';
   import { follow } from './live.ts';
   import { stream } from './stream.ts';
@@ -90,7 +90,7 @@
     atEnd = last;
     next.go(after, false);
     const hash = formatHash(current.outline, to);
-    if (location.hash !== hash) history.replaceState(null, '', hash);
+    showHash(hash);
     if (publish) session.publish(refOf(to));
     if (showing) report(refOf(to));
   }
@@ -163,9 +163,9 @@
 
   async function present() {
     if (showing) return;
-    const url = new URL(urlForView('audience'));
-    url.hash = formatHash(current.outline, position);
-    audience = await openAudience(url.href);
+    audience = await openAudience(
+      urlForView(config, 'audience', formatHash(current.outline, position)),
+    );
     started ??= Date.now();
   }
 
