@@ -26,7 +26,8 @@ Looking at it (from the working copy, render and open push what changed first)
   tobos render scene/beat | scene | --all     PNGs of beats, for you to look at
          [--film] [--frames 6] [--out dir]    --film: frames through the animation
   tobos open [scene/beat] [--presenter]       the deck in a browser (prints the URL)
-  tobos open                                  outside a deck: Tobos in the browser, logged in
+  tobos open                                  outside a deck: a link, or its code for /login,
+                                              that logs a browser in once; show the person both
   tobos export pdf [--out file]               a PDF of every beat
 
 The story (what the speaker says, held by the server; a scene mentioned: [Title](scene:<id>),

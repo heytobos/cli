@@ -448,7 +448,7 @@ async function deckId(args: Args): Promise<string> {
 export async function open(out: Output, args: Args) {
   const position = args.positionals[0];
   if (!position && typeof args.values.deck !== 'string' && !(await findDeck().catch(() => null)))
-    return openApp(out, args);
+    return openApp(out);
   const view = args.values.presenter ? 'presenter' : undefined;
   const id = await deckId(args);
   const { pushed } = await pushIfChanged(out, id);
@@ -458,14 +458,20 @@ export async function open(out: Output, args: Args) {
   out.result({ url: full, opened, pushed }, () => full);
 }
 
-/** Outside a deck: Tobos itself, the person's decks and templates, logged in as this CLI. */
-async function openApp(out: Output, args: Args) {
-  const { url } = await api<{ url: string }>('/api/login/browser', { method: 'POST' });
-  const opened = !args.values.print && (await openUrl(url));
-  out.result({ url, opened }, () =>
-    opened
-      ? 'Opened Tobos in the browser, logged in.'
-      : `${url}\nThis link logs a browser in once, within 10 minutes.`,
+/**
+ * Outside a deck: a login for a browser as this CLI's user, at their decks and templates. Shown,
+ * never opened: the person takes the last step, by opening the link or by typing its code in at
+ * /login on another device, a phone or a lecture hall's PC. Either spends both.
+ */
+async function openApp(out: Output) {
+  const { url, code } = await api<{ url: string; code?: string }>('/api/login/browser', {
+    method: 'POST',
+  });
+  const page = `${new URL(url).origin}/login`;
+  out.result({ url, code, page }, () =>
+    code
+      ? `Open this link, or enter ${code} at ${page}. It works once, within 10 minutes.\n${url}`
+      : `Open this link. It works once, within 10 minutes.\n${url}`,
   );
 }
 
