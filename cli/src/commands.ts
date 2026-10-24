@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
-import { buildDeck, formatProblems, type Problem } from '@tobos/deck';
+import type { Problem } from '@tobos/deck';
+import { formatProblems } from '@tobos/deck/format-problems';
 import { directoryTree } from '@tobos/deck/node';
 import { api, failure, request, VERSION } from './api.ts';
 import { forget, save, settings } from './config.ts';
@@ -218,6 +219,9 @@ async function pushedFiles(root: string): Promise<string[] | undefined> {
 }
 
 async function runCheck(dir: DeckDir) {
+  // The compiler, nine tenths of the CLI, loads only for a command that checks: the rest start
+  // without it.
+  const { buildDeck } = await import('@tobos/deck');
   const started = performance.now();
   const files = await pushedFiles(dir.root);
   const result = await buildDeck(directoryTree(dir.root, files));

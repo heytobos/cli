@@ -1,5 +1,5 @@
 /** Bundle the CLI into one file: the deck compiler included, so `tobos check` runs offline. */
-import { chmodSync, existsSync, readFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import * as esbuild from 'esbuild';
@@ -55,8 +55,11 @@ function toolchain(): Record<string, string> {
 
 const pkg = JSON.parse(readFileSync(new URL('package.json', import.meta.url), 'utf8'));
 await esbuild.build({
-  entryPoints: ['src/main.ts'],
-  outfile: 'dist/tobos.js',
+  // The compiler in a file of its own, which only a command that checks loads (runCheck).
+  entryPoints: { cli: 'src/main.ts' },
+  outdir: 'dist',
+  splitting: true,
+  chunkNames: '[name]-[hash]',
   bundle: true,
   platform: 'node',
   format: 'esm',
@@ -77,5 +80,11 @@ await esbuild.build({
   legalComments: 'none',
   logLevel: 'warning',
 });
+// What `tobos` runs: Node keeps what it compiles of the CLI between runs, which takes a third of
+// its start, from before the CLI loads, so that is kept too. Node before 22.1 has no such cache.
+writeFileSync(
+  'dist/tobos.js',
+  "#!/usr/bin/env node\nimport module from 'node:module';\nmodule.enableCompileCache?.();\nawait import('./cli.js');\n",
+);
 chmodSync('dist/tobos.js', 0o755);
-console.log('dist/tobos.js');
+console.log('dist/tobos.js, dist/cli.js');

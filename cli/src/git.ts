@@ -51,12 +51,14 @@ export async function gitOk(
 
 /**
  * How git asks us for the token: this CLI is the credential helper for the Tobos server,
- * so the token never sits in .git/config or a URL.
+ * so the token never sits in .git/config or a URL. Git starts the helper to store and erase too,
+ * after each request, which it has nothing to do for: only `get` starts Node, a quarter second
+ * each.
  */
 export function credentialHelper(): string {
   const script = realpathSync(process.argv[1]!);
   const quote = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
-  return `!${quote(process.execPath)} ${quote(script)} credential`;
+  return `!f() { [ "$1" = get ] || exit 0; exec ${quote(process.execPath)} ${quote(script)} credential get; }; f`;
 }
 
 /** Git config arguments that make git ask only us for the server's credentials. */
