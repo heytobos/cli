@@ -127,9 +127,10 @@
   });
 
   /**
-   * Clear the room's responses, so a rehearsal's or the last class's don't show: a new show
-   * starts, its counts from zero, and the phones may answer again. The first click asks, the
-   * second within a few seconds clears. The CSV keeps every response all the same.
+   * Start a new session, so a rehearsal's or the last class's answers don't show: its counts from
+   * zero, and the phones may answer again. The one control for it: a session also starts by itself
+   * after an hour away. The first click asks, the second within a few seconds starts it. The
+   * downloads keep every answer all the same.
    */
   let confirming = $state(false);
   let clearing = $state(false);
@@ -289,7 +290,7 @@
     <span class="spacer"></span>
     {#if answered && config.live && hasActivities}
       <button class:confirming disabled={clearing} onclick={clearResponses}
-        >{confirming ? 'Click again to clear' : 'Clear responses'}</button
+        >{confirming ? 'Click again to start it' : 'New session'}</button
       >
     {/if}
     {#if showing}
