@@ -1,9 +1,9 @@
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
-import { join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { buildDeck, formatProblems, type Problem } from '@tobos/deck';
 import { directoryTree } from '@tobos/deck/node';
-import { api, VERSION } from './api.ts';
+import { api, failure, request, VERSION } from './api.ts';
 import { forget, save, settings } from './config.ts';
 import { findDeck, parseId, requireRemote, type DeckDir } from './deck-dir.ts';
 import { authEnv, configureCredentials, credentialConfig, git, gitOk } from './git.ts';
@@ -679,18 +679,37 @@ async function exportTarget(args: Args, file: string): Promise<string> {
   return join(deck.root, '.tobos', 'exports', file);
 }
 
+/**
+ * The deck's PDF, as its page and its share link give it: the latest push, a page per scene at its
+ * last beat, without the scenes that ask the room. Made on the server, once per push.
+ */
 export async function exportDeck(out: Output, args: Args) {
   const kind = args.positionals[0];
   if (kind !== 'pdf') throw new CliError('Export what? `tobos export pdf`.');
   const id = await deckId(args);
-  const { exportPdf } = await import('./render.ts');
-  const { url, rev } = await viewUrl(id, 'print');
+  out.note('getting the PDF of the latest push…');
+  const response = await request(`/api/decks/${id}/deck.pdf`);
+  if (!response.ok) {
+    const text = await response.text();
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { error: text.slice(0, 500) };
+    }
+    throw failure(response, data);
+  }
+  const pdf = new Uint8Array(await response.arrayBuffer());
   const target = await exportTarget(args, `${id}.pdf`);
-  const print = new URL(url);
-  if (args.values.handout) print.searchParams.set('beats', 'last');
-  const pages = await exportPdf(print.href, target, (m) => out.note(m));
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, pdf);
+  // Its pages, by the page objects the file has.
+  const pages =
+    Buffer.from(pdf)
+      .toString('latin1')
+      .match(/\/Type\s*\/Page(?![s\w])/g)?.length ?? 0;
   out.result(
-    { file: target, pages, rev },
+    { file: target, pages },
     () => `Wrote ${relative(process.cwd(), target)} (${pages} pages).`,
   );
 }

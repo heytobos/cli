@@ -1,9 +1,10 @@
 /**
- * `tobos render` and `tobos export pdf`: a headless Chromium on this machine, pointed at the
- * hosted viewer. Deck code runs here or in viewers' browsers, never on Tobos's servers.
+ * `tobos render`: a headless Chromium on this machine, pointed at the hosted viewer, so the agent
+ * sees its work as viewers will. Deck code runs here, in viewers' browsers, and on Tobos's
+ * renderer, which makes the stills and the PDFs (`tobos export pdf` downloads one).
  */
 import { execFile } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -234,30 +235,4 @@ async function stripOf(browser: Browser, frames: string[], target: string) {
   );
   await page.screenshot({ path: target });
   await page.close();
-}
-
-export async function exportPdf(
-  url: string,
-  target: string,
-  note: (m: string) => void,
-): Promise<number> {
-  mkdirSync(dirname(target), { recursive: true });
-  const browser = await launch();
-  try {
-    note('rendering every beat…');
-    const { page, ready } = await openViewer(browser, url, 1);
-    if (ready === false)
-      note('not everything was drawn in time: some pages may lack fonts, images or video frames');
-    const pages = await page.locator('.tobos-page').count();
-    const pdf = await page.pdf({
-      width: '1920px',
-      height: '1080px',
-      printBackground: true,
-      preferCSSPageSize: true,
-    });
-    writeFileSync(target, pdf);
-    return pages;
-  } finally {
-    await browser.close();
-  }
 }

@@ -56,7 +56,7 @@ A deck has one story: the talk as the speaker tells it, paragraph by paragraph, 
 | `tobos render scene/beat` · `scene` · `--all` · `--film` | PNGs of beats; pushes what changed first                       |
 | `tobos open [scene/beat] [--presenter]`                  | the deck in a browser; pushes what changed first               |
 | `tobos open` (outside a deck)                            | a browser login, once: show the person its link and code       |
-| `tobos export pdf`                                       | a PDF of every beat                                            |
+| `tobos export pdf`                                       | the deck's PDF: a page per scene at its last beat, no polls    |
 | `tobos story`                                            | the story, by ¶ id                                             |
 | `tobos story edit <¶> "old" "new"`                       | change it, anchored on the exact text                          |
 | `tobos story add [--after <¶>] "…"` · `delete <¶>`       | add a paragraph, or delete one                                 |

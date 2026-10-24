@@ -28,7 +28,8 @@ Looking at it (from the working copy, render and open push what changed first)
   tobos open [scene/beat] [--presenter]       the deck in a browser (prints the URL, which opens once)
   tobos open                                  outside a deck: a link, or its code for /login,
                                               that logs a browser in once; show the person both
-  tobos export pdf [--out file]               a PDF of every beat
+  tobos export pdf [--out file]               the deck's PDF, as its page and its link give it:
+                                              a page per scene at its last beat, no polls
 
 The story (what the speaker says, held by the server; a scene mentioned: [Title](scene:<id>),
 a beat: [Title](scene:<id>/<beat>))
@@ -105,7 +106,6 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
     options: {
       out: { type: 'string' },
       deck: { type: 'string' },
-      handout: { type: 'boolean' },
     },
   },
   people: { run: commands.people, options: { deck: { type: 'string' } } },
