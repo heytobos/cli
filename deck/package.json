@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./node": "./src/node.ts",
     "./format-problems": "./src/format-problems.ts",
+    "./hash": "./src/hash.ts",
     "./types": "./src/types.ts",
     "./FORMAT.md": "./FORMAT.md",
     "./package.json": "./package.json"
