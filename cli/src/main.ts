@@ -15,17 +15,21 @@ Account
                                               with you; an archived one is read-only
 
 Working on a deck
-  tobos new "Title"                           create a deck and clone it here, into ./<id>
+  tobos new "Title" [--dir dir] [--no-clone]  create a deck and clone it here, into ./<id>
+                                              (or into dir; --no-clone: only create it)
   tobos clone <id> [dir]                      clone a deck, with the agent pack
   tobos pull                                  get the latest pushes and the format guide
   tobos check [--types]                       compile and check the deck, offline (~1 s);
                                               --types: TypeScript too (installs a checker once)
   tobos push [-m "what changed"]              upload media, commit, push; the server checks it
 
-Looking at it (from the working copy, render and open push what changed first)
+Looking at it (from the working copy, render and open push what changed first; with --deck <id>,
+from anywhere)
   tobos render scene/beat | scene | --all     PNGs of beats, for you to look at
          [--film] [--frames 6] [--out dir]    --film: frames through the animation
+         [--scale 2] [-m "what changed"]      --scale: pixels per stage pixel; -m: for the push
   tobos open [scene/beat] [--presenter]       the deck in a browser (prints the URL, which opens once)
+         [--print]                            --print: print the URL only, open nothing
   tobos open                                  outside a deck: a link, or its code for /login,
                                               that logs a browser in once; show the person both
   tobos export pdf [--out file]               the deck's PDF, as its page and its link give it:
