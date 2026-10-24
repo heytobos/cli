@@ -55,9 +55,9 @@ The skill (what your harness reads to know Tobos without this help)
                                               read skills; later CLIs keep it up to date
 
 Templates (decks people start from: a new deck copies a template's master/)
-  tobos new "Title" --from <id>                start a deck from that template (default: your own,
-                                              "My template")
-  tobos new "Our brand" --template            a new template: a copy of your default (or of --from)
+  tobos new "Title" --from <id>                start a deck from that template (default: Tobos
+                                              simple; \`tobos decks\` lists the person's own)
+  tobos new "Our brand" --template            a new template: a copy of Tobos simple (or of --from)
 
 Every command takes --json and then prints one JSON object.
 Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in, 4 the story changed

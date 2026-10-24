@@ -28,6 +28,8 @@ tobos clone <id>                  # or clone an existing one
 tobos pull                        # in a clone: the latest pushes and format guide
 ```
 
+A new deck starts from Tobos simple. If the person has a template of their own, their house style, `tobos decks` lists it: start from it with `--from <id>`, and if they have more than one, ask which.
+
 Then **read the deck's `AGENTS.md`**. It, `.tobos/FORMAT.md` and `master/GUIDE.md` are the instructions for everything that follows: the loop (`check` → `render` → look → `push`), the format, the slide master's layouts and rules.
 
 ## Follow the person
@@ -60,8 +62,8 @@ A deck has one story: the talk as the speaker tells it, paragraph by paragraph, 
 | `tobos story`                                            | the story, by ¶ id                                             |
 | `tobos story edit <¶> "old" "new"`                       | change it, anchored on the exact text                          |
 | `tobos story add [--after <¶>] "…"` · `delete <¶>`       | add a paragraph, or delete one                                 |
-| `tobos new "Title" --from <id>`                          | a deck from that template (default: the person's own)          |
-| `tobos new "Our brand" --template`                       | a new template: a copy of the default, or of `--from`          |
+| `tobos new "Title" --from <id>`                          | a deck from that template (default: Tobos simple)              |
+| `tobos new "Our brand" --template`                       | a new template: a copy of Tobos simple, or of `--from`         |
 | `tobos whoami` · `tobos logout`                          | who is logged in, on which server; or log this machine out     |
 | `tobos skill install`                                    | this skill, where the person's harnesses read skills           |
 | `tobos people`                                           | who is on it, what each may do, when a waiting invite lapses   |
