@@ -1,7 +1,7 @@
 import type { Manifest } from '@tobos/deck';
 import type { JoinInfo } from '../registry.ts';
 
-export type View = 'deck' | 'audience' | 'presenter' | 'print' | 'render';
+export type View = 'deck' | 'audience' | 'presenter' | 'print' | 'render' | 'sheet';
 
 /** What the viewer page passes to start(). */
 export interface ViewerConfig {
@@ -43,7 +43,11 @@ export interface ViewerConfig {
 export function viewFromUrl(shared = false): View {
   const view = new URLSearchParams(location.search).get('view');
   if (shared) return view === 'print' ? 'print' : 'deck';
-  return view === 'audience' || view === 'presenter' || view === 'print' || view === 'render'
+  return view === 'audience' ||
+    view === 'presenter' ||
+    view === 'print' ||
+    view === 'render' ||
+    view === 'sheet'
     ? view
     : 'deck';
 }

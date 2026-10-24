@@ -151,6 +151,12 @@ export function parseMediaJson(text: string | undefined): {
   return { media: own(Object.entries(raw as MediaJson)), problems: [] };
 }
 
+/** media.json as Tobos writes it: by name, two spaces, a line at the end. */
+export function formatMediaJson(media: MediaJson): string {
+  const sorted = Object.entries(media).sort(([a], [b]) => a.localeCompare(b));
+  return `${JSON.stringify(Object.fromEntries(sorted), null, 2)}\n`;
+}
+
 /** Parse master/master.json: the master's rules. A missing file means no rules. */
 export function parseMasterJson(text: string | undefined): { rules: Rules; problems: Problem[] } {
   if (text === undefined) return { rules: {}, problems: [] };

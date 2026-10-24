@@ -10,42 +10,11 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { extname, join, relative, sep } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { Readable } from 'node:stream';
-import type { MediaJson } from '@tobos/deck';
+import { formatMediaJson, mediaTypeOf, type MediaJson } from '@tobos/deck';
 import { api, failure, request } from './api.ts';
 import { CliError } from './out.ts';
-
-const TYPES: Record<string, string> = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-  '.avif': 'image/avif',
-  '.gif': 'image/gif',
-  '.svg': 'image/svg+xml',
-  '.mp4': 'video/mp4',
-  '.webm': 'video/webm',
-  '.mov': 'video/quicktime',
-  '.mp3': 'audio/mpeg',
-  '.m4a': 'audio/mp4',
-  '.aac': 'audio/aac',
-  '.opus': 'audio/ogg',
-  '.ogg': 'audio/ogg',
-  '.weba': 'audio/webm',
-  '.flac': 'audio/flac',
-  '.wav': 'audio/wav',
-  '.aif': 'audio/aiff',
-  '.aiff': 'audio/aiff',
-  '.pdf': 'application/pdf',
-  '.glb': 'model/gltf-binary',
-  '.gltf': 'model/gltf+json',
-  '.json': 'application/json',
-  '.bin': 'application/octet-stream',
-  '.woff2': 'font/woff2',
-  '.vtt': 'text/vtt',
-  '.txt': 'text/plain',
-};
 
 /** Sound as it was recorded, five to ten times the size of AAC that a room hears no difference from. */
 const LOSSLESS = /\.(wav|aiff?|flac)$/i;
@@ -165,13 +134,13 @@ export async function syncMediaJson(root: string): Promise<{ media: MediaJson; c
     media[name] = {
       hash,
       size,
-      type: TYPES[extname(name).toLowerCase()] ?? 'application/octet-stream',
+      type: mediaTypeOf(name),
     };
   }
   mkdirSync(join(root, '.tobos'), { recursive: true });
   writeFileSync(cacheFile, JSON.stringify(cache));
   const sorted = Object.fromEntries(Object.entries(media).sort(([a], [b]) => a.localeCompare(b)));
-  const after = JSON.stringify(sorted, null, 2) + '\n';
+  const after = formatMediaJson(sorted);
   if (after !== before) writeFileSync(file, after);
   return { media: sorted, changed: after !== before };
 }
