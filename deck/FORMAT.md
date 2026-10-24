@@ -21,7 +21,7 @@ Besides `media/`, a deck's files may take 100 MB together and number at most 10,
 
 ```json
 {
-  "title": "Generative AI, lecture 1",
+  "title": "Data Visualisation, lecture 1",
   "chapters": [
     {
       "id": "opening",

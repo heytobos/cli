@@ -14,4 +14,4 @@
   import { Title } from '../master/index.ts';
 </script>
 
-<Title kicker="194.207 · Lecture 1" subtitle="Generative AI" />
+<Title kicker="Lecture 1" subtitle="Data Visualisation" />
