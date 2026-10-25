@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { servesModule, sharedManifest, type Manifest } from '../src/index.ts';
+import { mediaInUse, servesModule, sharedManifest, type Manifest } from '../src/index.ts';
 
 const manifest: Manifest = {
   format: 1,
@@ -182,6 +182,64 @@ describe('sharedManifest, with what each module uses', () => {
     expect(Object.keys(before.imports)).not.toContain('@deck/scenes/poll.svelte');
     expect(Object.keys(before.imports)).toContain('@deck/scenes/poll/Reveal.svelte');
     expect(before.media).toEqual(recorded.media);
+  });
+});
+
+describe('mediaInUse', () => {
+  const entry = (hash: string) => ({ hash: hash.repeat(64), size: 1000, type: 'image/png' });
+  const recorded: Manifest = {
+    ...manifest,
+    media: {
+      'cover.png': entry('a'),
+      'chart/a.png': entry('b'),
+      'quiz/answer.png': entry('c'),
+      'quiz/reveal.png': entry('d'),
+      'old/deleted.png': entry('e'),
+      'draft.png': entry('f'),
+      'brand.png': entry('0'),
+      'master/fonts/a.woff2': entry('1'),
+      'master/fonts/LICENSE.txt': entry('2'),
+    },
+    uses: {
+      modules: {
+        '@deck/lib/Chart.svelte': { patterns: ['chart/*.png'] },
+        '@deck/master/Brand.svelte': { media: ['brand.png'] },
+        '@deck/scenes/draft.svelte': { media: ['draft.png'] },
+        '@deck/scenes/poll.svelte': {
+          imports: ['@deck/scenes/poll/Reveal.svelte'],
+          media: ['quiz/answer.png'],
+        },
+        '@deck/scenes/poll/Reveal.svelte': { patterns: ['quiz/*.png'] },
+        '@deck/scenes/title.svelte': {
+          imports: ['@deck/lib/Chart.svelte'],
+          media: ['cover.png'],
+        },
+      },
+      styles: ['master/fonts/a.woff2'],
+    },
+  };
+
+  it("is what deck.json's scenes reach, polls too, the master's and tokens.css's", () => {
+    expect(Object.keys(mediaInUse(recorded)).sort()).toEqual([
+      'brand.png',
+      'chart/a.png',
+      'cover.png',
+      'master/fonts/LICENSE.txt',
+      'master/fonts/a.woff2',
+      'quiz/answer.png',
+      'quiz/reveal.png',
+    ]);
+    expect(mediaInUse(recorded)['cover.png']).toEqual(recorded.media['cover.png']);
+  });
+
+  it("leaves out a scene deck.json doesn't list, and a file nothing names", () => {
+    const used = mediaInUse(recorded);
+    expect(used).not.toHaveProperty('draft.png');
+    expect(used).not.toHaveProperty('old/deleted.png');
+  });
+
+  it('is all of media.json in a manifest pushed before the build recorded what it uses', () => {
+    expect(mediaInUse({ ...recorded, uses: undefined })).toEqual(recorded.media);
   });
 });
 

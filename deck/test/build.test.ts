@@ -837,7 +837,7 @@ describe('media', () => {
     ]);
   });
 
-  it("warns about files media.json lists that nothing uses, but the master's own", async () => {
+  it("warns about files media.json lists that no slide shows, but the master's own", async () => {
     const media = JSON.parse(text(sample.read('media.json')));
     const entry = (hash: string, size: number) => ({
       hash: hash.repeat(64),
@@ -855,7 +855,7 @@ describe('media', () => {
         file: 'media.json',
         rule: 'media',
         message:
-          'media.json lists 2 files no scene or master uses (2.5 MB): old/a.png and old/b.png. Remove them from media/ and media.json to free their room.',
+          "media.json lists 2 files no slide shows (2.5 MB): old/a.png and old/b.png. They don't count toward the plan, and the server keeps them for 7 days: to show one after that, drop it again, or push it from media/.",
         severity: 'warning',
       },
     ]);
@@ -948,14 +948,15 @@ describe('what a share gets', () => {
     expect(Object.keys(shared.media)).toContain('master/fonts/hanken-grotesk-latin.woff2');
   });
 
-  it('leaves out what nothing uses, which the check warns about', async () => {
+  it('leaves out what nothing uses, which the check warns about with what no slide shows', async () => {
     const { problems } = await buildDeck(tree);
+    // A scene deck.json doesn't list shows nothing, so its file is on no slide either.
     expect(problems.filter((p) => p.file === 'media.json')).toMatchObject([
       {
         rule: 'media',
         severity: 'warning',
         message: expect.stringContaining(
-          'lists 1 file no scene or master uses (1 KB): old/deleted.png.',
+          'lists 2 files no slide shows (2 KB): draft.png and old/deleted.png.',
         ),
       },
     ]);

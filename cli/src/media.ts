@@ -146,8 +146,8 @@ export async function syncMediaJson(root: string): Promise<{ media: MediaJson; c
 }
 
 /**
- * Upload what the server asks for: files it lacks, or doesn't know this user has. They count
- * toward the deck's account.
+ * Upload what the server asks for of `media`, the files the deck's slides show: those it lacks, or
+ * doesn't know this user has. They count toward the deck's account.
  */
 export async function uploadMedia(
   root: string,
@@ -168,7 +168,7 @@ export async function uploadMedia(
     const path = mediaFile(root, name);
     if (!existsSync(path))
       throw new CliError(
-        `media/${name} is in media.json but not on this machine, and the server doesn't have it.`,
+        `media/${name} is on a slide but not on this machine, and the server doesn't have it: put it in media/, then push again.`,
       );
     note(`uploading media/${name} (${Math.round(entry.size / 1000)} kB)`);
     const response = await request(`/api/media/${hash}?deck=${deck}`, {

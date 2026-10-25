@@ -337,7 +337,8 @@ export async function check(out: Output, args: Args) {
 }
 
 /**
- * Check the working copy, upload its new media, commit everything and push it to main. The
+ * Check the working copy, upload the new media its slides show, commit everything and push it to
+ * main. The
  * server checks it again; every open preview follows. Returns the problems instead when the
  * check finds errors.
  */
@@ -348,11 +349,15 @@ async function pushWorkingCopy(out: Output, deck: Required<DeckDir>, message?: s
   const { errors, warnings } = problemSummary(result.problems);
   if (errors > 0) return { ok: false as const, errors, warnings, problems: result.problems };
 
-  for (const [name, entry] of Object.entries(media)) {
+  // Only what slides show counts, and must be on the server: a file in media.json that none
+  // shows stays here, and one not on this machine stops nothing (mediaInUse).
+  const { mediaInUse } = await import('@tobos/deck');
+  const shown = result.manifest ? mediaInUse(result.manifest) : media;
+  for (const [name, entry] of Object.entries(shown)) {
     const note = sizeNote(name, entry.size);
     if (note) out.note(note, true);
   }
-  const uploaded = await uploadMedia(root, media, server, deck.id, (m) => out.note(m));
+  const uploaded = await uploadMedia(root, shown, server, deck.id, (m) => out.note(m));
 
   await gitOk(['add', '-A'], { cwd: root });
   const committed = (await gitOk(['diff', '--cached', '--name-only'], { cwd: root }))

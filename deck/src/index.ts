@@ -1,5 +1,5 @@
 export type * from './types.ts';
-export { buildDeck, createCache } from './build.ts';
+export { buildDeck, createCache, KEPT_MEDIA_DAYS } from './build.ts';
 export type { BuildCache, BuildOptions, BuildResult } from './build.ts';
 export type { Rules } from './analyze.ts';
 export { formatMediaJson, ID, parseDeckJson, parseMediaJson } from './deck-json.ts';
@@ -8,6 +8,6 @@ export type { Master } from './master.ts';
 export { isSafePath, memoryTree, readText } from './tree.ts';
 export { sha256 } from './hash.ts';
 export { activitiesOf, openActivity, TEXT_MAX } from './activity.ts';
-export { servesModule, sharedManifest } from './share.ts';
+export { mediaInUse, servesModule, sharedManifest } from './share.ts';
 export { formatProblems } from './format-problems.ts';
 export { mediaTypeOf } from './media-type.ts';

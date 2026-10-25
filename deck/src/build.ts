@@ -4,13 +4,13 @@ import {
   analyzeScript,
   analyzeSvelte,
   mediaMatcher,
-  mediaMatching,
   type Analysis,
   type MediaRef,
   type Rules,
 } from './analyze.ts';
 import { parseDeckJson, parseMasterJson, parseMediaJson } from './deck-json.ts';
 import { sha256 } from './hash.ts';
+import { mediaInUse } from './share.ts';
 import { stripTypes } from './strip-types.ts';
 import { position, readText, resolvePath } from './tree.ts';
 import type {
@@ -540,29 +540,30 @@ const sizeText = (bytes: number) =>
   bytes < 1_000_000 ? `${Math.ceil(bytes / 1000)} KB` : `${+(bytes / 1_000_000).toFixed(1)} MB`;
 
 /**
- * The files media.json lists that nothing in the deck shows: neither a media() call in any file
- * it compiles, nor tokens.css. A share never gets them, but each still takes its room. The
- * master's own files, under media/master/, come and go with it (masterOf), its fonts' licences
- * among them, so they aren't counted.
+ * How long the server keeps a file no slide shows (TOB-369): retention.ts's keptMediaDays, which
+ * app/test/retention.test.ts holds this to.
  */
-function unusedMedia(media: MediaJson, uses: Uses): Problem | undefined {
-  const used = new Set(uses.styles);
-  const patterns = new Set<string>();
-  for (const { media: names, patterns: more } of Object.values(uses.modules)) {
-    for (const name of names ?? []) used.add(name);
-    for (const pattern of more ?? []) patterns.add(pattern);
-  }
-  const named = Object.keys(media).filter((name) => !used.has(name) && !name.startsWith('master/'));
-  const matched = new Set(mediaMatching(named, patterns));
-  const unused = named.filter((name) => !matched.has(name));
+export const KEPT_MEDIA_DAYS = 7;
+
+/**
+ * The files media.json lists that no slide shows (mediaInUse): neither a media() call of a scene
+ * deck.json lists, or of what it imports, nor the master, nor tokens.css. They don't count toward
+ * the plan, and the server keeps each only for a while, so a later save that shows one may find
+ * it gone. The master's own files, under media/master/, come and go with it, so are in use.
+ */
+function unusedMedia(manifest: Pick<Manifest, 'chapters' | 'media' | 'uses'>): Problem | undefined {
+  const { media } = manifest;
+  const used = mediaInUse(manifest);
+  const unused = Object.keys(media).filter((name) => !Object.hasOwn(used, name));
   if (unused.length === 0) return undefined;
   const bytes = unused.reduce((sum, name) => sum + media[name]!.size, 0);
   const shown =
     unused.length > 10 ? [...unused.slice(0, 10), `${unused.length - 10} more`] : unused;
+  const one = unused.length === 1;
   return {
     file: 'media.json',
     rule: 'media',
-    message: `media.json lists ${unused.length === 1 ? '1 file' : `${unused.length} files`} no scene or master uses (${sizeText(bytes)}): ${and(shown)}. Remove ${unused.length === 1 ? 'it' : 'them'} from media/ and media.json to free their room.`,
+    message: `media.json lists ${one ? '1 file' : `${unused.length} files`} no slide shows (${sizeText(bytes)}): ${and(shown)}. ${one ? "It doesn't" : "They don't"} count toward the plan, and the server keeps ${one ? 'it' : 'them'} for ${KEPT_MEDIA_DAYS} days: to show ${one ? 'it' : 'one'} after that, drop it again, or push it from media/.`,
     severity: 'warning',
   };
 }
@@ -687,8 +688,6 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
     modules: modulesUses(graph.compiled, mediaOf),
     styles: stylesheet?.media ?? [],
   };
-  const unused = unusedMedia(media, uses);
-  if (unused) problems.push(unused);
   const chapters: ManifestChapter[] = deck.chapters.map((chapter) => ({
     id: chapter.id,
     title: chapter.title,
@@ -704,6 +703,9 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
       };
     }),
   }));
+
+  const unused = unusedMedia({ chapters, media, uses });
+  if (unused) problems.push(unused);
 
   // Passed: what it compiled is worth keeping.
   for (const [key, file] of graph.fresh) options.cache?.set(key, file);
