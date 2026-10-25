@@ -158,10 +158,15 @@ export async function uploadMedia(
 ) {
   const hashes = [...new Set(Object.values(media).map((m) => m.hash))];
   if (hashes.length === 0) return [];
-  const { missing } = await api<{ missing: string[] }>('/api/media/missing', {
-    body: { hashes },
-    server,
-  });
+  const { missing, elsewhere = 0 } = await api<{ missing: string[]; elsewhere?: number }>(
+    '/api/media/missing',
+    { body: { hashes, deck }, server },
+  );
+  // What the version this push shows adds to what the account's other decks show, which the
+  // server checks each upload by: so a file swapped for a larger one fits, though the old one is
+  // still on a slide until the push lands.
+  const sizes = Object.fromEntries(Object.values(media).map((m) => [m.hash, m.size]));
+  const shows = Object.values(sizes).reduce((sum, size) => sum + size, 0) - elsewhere;
   const uploaded: string[] = [];
   for (const hash of missing) {
     const [name, entry] = Object.entries(media).find(([, m]) => m.hash === hash)!;
@@ -171,7 +176,7 @@ export async function uploadMedia(
         `media/${name} is on a slide but not on this machine, and the server doesn't have it: put it in media/, then push again.`,
       );
     note(`uploading media/${name} (${Math.round(entry.size / 1000)} kB)`);
-    const response = await request(`/api/media/${hash}?deck=${deck}`, {
+    const response = await request(`/api/media/${hash}?deck=${deck}&shows=${shows}`, {
       method: 'PUT',
       body: Readable.toWeb(createReadStream(path)) as ReadableStream,
       contentType: entry.type,
