@@ -14,12 +14,21 @@ Tobos hosts presentations written as code: a deck is a git repository, one Svelt
 - `tobos decks` lists the decks and templates the person can work on, by id. `tobos clone <id>` gets one; `tobos new "Title"` starts one and clones it.
 - A new deck starts from Tobos simple. The person's own templates, their house styles, are in `tobos decks`: start from one with `--from <id>`, and ask which when there are several.
 - Then read the deck's `AGENTS.md`: it points to the loop, the format and the deck's slide master.
+- The person's decks are in folders, which `tobos --help` lists the commands for.
 
 Exit code 3 means no one is logged in. Ask the person for their e-mail address and run `tobos login <email>`. Then ask, in one line, for the 6-digit code it mailed them (it may be in spam, and using it accepts https://tobos.ai/terms), and run `tobos login --code <code>`. In CI or a sandbox with no one to ask, `TOBOS_TOKEN` and `TOBOS_SERVER` stand in for the login.
 
 ## Follow the person
 
 They decide what to make and how much of it you build: one scene at a time, or the whole deck at once. Build what they ask, at the size they ask, from what they have told you about the talk. When they ask how Tobos works or where to start, give them the tour, https://tobos.ai/tour, and nothing of your own: no explanation, no deck to try.
+
+## Folders
+
+- Look at the person's folders before you make or move a deck, and file it under a folder name they have already, as they wrote it, rather than a new one that means the same.
+- File every deck you make: once it is made, move it into the folder it belongs in.
+- Before you move more than a handful of decks, show the person the tree you propose, and make it once they say yes.
+- A reorganisation is taken back by moving the decks back where they were: note where they were before you move them.
+- A folder stays when a move empties it, until the person removes it: removing is theirs, as deleting a deck is.
 
 ## What stays the person's
 

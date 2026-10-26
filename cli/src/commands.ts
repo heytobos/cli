@@ -29,6 +29,8 @@ interface DeckInfo {
   owner?: string;
   /** Read-only until its owner opens it again: no pushes, no presenting. */
   archived?: boolean;
+  /** The folder it is in, by its path from the root: of the person's own decks only. */
+  folder?: string;
   rev: string | null;
   git: string;
   url: string;
@@ -118,13 +120,62 @@ function aboutDeck(d: DeckInfo): string {
   return notes.length ? `  (${notes.join('; ')})` : '';
 }
 
-export async function decks(out: Output) {
+// ─── Folders ────────────────────────────────────────────────────────────────
+
+/** A folder's path as a prefix of what is in it: none for the root. */
+const inFolder = (path: string) => (path === '/' ? '' : `${path}/`);
+
+type Entry =
+  { kind: 'folder'; name: string; path: string } | { kind: 'deck'; id: string; title: string };
+
+/**
+ * The decks and templates the person can work on, each in its folder, and those shared with
+ * them; with a path, what that folder of their drive holds instead: its folders, then its decks.
+ */
+export async function decks(out: Output, args: Args) {
+  const path = args.positionals[0];
+  if (path !== undefined) {
+    const listed = await api<{ path: string; entries: Entry[] }>(
+      `/api/drive?${new URLSearchParams({ path })}`,
+    );
+    out.result(listed, () =>
+      listed.entries.length === 0
+        ? `${listed.path} is empty.`
+        : listed.entries
+            .map((e) => (e.kind === 'folder' ? `${e.name}/` : `${e.id}  ${e.title}`))
+            .join('\n'),
+    );
+    return;
+  }
   const { decks } = await api<{ decks: DeckInfo[] }>('/api/decks');
   out.result({ decks }, () =>
     decks.length === 0
       ? 'No decks yet. `tobos new "Title"` starts one.'
-      : decks.map((d) => `${d.id}  ${d.title}${aboutDeck(d)}`).join('\n'),
+      : decks
+          .map((d) => `${d.id}  ${inFolder(d.folder ?? '/')}${d.title}${aboutDeck(d)}`)
+          .join('\n'),
   );
+}
+
+/**
+ * Decks and folders moved into a folder, the last argument, which is made if there is none: a
+ * deck by its id or its title, a folder by its path, which starts with `/`.
+ */
+export async function mv(out: Output, args: Args) {
+  const named = args.positionals.slice(0, -1);
+  const to = args.positionals.at(-1);
+  if (!to || named.length === 0)
+    throw new CliError(
+      'What goes where? `tobos mv <deck or /folder>… <folder>`: decks by id or title, folders by path.',
+    );
+  const moved = await api<{ to: string }>('/api/drive/move', {
+    body: {
+      decks: named.filter((name) => !name.startsWith('/')),
+      folders: named.filter((name) => name.startsWith('/')),
+      to,
+    },
+  });
+  out.result(moved, () => `Moved ${plural(named.length, 'item')} into ${moved.to}.`);
 }
 
 // ─── Working copies ─────────────────────────────────────────────────────────

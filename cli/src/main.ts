@@ -11,8 +11,15 @@ Account
   tobos login --code <code>                   finish: the code they read from the mail
   tobos logout                                forget this machine's token
   tobos whoami                                who you are, on which server
-  tobos decks                                 your decks and templates, by id, and those shared
-                                              with you; an archived one is read-only
+  tobos decks [/path]                         your decks and templates, by id, each in its folder,
+                                              and those shared with you; an archived one is
+                                              read-only. With a path: what that folder holds,
+                                              its folders, then its decks
+
+Folders (your decks and templates in a tree; a deck by its id or title, a folder by its path)
+  tobos mv <deck or /folder>… </path>         move them into that folder, made if there is none
+                                              (a folder emptied stays, until the person removes
+                                              it on the web)
 
 Working on a deck
   tobos new "Title" [--dir dir] [--no-clone]  create a deck and clone it here, into ./<id>
@@ -93,6 +100,7 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
       template: { type: 'boolean' },
     },
   },
+  mv: { run: commands.mv },
   clone: { run: commands.clone },
   pull: { run: commands.pull },
   check: { run: commands.check, options: { types: { type: 'boolean' } } },
