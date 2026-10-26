@@ -343,8 +343,8 @@ function render() {
     shown = screen;
     if (screen === 'loading') message('Loading…');
     else if (screen === 'idle') message('Nothing is live here right now.');
-    else if (screen === 'waiting') message('Waiting for the next question…');
-    else if (screen === 'closed') message('This question has closed.');
+    else if (screen === 'waiting') message('Waiting for the next poll…');
+    else if (screen === 'closed') message('This poll has closed.');
     else if (screen.startsWith('sent:')) message('Sent ✓');
     else if (activity?.kind === 'choice') showChoice(activity);
     else if (activity?.kind === 'text') showText(activity);

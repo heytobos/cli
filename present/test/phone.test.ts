@@ -102,7 +102,7 @@ beforeEach(() => {
     const answer = JSON.parse(String(init.body));
     answers.push(answer);
     const taken = state.live && answer.show === state.show;
-    return new Response(taken ? null : 'This question has closed.', { status: taken ? 202 : 409 });
+    return new Response(taken ? null : 'This poll has closed.', { status: taken ? 202 : 409 });
   });
 });
 
@@ -119,7 +119,7 @@ describe('the phone page', () => {
     state = live('show-1', null);
     await vi.advanceTimersByTimeAsync(30_000);
     await settle();
-    expect(screen()).toBe('Waiting for the next question…');
+    expect(screen()).toBe('Waiting for the next poll…');
     expect(asked).toEqual([`GET /${CODE}/state`, `GET /${CODE}/state`, `GET /${CODE}/events`]);
     expect(Object.keys(localStorage)).toEqual([]);
   });

@@ -18,7 +18,7 @@
       <figcaption>{join.link}</figcaption>
     {:else}
       <div class="tobos-join-none" style:width="{size}px" style:height="{size}px"></div>
-      <figcaption>The join code appears here once the deck has an activity.</figcaption>
+      <figcaption>The join code appears here once the deck has a poll.</figcaption>
     {/if}
   </figure>
 {/if}
