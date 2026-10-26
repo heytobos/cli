@@ -6,20 +6,18 @@ This folder is the deck's slide master, copied from Tobos standard when the deck
 
 They are in `master.json`; `tobos check` and every push enforce them.
 
-- **Nothing smaller than 28px.** `tobos check` rejects a `font-size` below 28px in a scene. It's the smallest size readable from the back of a lecture hall.
+- **Nothing smaller than 28px**, anywhere in the deck: the check refuses a smaller `font-size` in the forms FORMAT.md's Checks lists (`em` and `calc()` it can't read). It's the smallest size readable from the back of a lecture hall.
+- **Every scene renders exactly one layout as its root**: the check warns about a scene that doesn't.
 
 ## Rules the check can't enforce, which we hold you to
 
 - **One focal motion at a time.** If two things move at once, nobody knows where to look.
 - **Motion carries meaning.** Something moves because it arrives, leaves, changes or is the point now. Nothing moves for decoration.
 - **Continuity over cuts.** Something that stays on screen across beats moves to its new place (GSAP Flip); it doesn't fade out and back in.
-- **Nothing loops while the presenter talks.**
 - **The story carries the scene.** A content scene has a headline only when it says something (a claim, a question), never a label like "Overview".
 - **Ink is the accent, and highlight red means "look here now"**: one thing at a time.
 
 ## Layouts
-
-Every scene renders exactly one layout as its root.
 
 | Layout    | Use it for                                  | Props                                                                                                                                                                                                                       | Regions                                    |
 | --------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |

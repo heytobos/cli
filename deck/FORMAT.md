@@ -12,10 +12,22 @@ media/             images, video, audio: uploaded by `tobos push`, never committ
 media.json         what is in media/, by content hash (written by `tobos check` and `tobos push`)
 scripts/           your scripts that compute data/ and media/ (committed, never run by Tobos)
 sources/           originals the scripts read: full-size scans, raw data (never committed)
-AGENTS.md          instructions for the agent that builds the deck
+AGENTS.md          points the agent that builds the deck to this file and the master's guide
+.tobos/            this file, as the server has it now: written by `tobos clone` and `tobos pull`, never committed
 ```
 
 Besides `media/`, a deck's files may take 100 MB together and number at most 10,000, each at most 20 MB. The server rejects a push that goes over, in any of its commits for the 20 MB.
+
+## Working on a deck
+
+You work in a clone of the deck, from `tobos clone <id>` or `tobos new`, and every push is live: the server runs the same check as `tobos check`, refuses a push that fails it with the check's messages, and every open preview follows within a second, so the person watches the deck take shape.
+
+1. Change `deck.json`, the scenes and whatever else the step needs.
+2. `tobos check` checks the deck offline, in about a second: fix every error it reports. `--types` adds TypeScript's view in a few seconds, worth it before a push that changed code.
+3. `tobos render <scene>/<beat>` pushes what changed and writes a PNG of that beat; `--film` writes frames through its animation. Look at each one.
+4. `tobos push -m "what changed"` uploads new media, commits and pushes. `render` and `open` push the same way when the working copy has changed, and `-m` names that push too.
+
+A step is done when every beat it changed has been rendered and looked at. Plain `git push` to `main` works too, checked the same way, for a change that adds no media, since only `tobos push` uploads it. The server takes pushes to `main` only.
 
 ## deck.json
 
@@ -84,7 +96,7 @@ A presentation is a sequence of **beats**. One click advances one beat. A scene 
 - **Scenes are mounted ahead**, out of sight, and their media preloads, so stepping into a scene never blinks.
 - **The stage is 1920×1080**, scaled to the screen. Write all sizes in stage pixels.
 
-So: don't animate in `onMount`, don't start timers, and don't keep state that the position can't recreate. Anything that moves belongs in a beat's `enter`, video and sound too (see [Video](#video) and [Sound](#sound)).
+So everything that moves belongs in a beat's `enter`, video and sound too (see [Video](#video) and [Sound](#sound)), and a scene keeps only state the position recreates. An animation started in `onMount` or a timer runs on its own clock, and the check warns about both.
 
 ### Props
 
@@ -166,7 +178,7 @@ Keep those scripts in `scripts/`, so the next person can rerun them. `scripts/` 
 
 ## Media
 
-Media never goes into git. Put files in `media/`; `tobos push` uploads the ones the server doesn't have yet and records them in `media.json`. In a scene:
+Media stays out of git (`.gitignore` has `media/`). Put files in `media/`: `tobos check` and `tobos push` record them in `media.json`, and push uploads those a slide shows. In a scene:
 
 ```svelte
 <script lang="ts">
@@ -176,7 +188,11 @@ Media never goes into git. Put files in `media/`; `tobos push` uploads the ones 
 <img src={media('cow.jpg')} alt="A cow" />
 ```
 
-The name is the path inside `media/`, as a string literal, so Tobos can check it exists. When the names come from data, write a template literal: ``media(`cow/${part}.png`)`` is checked as the pattern `cow/*.png`, which must match at least one file. Call `media()` by its own name wherever a file is needed, imported from `@tobos/present` or from one of the deck's files that passes it on as `media` (`export { media } from '@tobos/present'`); `present.media('cow.jpg')`, after `import * as present from '@tobos/present'`, is read too. Under another name (`import { media as m }`, `const { media: m } = present`), passed on as a value (`names.map(media)`, `const p = present`) or loaded with `import()`, it is refused, since Tobos reads each call to know which files a scene shows, and a share link gets only those (see [the share link](#activities-polls-and-forms-on-phones)). A `media` of the deck's own, or a parameter by that name, isn't the engine's, and is left alone. `tobos check` and `tobos push` record new files in `media.json`; push uploads those a slide shows. Size media for the stage, not larger: a 4000-pixel scan shown at 800 pixels costs memory on every phone that opens the deck, and `tobos push` warns about files over 25 MB. Media stay out of git (`.gitignore` has `media/`): a file in the deck's repository may be 20 MB at most, and a push with a larger one is refused. Only media on a slide counts toward the plan: the files the `media()` calls of the scenes `deck.json` lists name, with everything they import, the master's, and the fonts `tokens.css` links. The master's own, under `media/master/`, count as on a slide: they come with it. The check warns about any other file `media.json` lists, a file deleted from `media/` among them (its entry stays, since a fresh clone has no `media/`): the server keeps such a file for 7 days, and may have deleted it after that, so to show it then, drop it again, or push it from `media/`. A scene that names a file the server no longer has is refused until it is there again.
+- **A file is named by its path inside `media/`**, as a string literal, so Tobos can check it exists. When the names come from data, a template literal is checked as a pattern: ``media(`cow/${part}.png`)`` must match at least one file of `cow/*.png`.
+- **`media()` is called by its own name**: imported from `@tobos/present`, from one of the deck's files that passes it on as `media` (`export { media } from '@tobos/present'`), or as `present.media('cow.jpg')` after `import * as present from '@tobos/present'`. Tobos reads each call to know which files a scene shows, and a share link gets only those (see [the share link](#the-share-link)), so it refuses `media()` under another name (`import { media as m }`), passed on as a value (`names.map(media)`) or loaded with `import()`. A `media` of the deck's own, or a parameter by that name, isn't the engine's, and is left alone.
+- **Size media for the stage**: a 4000-pixel scan shown at 800 pixels costs memory on every phone that opens the deck. `tobos push` notes files over 25 MB.
+- **Only media on a slide counts toward the plan**: the files the `media()` calls of the scenes `deck.json` lists name, with everything they import, the master's, and the fonts `tokens.css` links. The master's own files, under `media/master/`, count as on a slide.
+- **A file no slide shows** draws the check's warning, a file deleted from `media/` among them (its entry stays in `media.json`, since a fresh clone has no `media/`). The server keeps such a file for 7 days, and may delete it after that: to show it then, push it from `media/` again, or drop it on the deck's page. A scene that names a file the server no longer has is refused until it is there again.
 
 ## Video
 
@@ -251,11 +267,11 @@ A sound plays as part of a beat, as a video does: `playAudio(tl, q('audio'))` in
 - **A browser lets a page make sound once someone has clicked or pressed a key in it.** Presenting, the click that makes the audience window fullscreen does it. Where a browser refuses all the same, the window says "Click for sound": a click there plays on with sound. A sound waits meanwhile, and a video plays on muted.
 - **Encode for the room:** AAC (`.m4a`) or MP3 plays in every browser. Speech at 64–96 kbps mono and music at 128–192 kbps stereo take 0.5 to 1.5 MB a minute, so half an hour of speech stays under the 25 MB `tobos push` notes. Opus (`.webm`) is smaller still, but older Safari doesn't play it. WAV, AIFF and FLAC are five to ten times the size for nothing a room hears, and `tobos push` notes those over 1 MB: `ffmpeg -i media/song.wav -c:a aac -b:a 128k media/song.m4a`.
 
-## Activities: polls and forms on phones
+## Polls on phones
 
-A scene may ask the room something: a poll (`choice`), or a short form (`text`). The room answers on their phones. A deck has one **join code**, six digits, for good; its link (`tobosusercontent.com/482913`) opens whatever activity the presenter is on, so people scan it once per lecture. `<JoinCode size={480} />` shows it: a QR code, with the link under it in the scene's font. To lay it out another way, `useJoin()` gives its parts: `code` (`482913`), `link` (as people type it, `tobosusercontent.com/482913`), `url` (the full URL the QR code holds) and `qr` (the QR code, black on white, as an image's address: `<img src={join.qr} alt="" />`). It is undefined while the deck has no activity, and on a share link, where `<JoinCode/>` shows nothing at all.
+A scene may ask the room a poll, which people answer on their phones: **multiple choice** (`kind: 'choice'`) or **open text** (`kind: 'text'`). A deck has one **join code**, six digits, for good; its link (`tobosusercontent.com/482913`) opens whatever poll the presenter is on, so people scan it once per lecture. `<JoinCode size={480} />` shows it: a QR code, with the link under it in the scene's font. To lay it out another way, `useJoin()` gives its parts: `code` (`482913`), `link` (as people type it, `tobosusercontent.com/482913`), `url` (the full URL the QR code holds) and `qr` (the QR code, black on white, as an image's address: `<img src={join.qr} alt="" />`). It is undefined while the deck has no poll, and on a share link, where `<JoinCode/>` shows nothing at all.
 
-A scene declares at most one activity, in its module script, beside its beats:
+A scene declares at most one poll, as `activity` in its module script, beside its beats:
 
 ```svelte
 <script module lang="ts">
@@ -299,17 +315,20 @@ export const activity: Activity = {
 };
 ```
 
-- **When it is open.** While the deck is presented (its audience window is open) and the presenter is on the activity's scene, up to, not including, its `reveals` beat. Nothing else opens or closes one: no buttons, no timers. Moving to another scene closes it, and every phone moves on to the next scene's activity or waits. Ending the show closes everything.
-- **`activity`** is `export const`, an object literal of string, number and boolean literals and arrays of them, read without running the scene, as beats are. Its `id` is lowercase letters, digits and dashes, unique across the deck: it names the activity's responses, so keep it when you reword the prompt.
-- **A poll**, `kind: 'choice'`: a `prompt` (up to 200 characters), 2 to 8 different `options` (up to 80 characters each), and optionally `reveals`, a later beat of its scene, which closes the poll and is where the scene shows the result.
-- **A form**, `kind: 'text'`: an optional `prompt` (up to 200 characters) and 1 to 5 `fields`, each with an `id` unique in the form, a `label` (up to 200 characters), optionally `multiline: true`, and `max`, the characters it takes (500 unless set, at most 2000). A form's answers are only stored, never shown, so it has no `reveals`.
-- **On a phone** there is no account, name or cookie. A phone answers each activity once per show; a draft of a form survives a reload. Nobody is known by name: a phone makes an id for the show when it first answers, and forgets it, with its drafts, when the next show starts or 3 hours after the page was last open.
-- **Results**: `useResponses(id)` gives `joined` (the most phones that had the link open at once during this show, and never fewer than answered), `answered` (those that answered this activity), and for a poll `counts`, one number per option in the order declared (a form's is empty). They count from the start of the show, one class or one talk. A reload or a dropped connection carries the show on; it ends when the presenter ends it (**End**, or closing the audience window; presenting again within two minutes carries it on all the same), or after an hour without the presenter. **New session** in the presenter's view (it asks twice) starts a new show at once, before presenting or during it, so a rehearsal's or the last class's answers don't show; phones may answer again, and the last show keeps its responses. The audience and presenter windows get them, and so does the preview on the deck's page, which follows them as they come in: it shows what the projector would; `tobos render` and PDFs show zeros. The deck's page keeps every show as a session, with what the room answered in it, under its **Polls** tab. A form's text never reaches the viewer, only how many answered. The presenter's view shows "312 joined · 204 answered" while the show is on, or while there are responses to clear.
-- **Results are live data**, which the position can't recreate (like video): going back to a result beat shows the counts as they are now. Show them in the markup, from `useResponses`; a beat's `enter` can animate them in, but not their values.
-- **Afterwards**, the deck's page lists the shows someone joined, each by when it started, with a CSV: a row per phone and a column per question (a poll's prompt, a form's field labels), named after the deck and that time, `lecture-3_2026-10-14_0915.csv`. A phone's id is the same in all of the show's activities, and different in every other show and deck, so one person's answers can't be lined up across shows. The deck's owner can delete a show there, a rehearsal's say, once it is over, also on an archived deck. `/api/decks/<id>/activities/<activity>.csv` still has every response to one activity, of every show, with its show's time.
-- Scenes still can't use the network: the engine fetches the responses for them.
-- **The share link** (sharing turned on, on the deck's page) shows the deck to anyone with the link, without an account, to click through and download as a PDF, one page per scene at its last beat; it always shows the latest push. The deck's members download the same PDF from the page, shared or not. A share never opens a room: a scene with an activity is left out of it, and a chapter left with no scene goes too. So a scene that shows the join code next to other content still works shared: `<JoinCode/>` draws nothing there, and `useJoin()` is undefined.
-- **A share gets only what the scenes it shows use**, and so does a member who may only view the deck: those scenes' code and everything it imports, the master's among it, the files their `media()` calls name, and the fonts `tokens.css` links. Nothing else of the deck reaches it: not the code or media of a scene it leaves out, nor of a scene `deck.json` doesn't list, nor a file no scene it shows uses, one deleted from `media/` but still in `media.json` among them. This goes by file: a scene that imports a component gets every file the component names; a pattern, every file it matches (``media(`${name}`)`` matches them all); a module that re-exports others (`lib/index.ts`), all of them. So import a poll's own components directly, not through such a module. A file Tobos doesn't see a scene use, such as a `media/<hash>` address written out, is missing on a share rather than shown.
+- **When it is open.** While the deck is presented (its audience window is open) and the presenter is on the poll's scene, up to, not including, its `reveals` beat. Nothing else opens or closes one: no buttons, no timers. Moving to another scene closes it, and every phone moves on to the next scene's poll or waits. Ending the show closes everything.
+- **`activity`** is `export const`, an object literal of string, number and boolean literals and arrays of them, read without running the scene, as beats are. Its `id` is lowercase letters, digits and dashes, unique across the deck: it names the poll's answers, so keep it when you reword the prompt.
+- **Multiple choice**, `kind: 'choice'`: a `prompt` (up to 200 characters), 2 to 8 different `options` (up to 80 characters each), and optionally `reveals`, a later beat of its scene, which closes the poll and is where the scene shows the result.
+- **Open text**, `kind: 'text'`: an optional `prompt` (up to 200 characters) and 1 to 5 `fields`, each with an `id` unique in the poll, a `label` (up to 200 characters), optionally `multiline: true`, and `max`, the characters it takes (500 unless set, at most 2000). Its answers are stored and never shown on stage, so it has no `reveals`.
+- **On a phone** there is no account, name or cookie. A phone answers each poll once per show; a draft of an open-text answer survives a reload. A phone makes an id for the show when it first answers, and forgets it, with its drafts, when the next show starts or 3 hours after the page was last open.
+- **Results**: `useResponses(id)` gives `joined` (the most phones that had the link open at once during this show, and never fewer than answered), `answered` (those that answered this poll), and for multiple choice `counts`, one number per option in the order declared (open text's is empty). They count from the start of the show, one class or one talk. A reload or a dropped connection carries the show on; it ends when the presenter ends it, or after an hour without the presenter. **New session** in the presenter's view starts a new show at once, so a rehearsal's or the last class's answers don't show. The audience and presenter windows get results as they come in, and so does the preview on the deck's page; `tobos render` and PDFs show zeros. An open-text poll's text never reaches the viewer, only how many answered.
+- **Results are live data**, which the position can't recreate (like video): going back to a result beat shows the counts as they are now. Show them in the markup, from `useResponses`; a beat's `enter` can animate them in, but not their values. The engine fetches them for the scene, which still can't use the network.
+- **Afterwards**, the deck's page keeps each show's answers, to read and to download as a CSV.
+
+## The share link
+
+The share link (turned on on the deck's page) shows the deck to anyone with the link, without an account, to click through and download as a PDF, one page per scene at its last beat; it always shows the latest push. The deck's members download the same PDF from the page, shared or not. A share never opens a room: a scene with a poll is left out of it, and a chapter left with no scene goes too. So a scene that shows the join code next to other content still works shared: `<JoinCode/>` draws nothing there, and `useJoin()` is undefined.
+
+A share gets only what the scenes it shows use, and so does a member who may only view the deck: those scenes' code and everything it imports, the master's among it, the files their `media()` calls name, and the fonts `tokens.css` links. Nothing else of the deck reaches it. This goes by file: a scene that imports a component gets every file the component names; a pattern, every file it matches (``media(`${name}`)`` matches them all); a module that re-exports others (`lib/index.ts`), all of them. So import a poll's own components directly, not through such a module. A file Tobos doesn't see a scene use, such as a `media/<hash>` address written out, is missing on a share rather than shown.
 
 ## Checks
 
@@ -354,10 +373,11 @@ media/master/         the master's own files: its fonts, a logo (media like any 
 
 ## Templates
 
-A template is a deck people start from. Its scenes show its master off, one per layout or component; its page on Tobos shows them as a gallery.
+A template is a deck people start from.
 
-- `tobos new "Title"` starts a deck with a copy of the default template's master: `master/`, the media in `media/master/`, and the `dependencies` the master imports. `--from <id>` copies another template's: `tobos decks` lists the ids.
-- `tobos new "Our brand" --template` makes a template: a copy of all of the default template (or of `--from`), showcase and master.
-- A copy is a copy. Changing a template changes only the decks made from it afterwards; to bring a deck along, copy the master's files across.
-- Every personal account has a template of its own, "My template", its default: a copy of Tobos simple (Title, Agenda, Content with one box, Blank, and the grid's guides), to change as it likes. An account without one starts from Tobos standard.
-- Tobos standard (`06b48295-7c5c-4e1f-90f5-a082d60941de`) and Tobos simple (`50ca89b5-c668-465b-b72b-eb5da0b9b9ab`) come with Tobos: anyone may look at them, clone them and start from them.
+- `tobos new "Title"` starts a deck with a copy of Tobos simple's master: `master/`, the media in `media/master/`, and the `dependencies` the master imports. `--from <id>` copies another template's; `tobos decks` lists the person's own.
+- `tobos new "Our brand" --template` makes a template: a copy of all of Tobos simple, or of `--from`, scenes and master.
+- A copy is a copy: nothing refers back to the template, so changing it changes only the decks made from it afterwards. To bring a deck along, copy the master's files across.
+- A template's scenes are its gallery, one per layout or component with sample content, shown on its page in Tobos. When you add or change a layout, add or change its scene too.
+- A new deck gets the template's master but not its `lib/` or `scenes/`, so the master imports neither: it keeps to its own files and packages.
+- Tobos simple (`50ca89b5-c668-465b-b72b-eb5da0b9b9ab`: Title, Agenda, Content with one box, Blank, and the grid's guides) and Tobos standard (`06b48295-7c5c-4e1f-90f5-a082d60941de`, the full house style) come with Tobos: anyone may look at them, clone them and start from them.

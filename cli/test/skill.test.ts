@@ -115,18 +115,20 @@ describe('tobos skill', () => {
 });
 
 describe('the skill', () => {
-  it('names every command the CLI takes', () => {
+  it('leaves the commands to `tobos --help`, which names every one the CLI takes', () => {
     const cli = readFileSync(main, 'utf8');
     const table = cli.slice(
       cli.indexOf('const TABLE'),
       cli.indexOf('\n};', cli.indexOf('const TABLE')),
     );
+    const help = cli.slice(cli.indexOf('const HELP'), cli.indexOf('`;', cli.indexOf('const HELP')));
     const commands = [...table.matchAll(/^  (\w+): \{/gm)].map((m) => m[1]!);
     const skill = readFileSync(
       join(import.meta.dirname, '../../agent-pack/skills/tobos-present/SKILL.md'),
       'utf8',
     );
     expect(commands.length).toBeGreaterThan(10);
-    expect(commands.filter((command) => !skill.includes(`tobos ${command}`))).toEqual([]);
+    expect(commands.filter((command) => !help.includes(`tobos ${command}`))).toEqual([]);
+    expect(skill).toContain('`tobos --help` lists every command');
   });
 });
