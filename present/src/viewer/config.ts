@@ -9,7 +9,10 @@ export interface ViewerConfig {
   deck: string;
   rev: string;
   manifest: Manifest;
-  /** Server-sent events for live follow; absent in a static folder (the e2e suite's fixture). */
+  /**
+   * The window's server-sent events (events.ts): pushes for live follow, and on a presenter's link
+   * the room's results and the speaker's notes; absent in a static folder (the e2e suite's fixture).
+   */
   events?: string;
   /** Where the latest manifest is, for live follow. */
   manifestUrl?: string;
@@ -17,15 +20,11 @@ export interface ViewerConfig {
   home?: string;
   /** The deck's join code, for `<JoinCode/>`: once the deck has an activity. */
   join?: JoinInfo;
-  /** Where the presenter reports the show's position: on a presenter's link only. */
-  live?: string;
-  /** The room's responses, as server-sent events, for the projector: on a presenter's link only. */
-  responses?: string;
   /**
-   * The speaker's notes, what the deck's story says about each scene by its id, as server-sent
-   * events (`notes`), again whenever the story changes: on a presenter's link only.
+   * Where the presenter reports the show's position: on a presenter's link only, whose `events`
+   * also carry the room's results and the speaker's notes.
    */
-  notes?: string;
+  live?: string;
   /**
    * A share link's page, for people outside the deck's account: the deck to click through, and
    * its PDF to download (`pdf`, where the server makes them). Never presented, never in sync with

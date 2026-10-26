@@ -64,8 +64,6 @@ const entries: { in: string; out: string; specifiers: string[] }[] = [
   },
   { in: join(root, 'src/index.ts'), out: 'present', specifiers: ['@tobos/present'] },
   { in: join(root, 'src/viewer/index.ts'), out: 'viewer', specifiers: ['@tobos/present/viewer'] },
-  // The phone page's script: our code, on a page of its own, sharing nothing with decks.
-  { in: join(root, 'src/phone/phone.ts'), out: 'phone', specifiers: [] },
 ];
 
 const sveltePlugin: esbuild.Plugin = {
@@ -104,6 +102,20 @@ await esbuild.build({
   chunkNames: 'chunks/[hash]',
   absWorkingDir: root,
   plugins: [sveltePlugin],
+  logLevel: 'warning',
+  legalComments: 'none',
+});
+// The phone page's script: our code, on a page of its own, sharing nothing with decks. One file,
+// with what it takes from the viewer (stream.ts) inside it, since its page loads nothing else.
+await esbuild.build({
+  entryPoints: [join(root, 'src/phone/phone.ts')],
+  outfile: join(tmp, 'phone.js'),
+  bundle: true,
+  format: 'esm',
+  platform: 'browser',
+  target: 'es2023',
+  minify: true,
+  absWorkingDir: root,
   logLevel: 'warning',
   legalComments: 'none',
 });

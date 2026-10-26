@@ -19,8 +19,8 @@ export function start(config: ViewerConfig) {
   const view = viewFromUrl(Boolean(config.shared));
   // A presenter's link sees what the room answers: the show's windows, and the preview on the
   // deck's page. Print and render are documents, so they show zeros.
-  if (config.responses && view !== 'print' && view !== 'render' && view !== 'sheet')
-    followResponses(config.responses);
+  if (config.live && config.events && view !== 'print' && view !== 'render' && view !== 'sheet')
+    followResponses(config.events);
   document.documentElement.dataset.view = view;
   document.title = config.manifest.title;
   if (view === 'presenter') {

@@ -4,6 +4,7 @@
  * localStorage is for one show only (Kept), and a phone that only looks keeps and sends nothing.
  */
 import type { PhoneActivity, PhoneState } from '../activities.ts';
+import { stream } from '../viewer/stream.ts';
 
 const code = location.pathname.split('/')[1] ?? '';
 const root = document.getElementById('tobos-phone')!;
@@ -225,26 +226,19 @@ document.addEventListener('visibilitychange', () => {
   if (!events) void poll();
 });
 
-// While live: the server's stream of the same state.
-let events: EventSource | null = null;
+// While live: the server's stream of the same state, which reconnects by itself (stream.ts). The
+// server sends the state as each connection opens, so a reconnect needs no look of its own.
+let events: (() => void) | null = null;
 function follow() {
   if (events) return;
   window.clearTimeout(timer);
-  events = new EventSource(`/${code}/events`);
-  events.addEventListener('state', (event) =>
-    apply(JSON.parse((event as MessageEvent<string>).data) as PhoneState),
-  );
-  events.addEventListener('error', () => {
-    // Refused rather than dropped: back to looking now and then.
-    if (events?.readyState === EventSource.CLOSED) {
-      events = null;
-      timer = window.setTimeout(poll, POLL_MS);
-    }
+  events = stream(`/${code}/events`, {
+    state: (data) => apply(JSON.parse(data) as PhoneState),
   });
 }
 function stopFollowing() {
   if (!events) return;
-  events.close();
+  events();
   events = null;
   timer = window.setTimeout(poll, POLL_MS);
 }

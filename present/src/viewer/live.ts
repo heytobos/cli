@@ -3,7 +3,7 @@ import { setMedia } from '../registry.ts';
 import { setActivities } from '../responses.svelte.ts';
 import { reload, type ViewerConfig } from './config.ts';
 import type { Player } from './player.ts';
-import { stream } from './stream.ts';
+import { listen } from './events.ts';
 
 /**
  * Follow pushes: the server sends an event per new revision; changed scenes swap in at the
@@ -56,14 +56,13 @@ export function follow(
     // later push would be skipped.
     busy = busy.catch((error) => console.warn('[tobos] live update failed', error));
   };
-  const stop = stream(
+  const stop = listen(
     config.events,
-    {
-      push: (data) => {
-        if ((JSON.parse(data) as { rev: string }).rev !== rev) catchUp();
-      },
+    'push',
+    (data) => {
+      if ((JSON.parse(data) as { rev: string }).rev !== rev) catchUp();
     },
-    (again) => again && catchUp(),
+    catchUp,
   );
   return () => {
     stopped = true;

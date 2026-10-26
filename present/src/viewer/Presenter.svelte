@@ -17,7 +17,7 @@
   import { showHash, urlForView, type ViewerConfig } from './config.ts';
   import { action } from './keys.ts';
   import { follow } from './live.ts';
-  import { stream } from './stream.ts';
+  import { listen } from './events.ts';
   import { Player } from './player.ts';
   import { openAudience } from './screens.ts';
   import { joinSession, type BeatRef } from './session.ts';
@@ -241,9 +241,10 @@
       if (audience?.closed) audience = null;
       now = Date.now();
     }, 500);
-    const story = config.notes
-      ? stream(config.notes, { notes: (data) => (notes = JSON.parse(data)) })
-      : undefined;
+    const story =
+      config.live && config.events
+        ? listen(config.events, 'notes', (data) => (notes = JSON.parse(data)))
+        : undefined;
     const stop = follow(
       config,
       () => [current, next],
