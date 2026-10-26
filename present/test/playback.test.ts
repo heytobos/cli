@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { gsap } from 'gsap';
+import { gsap as gsapClock, type gsap } from 'gsap';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Beat } from '../src/index.ts';
 import { SceneTimeline } from '../src/timeline.ts';
@@ -467,9 +467,14 @@ describe('playAudio until a later beat', () => {
     scene.show(1, true);
     scene.show(4, false);
     expect(sound.state.paused).toBe(false);
-    await new Promise((r) => setTimeout(r, 60));
+    // The fade's own tween, moved by hand: halfway through is halfway, however slow the machine.
+    const fade = gsapClock.globalTimeline
+      .getChildren(false, true, false)
+      .find((tween) => 'volume' in (tween.targets()[0] ?? {}))!;
+    fade.progress(0.5);
     expect(sound.video.volume).toBeLessThan(1);
     expect(sound.video.volume).toBeGreaterThan(0);
+    fade.progress(1);
     await scene.fading;
     expect(sound.state.paused).toBe(true);
     expect(sound.video.volume).toBe(1);
