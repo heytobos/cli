@@ -66,7 +66,26 @@ export interface ViewerPage {
    * in the address bar opens once. The tab keeps it, for a reload (the app's content.ts).
    */
   base?: string;
+  /**
+   * A page meant to be found and shared, as the tour on tobos.ai is: search engines may list it,
+   * and a link to it shows a preview with this description and image. Every other page, a deck's
+   * or a share link's, stays unlisted.
+   */
+  listed?: { description: string; url: string; image: string };
 }
+
+/** What a listed page says to search engines and to a link's preview. */
+const listing = ({ description, url, image }: NonNullable<ViewerPage['listed']>) =>
+  [
+    `<meta name="description" content="${escapeHtml(description)}">`,
+    `<link rel="canonical" href="${escapeHtml(url)}">`,
+    '<meta property="og:type" content="website">',
+    '<meta property="og:site_name" content="Tobos">',
+    `<meta property="og:description" content="${escapeHtml(description)}">`,
+    `<meta property="og:url" content="${escapeHtml(url)}">`,
+    `<meta property="og:image" content="${escapeHtml(image)}">`,
+    '<meta name="twitter:card" content="summary_large_image">',
+  ].join('\n') + '\n';
 
 export function viewerHtml(page: ViewerPage): string {
   const importMap = { imports: page.imports };
@@ -81,8 +100,7 @@ ${
 `
     : ''
 }<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="robots" content="noindex">
-<title>${escapeHtml(page.title)}</title>
+${page.listed ? listing(page.listed) : '<meta name="robots" content="noindex">\n'}<title>${escapeHtml(page.title)}</title>
 ${page.icon ? `<link rel="icon" href="${escapeHtml(page.icon)}">\n` : ''}<meta property="og:title" content="${escapeHtml(page.title)}">
 <script type="importmap">${scriptJson(importMap)}</script>
 ${page.styles.map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}">`).join('\n')}

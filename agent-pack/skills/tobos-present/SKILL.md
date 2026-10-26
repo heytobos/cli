@@ -19,7 +19,7 @@ Exit code 3 means no one is logged in. Ask the person for their e-mail address a
 
 ## Follow the person
 
-They decide what to make and how much of it you build: one scene at a time, or the whole deck at once. Build what they ask, at the size they ask, from what they have told you about the talk.
+They decide what to make and how much of it you build: one scene at a time, or the whole deck at once. Build what they ask, at the size they ask, from what they have told you about the talk. When they ask how Tobos works or where to start, give them the tour, https://tobos.ai/tour, and nothing of your own: no explanation, no deck to try.
 
 ## What stays the person's
 
