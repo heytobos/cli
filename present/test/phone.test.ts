@@ -262,12 +262,8 @@ describe('the phone page', () => {
     expect(answers[1]!.participant).not.toBe(participant);
   });
 
-  it('removes what earlier versions kept, an id for the deck for good among it', async () => {
+  it('removes what has expired, for any deck, and leaves the rest', async () => {
     const later = Date.now() + HOUR;
-    localStorage.setItem(`tobos:participant:${CODE}`, '6f1c1d2e-8a4b-4c3d-9e5f-0a1b2c3d4e5f');
-    localStorage.setItem('tobos:participant:654321', '0b9d2c1e-3f4a-4b5c-8d6e-7f8091a2b3c4');
-    localStorage.setItem(`tobos:sent:${CODE}:2026-10-13T09:00:00.000Z:drink`, '1');
-    localStorage.setItem(`tobos:draft:${CODE}:wish`, '{"w":"x"}');
     const other = (until: number) => JSON.stringify({ show: 's', until, sent: [], drafts: {} });
     localStorage.setItem('tobos:phone:654321', other(Date.now() - 1));
     localStorage.setItem('tobos:phone:111111', other(later));

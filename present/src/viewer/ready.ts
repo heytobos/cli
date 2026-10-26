@@ -2,8 +2,8 @@ import { videoFramesReady } from '../playback.ts';
 
 /**
  * Wait until what is on screen is fully drawn: fonts, images, video frames. True when it is;
- * false when `timeout` came first, and then it says so in the console too. `tobos render` and
- * `tobos export pdf` report a false (cli/src/render.ts).
+ * false when `timeout` came first, and then it says so in the console too. `tobos render`
+ * reports a false (cli/src/render.ts).
  */
 export async function settled(root: HTMLElement, timeout = 10_000): Promise<boolean> {
   let timer = 0;

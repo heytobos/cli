@@ -79,13 +79,12 @@ function parse(text: string | null): Kept | null {
   }
 }
 
-// On every load, since localStorage expires nothing by itself: what earlier versions of this page
-// kept, among it an id per deck for good, and whatever has expired, for any deck, goes.
+// On every load, since localStorage expires nothing by itself: whatever has expired, for any deck,
+// goes.
 try {
   for (const key of Object.keys(localStorage)) {
-    const legacy = /^tobos:(participant|sent|draft):/.test(key);
     const expired = key.startsWith(KEPT) && !((parse(store.get(key))?.until ?? 0) > Date.now());
-    if (legacy || expired) localStorage.removeItem(key);
+    if (expired) localStorage.removeItem(key);
   }
 } catch {
   // Storage refused: nothing was kept.

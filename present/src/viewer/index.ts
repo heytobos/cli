@@ -26,7 +26,7 @@ export function start(config: ViewerConfig) {
   if (view === 'presenter') {
     mount(Presenter, { target: root, props: { config } });
   } else if (view === 'print') {
-    // Whether every page was drawn in time (settled), for `tobos export pdf` to say so.
+    // Whether every page was drawn in time (settled): the renderer waits for it.
     const ready = showPrint(root, config);
     (window as unknown as { __tobos: unknown }).__tobos = { ready };
   } else if (view === 'sheet') {
