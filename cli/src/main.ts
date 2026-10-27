@@ -51,16 +51,6 @@ a beat: [Title](scene:<id>/<beat>))
                                               TOBOS_AGENT=<name> says which agent you are: the
                                               deck's page marks what you wrote
 
-People on a deck or template (from its working copy, or --deck <id>)
-  tobos people                                who is on it, what each may do, and when a
-                                              waiting invite lapses
-  tobos invite <email> --can edit|present|view
-                                              its owner puts them on it, mailed the way in;
-                                              someone on it already gets the new level. On a
-                                              template, --can edit|use
-  tobos uninvite <email>                      take them off, and their access ends at once;
-                                              with your own address, leave it
-
 The skill (what your harness reads to know Tobos without this help)
   tobos skill install                         put it where Claude Code, Codex, OpenCode and others
                                               read skills; later CLIs keep it up to date
@@ -120,12 +110,6 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
       deck: { type: 'string' },
     },
   },
-  people: { run: commands.people, options: { deck: { type: 'string' } } },
-  invite: {
-    run: commands.invite,
-    options: { can: { type: 'string' }, deck: { type: 'string' } },
-  },
-  uninvite: { run: commands.uninvite, options: { deck: { type: 'string' } } },
   skill: { run: commands.skill },
   story: {
     run: commands.story,
