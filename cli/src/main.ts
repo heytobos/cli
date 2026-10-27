@@ -17,9 +17,8 @@ Account
                                               its folders, then its decks
 
 Folders (your decks and templates in a tree; a deck by its id or title, a folder by its path)
-  tobos mv <deck or /folder>… </path>         move them into that folder, made if there is none
-                                              (a folder emptied stays, until the person removes
-                                              it on the web)
+  tobos mv <deck or /folder>… </path>         move them into that folder, made if there is none;
+                                              a folder a move empties goes
 
 Working on a deck
   tobos new "Title" [--dir dir] [--no-clone]  create a deck and clone it here, into ./<id>
