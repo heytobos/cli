@@ -1,33 +1,33 @@
 # The Tobos Present deck format
 
-A deck is a git repository. Tobos hosts it, checks every push, compiles it, and shows it in a browser. Nothing in a deck runs at build time: there is no build configuration, and no step you could add one to. Everything a deck does, it does in the viewer's browser.
+A deck is a folder of files. Tobos keeps every version, checks every change, compiles it, and shows it in a browser. Nothing in a deck runs at build time: there is no build configuration, and no step you could add one to. Everything a deck does, it does in the viewer's browser.
 
 ```
 deck.json          the deck's structure: title, chapters and scenes
 scenes/<id>.svelte one file per scene
 master/            the deck's slide master: layouts, components, tokens.css, master.json, GUIDE.md
-data/              precomputed data (JSON), written on your machine, committed
+data/              precomputed data (JSON), written on your machine, pushed
 lib/               shared code and components for this deck (.svelte, .ts, .js)
-media/             images, video, audio: uploaded by `tobos push`, never committed
-media.json         what is in media/, by content hash (written by `tobos check` and `tobos push`)
-scripts/           your scripts that compute data/ and media/ (committed, never run by Tobos)
-sources/           originals the scripts read: full-size scans, raw data (never committed)
+media/             images, video, audio: uploaded by `tobos push`, by their content
+media.json         what is in media/, by content hash: written by Tobos, never by you
+scripts/           your scripts that compute data/ and media/ (pushed, never run by Tobos)
+sources/           originals the scripts read: full-size scans, raw data (never pushed)
 AGENTS.md          points the agent that builds the deck to this file and the master's guide
-.tobos/            this file, as the server has it now: written by `tobos clone` and `tobos pull`, never committed
+.tobos/            this file and the version the folder is of: written by `tobos pull`, never pushed
 ```
 
-Besides `media/`, a deck's files may take 100 MB together and number at most 10,000, each at most 20 MB. The server rejects a push that goes over, in any of its commits for the 20 MB.
+Besides `media/`, a deck's files may take 100 MB together and number at most 10,000, each at most 20 MB. The server refuses a push that goes over.
 
 ## Working on a deck
 
-You work in a clone of the deck, from `tobos clone <id>` or `tobos new`, and every push is live: the server runs the same check as `tobos check`, refuses a push that fails it with the check's messages, and every open preview follows within a second, so the person watches the deck take shape.
+You work in a copy of the deck, from `tobos pull <id>` or `tobos new`, and every push is live: the server checks it, refuses a push that fails the check with its messages, and every open preview follows within a second, so the person watches the deck take shape. `tobos pull` brings in what others changed, merged with your changes; a conflict is left between `<<<<<<<` and `>>>>>>>` for you to resolve.
 
 1. Change `deck.json`, the scenes and whatever else the step needs.
-2. `tobos check` checks the deck offline, in about a second: fix every error it reports. `--types` adds TypeScript's view in a few seconds, worth it before a push that changed code.
+2. `tobos check` has the server check your changes without pushing them: fix every error it reports. `--types` adds TypeScript's view, here, in a few seconds, worth it before a push that changed code.
 3. `tobos render <scene>/<beat>` pushes what changed and writes a PNG of that beat; `--film` writes frames through its animation. Look at each one.
-4. `tobos push -m "what changed"` uploads new media, commits and pushes. `render` and `open` push the same way when the working copy has changed, and `-m` names that push too.
+4. `tobos push -m "what changed"` pushes your changes as one version, uploading new media. `render` and `open` push the same way when the copy has changed, and `-m` names that push too.
 
-A step is done when every beat it changed has been rendered and looked at. Plain `git push` to `main` works too, checked the same way, for a change that adds no media, since only `tobos push` uploads it. The server takes pushes to `main` only.
+A step is done when every beat it changed has been rendered and looked at.
 
 ## deck.json
 
@@ -174,11 +174,11 @@ Data that needs computing (model outputs, statistics, cut-outs) is computed on y
 import tokens from '../data/tokens.json';
 ```
 
-Keep those scripts in `scripts/`, so the next person can rerun them. `scripts/` may have its own `package.json` (or `requirements.txt`, anything): Tobos never installs or runs it, and nothing in it is compiled into the deck. Originals the scripts read (a 4000-pixel scan, a raw dataset) go in `sources/`, which `.gitignore` keeps out of git and `tobos push` never uploads; the scripts write stage-sized results into `media/` and `data/`. For example, `scripts/cut.mjs` reads `sources/proposal.png`, writes the cut-outs to `media/proposal/`, and their boxes to `data/proposal.json`.
+Keep those scripts in `scripts/`, so the next person can rerun them. `scripts/` may have its own `package.json` (or `requirements.txt`, anything): Tobos never installs or runs it, and nothing in it is compiled into the deck. Originals the scripts read (a 4000-pixel scan, a raw dataset) go in `sources/`, which a working copy leaves out, so `tobos push` never sends them; the scripts write stage-sized results into `media/` and `data/`. For example, `scripts/cut.mjs` reads `sources/proposal.png`, writes the cut-outs to `media/proposal/`, and their boxes to `data/proposal.json`.
 
 ## Media
 
-Media stays out of git (`.gitignore` has `media/`). Put files in `media/`: `tobos check` and `tobos push` record them in `media.json`, and push uploads those a slide shows. In a scene:
+Put files in `media/`: `tobos push` uploads each by its content, and Tobos records them in `media.json`, which only it writes. Delete a file from `media/` and push, and it is out of the deck. In a scene:
 
 ```svelte
 <script lang="ts">
@@ -192,7 +192,7 @@ Media stays out of git (`.gitignore` has `media/`). Put files in `media/`: `tobo
 - **`media()` is called by its own name**: imported from `@tobos/present`, from one of the deck's files that passes it on as `media` (`export { media } from '@tobos/present'`), or as `present.media('cow.jpg')` after `import * as present from '@tobos/present'`. Tobos reads each call to know which files a scene shows, and a share link gets only those (see [the share link](#the-share-link)), so it refuses `media()` under another name (`import { media as m }`), passed on as a value (`names.map(media)`) or loaded with `import()`. A `media` of the deck's own, or a parameter by that name, isn't the engine's, and is left alone.
 - **Size media for the stage**: a 4000-pixel scan shown at 800 pixels costs memory on every phone that opens the deck. `tobos push` notes files over 25 MB.
 - **Only media on a slide counts toward the plan**: the files the `media()` calls of the scenes `deck.json` lists name, with everything they import, the master's, and the fonts `tokens.css` links. The master's own files, under `media/master/`, count as on a slide.
-- **A file no slide shows** draws the check's warning, a file deleted from `media/` among them (its entry stays in `media.json`, since a fresh clone has no `media/`). The server keeps such a file for 7 days, and may delete it after that: to show it then, push it from `media/` again, or drop it on the deck's page. A scene that names a file the server no longer has is refused until it is there again.
+- **A file no slide shows** draws the check's warning. The server keeps such a file for 7 days, and may delete it after that: to show it then, push it from `media/` again, or drop it on the deck's page. A scene that names a file the server no longer has is refused until it is there again.
 
 ## Video
 
@@ -332,7 +332,7 @@ A share gets only what the scenes it shows use, and so does a member who may onl
 
 ## Checks
 
-`tobos check` runs on your machine, and the server runs the same check on every push and rejects the push if it fails. It checks `deck.json`, that every scene compiles, the beats, the imports (each file a deck imports of its own is there, and exports every name imported from it), the media references, and the master's rules (`master/master.json`). `tobos check --json` prints one object per problem: `{ file, line, column, rule, message, severity }`. Errors stop a push; warnings don't, but each one is a reason the deck may misbehave on stage. `tobos check --types` adds TypeScript's errors (rule `types`): it installs svelte-check once into `~/.cache/tobos/` and links it in as `node_modules`, which git ignores; the push check doesn't run it. The server stops a check that takes more than a minute or a gigabyte of memory, and rejects the push with the rule `check`; any real deck checks in seconds.
+`tobos check` asks the server for the check of your changes without pushing them, the same check it runs on every push, which it refuses if it fails. It checks `deck.json`, that every scene compiles, the beats, the imports (each file a deck imports of its own is there, and exports every name imported from it), the media references, and the master's rules (`master/master.json`). `tobos check --json` prints one object per problem: `{ file, line, column, rule, message, severity }`. Errors stop a push; warnings don't, but each one is a reason the deck may misbehave on stage. `tobos check --types` adds TypeScript's errors (rule `types`): it runs on your machine, installs svelte-check once into `~/.cache/tobos/` and links it in as `node_modules`, which a working copy leaves out; the push check doesn't run it. The server stops a check that takes more than a minute or a gigabyte of memory, and rejects the push with the rule `check`; any real deck checks in seconds.
 
 | Rule                                                           | Severity         | What it catches                                                                                                                                                              |
 | -------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -343,7 +343,7 @@ A share gets only what the scenes it shows use, and so does a member who may onl
 | `network`                                                      | error            | `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, and media or CSS `url()` loaded from another site: the viewer blocks all of them                                      |
 | `compile`                                                      | error            | a `.json` module that isn't valid JSON, or a module whose imports can't be read                                                                                              |
 | `media`                                                        | warning          | files `media.json` lists that no slide shows, which the server keeps for 7 days (see [Media](#media))                                                                        |
-| `media-json`                                                   | error            | `media.json` that isn't the record `tobos check` and `tobos push` keep: a name, its hash, size and type                                                                      |
+| `media-json`                                                   | error            | `media.json` that isn't the record Tobos keeps: a name, its hash, size and type                                                                                              |
 | `master`                                                       | error            | `master/master.json` that isn't JSON, or a rule's value of the wrong kind: `minFontSize` a positive number, `layoutRoot` true or false                                       |
 | `dependencies`                                                 | error            | on push only: a package in `deck.json`'s `dependencies` that npm can't supply or that won't bundle for the browser, or packages over the limits (npm packages, above)        |
 | `motion/timer`                                                 | warning          | `setTimeout`, `setInterval`, `requestAnimationFrame`: they run on their own clock, which the position can't recreate                                                         |
@@ -375,9 +375,9 @@ media/master/         the master's own files: its fonts, a logo (media like any 
 
 A template is a deck people start from.
 
-- `tobos new "Title"` starts a deck with a copy of Tobos simple's master: `master/`, the media in `media/master/`, and the `dependencies` the master imports. `--from <id>` copies another template's; `tobos decks` lists the person's own.
+- `tobos new "Title"` starts a deck with a copy of Tobos simple's master: `master/`, the media in `media/master/`, and the `dependencies` the master imports. `--from <id>` copies another template's; `tobos ls` lists the person's own.
 - `tobos new "Our brand" --template` makes a template: a copy of all of Tobos simple, or of `--from`, scenes and master.
 - A copy is a copy: nothing refers back to the template, so changing it changes only the decks made from it afterwards. To bring a deck along, copy the master's files across.
 - A template's scenes are its gallery, one per layout or component with sample content, shown on its page in Tobos. When you add or change a layout, add or change its scene too.
 - A new deck gets the template's master but not its `lib/` or `scenes/`, so the master imports neither: it keeps to its own files and packages.
-- Tobos simple (`50ca89b5-c668-465b-b72b-eb5da0b9b9ab`: Title, Agenda, Content with one box, Blank, and the grid's guides) and Tobos standard (`06b48295-7c5c-4e1f-90f5-a082d60941de`, the full house style) come with Tobos: anyone may look at them, clone them and start from them.
+- Tobos simple (`50ca89b5-c668-465b-b72b-eb5da0b9b9ab`: Title, Agenda, Content with one box, Blank, and the grid's guides) and Tobos standard (`06b48295-7c5c-4e1f-90f5-a082d60941de`, the full house style) come with Tobos: anyone may read them and start from them.

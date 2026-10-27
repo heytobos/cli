@@ -1,7 +1,7 @@
 /**
  * `tobos render`: a headless Chromium on this machine, pointed at the hosted viewer, so the agent
  * sees its work as viewers will. Deck code runs here, in viewers' browsers, and on Tobos's
- * renderer, which makes the stills and the PDFs (`tobos export pdf` downloads one).
+ * renderer, which makes the stills and the PDFs.
  */
 import { execFile } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';

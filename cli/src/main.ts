@@ -11,7 +11,7 @@ Account
   tobos login --code <code>                   finish: the code they read from the mail
   tobos logout                                forget this machine's token
   tobos whoami                                who you are, on which server
-  tobos decks [/path]                         your decks and templates, by id, each in its folder,
+  tobos ls [/path]                            your decks and templates, by id, each in its folder,
                                               and those shared with you; an archived one is
                                               read-only. With a path: what that folder holds,
                                               its folders, then its decks
@@ -20,26 +20,28 @@ Folders (your decks and templates in a tree; a deck by its id or title, a folder
   tobos mv <deck or /folder>… </path>         move them into that folder, made if there is none;
                                               a folder a move empties goes
 
-Working on a deck
-  tobos new "Title" [--dir dir] [--no-clone]  create a deck and clone it here, into ./<id>
-                                              (or into dir; --no-clone: only create it)
-  tobos clone <id> [dir]                      clone a deck, with the agent pack
-  tobos pull                                  get the latest pushes and the format guide
-  tobos check [--types]                       compile and check the deck, offline (~1 s);
-                                              --types: TypeScript too (installs a checker once)
-  tobos push [-m "what changed"]              upload media, commit, push; the server checks it
+Working on a deck (a working copy: no git; the server keeps the versions)
+  tobos new "Title" [--dir dir] [--no-pull]   create a deck and pull it here, into ./<id>
+                                              (or into dir; --no-pull: only create it)
+  tobos pull <id> [dir]                       a working copy of a deck, with the agent pack
+  tobos pull                                  the latest version into the copy, merged with your
+                                              changes; a conflict is left between <<<<<<< and
+                                              >>>>>>> to resolve; and the format guide
+  tobos check [--types]                       the server's check of your changes; nothing lands;
+                                              --types: TypeScript too, here (installs a checker once)
+  tobos push [-m "what changed"]              your changes as one version, media uploaded; the
+                                              server checks it, and it goes live
 
 Looking at it (from the working copy, render and open push what changed first; with --deck <id>,
 from anywhere)
   tobos render scene/beat | scene | --all     PNGs of beats, for you to look at
          [--film] [--frames 6] [--out dir]    --film: frames through the animation
          [--scale 2] [-m "what changed"]      --scale: pixels per stage pixel; -m: for the push
-  tobos open [scene/beat] [--presenter]       the deck in a browser (prints the URL, which opens once)
-         [--print]                            --print: print the URL only, open nothing
+  tobos open [scene/beat] [--presenter]       the deck's page in a browser (--presenter: a
+         [--print]                            presenter's link, which opens once); --print: print
+                                              the URL only, open nothing
   tobos open                                  outside a deck: a link, or its code for /login,
                                               that logs a browser in once; show the person both
-  tobos export pdf [--out file]               the deck's PDF, as its page and its link give it:
-                                              a page per scene at its last beat, no polls
 
 The story (what the speaker says, held by the server; a scene mentioned: [Title](scene:<id>),
 a beat: [Title](scene:<id>/<beat>))
@@ -56,13 +58,14 @@ The skill (what your harness reads to know Tobos without this help)
 
 Templates (decks people start from: a new deck copies a template's master/)
   tobos new "Title" --from <id>                start a deck from that template (default: Tobos
-                                              simple; \`tobos decks\` lists the person's own)
+                                              simple; \`tobos ls\` lists the person's own)
   tobos new "Our brand" --template            a new template: a copy of Tobos simple (or of --from)
 
 Every command takes --json and then prints one JSON object.
-Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in, 4 the story changed
-meanwhile (the reply has the paragraph as it is now: anchor on that and try again), 5 a plan's
-limit or an archived deck: the person decides what to do, so show them the message and wait.
+Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in, 4 a conflict: someone
+changed the same lines (pull, resolve, push again; for the story, the reply has the paragraph as
+it is now), 5 a plan's limit or an archived deck: the person decides what to do, so show them the
+message and wait.
 `;
 
 const COMMON: ParseArgsConfig['options'] = {
@@ -79,18 +82,17 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
   },
   logout: { run: commands.logout },
   whoami: { run: commands.whoami },
-  decks: { run: commands.decks },
+  ls: { run: commands.ls },
   new: {
     run: commands.create,
     options: {
       dir: { type: 'string' },
-      'no-clone': { type: 'boolean' },
+      'no-pull': { type: 'boolean' },
       from: { type: 'string' },
       template: { type: 'boolean' },
     },
   },
   mv: { run: commands.mv },
-  clone: { run: commands.clone },
   pull: { run: commands.pull },
   check: { run: commands.check, options: { types: { type: 'boolean' } } },
   push: { run: commands.push, options: { message: { type: 'string', short: 'm' } } },
@@ -100,13 +102,6 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
       presenter: { type: 'boolean' },
       deck: { type: 'string' },
       print: { type: 'boolean' },
-    },
-  },
-  export: {
-    run: commands.exportDeck,
-    options: {
-      out: { type: 'string' },
-      deck: { type: 'string' },
     },
   },
   skill: { run: commands.skill },
@@ -136,10 +131,6 @@ async function main(argv: string[]) {
   }
   if (name === '--version' || name === '-v' || name === 'version') {
     process.stdout.write(`${VERSION}\n`);
-    return;
-  }
-  if (name === 'credential') {
-    await commands.credential({ positionals: rest, values: {} });
     return;
   }
   const command = TABLE[name];

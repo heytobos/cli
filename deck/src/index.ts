@@ -12,3 +12,4 @@ export { mediaInUse, servesModule, sharedManifest } from './share.ts';
 export { formatProblems } from './format-problems.ts';
 export { mediaTypeOf } from './media-type.ts';
 export { mergeText } from './merge.ts';
+export { packTar, unpackTar } from './tar.ts';

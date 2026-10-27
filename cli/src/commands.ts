@@ -1,14 +1,22 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import type { Problem } from '@tobos/deck';
 import { formatProblems } from '@tobos/deck/format-problems';
-import { directoryTree } from '@tobos/deck/node';
 import { api, failure, request, VERSION } from './api.ts';
 import { forget, save, settings } from './config.ts';
-import { findDeck, parseId, requireRemote, type DeckDir } from './deck-dir.ts';
-import { authEnv, configureCredentials, credentialConfig, git, gitOk } from './git.ts';
-import { sizeNote, syncMediaJson, uploadMedia } from './media.ts';
+import {
+  baseOfClone,
+  changesOf,
+  copyFiles,
+  findCopy,
+  parseId,
+  pullInto,
+  requireCopy,
+  writeCopy,
+  type Copy,
+} from './copy.ts';
+import { sizeNote } from './media.ts';
 import { openUrl } from './open-url.ts';
 import { ASK_THE_PERSON, CliError, EXIT, type Output } from './out.ts';
 import { writeFormatGuide } from './format.ts';
@@ -32,7 +40,6 @@ interface DeckInfo {
   /** The folder it is in, by its path from the root: of the person's own decks only. */
   folder?: string;
   rev: string | null;
-  git: string;
   url: string;
   scenes: { id: string; beats: string[] }[];
 }
@@ -109,7 +116,7 @@ export async function whoami(out: Output) {
   out.result({ ...me, server: settings().server }, () => `${me.email} on ${settings().server}`);
 }
 
-/** What `tobos decks` says of one besides its title: a template, someone else's, archived. */
+/** What `tobos ls` says of one besides its title: a template, someone else's, archived. */
 function aboutDeck(d: DeckInfo): string {
   const can = { editor: 'you edit', presenter: 'you present', viewer: 'you view' } as const;
   const notes = [
@@ -132,11 +139,11 @@ type Entry =
  * The decks and templates the person can work on, each in its folder, and those shared with
  * them; with a path, what that folder of their drive holds instead: its folders, then its decks.
  */
-export async function decks(out: Output, args: Args) {
+export async function ls(out: Output, args: Args) {
   const path = args.positionals[0];
   if (path !== undefined) {
     const listed = await api<{ path: string; entries: Entry[] }>(
-      `/api/drive?${new URLSearchParams({ path })}`,
+      `/api/decks?${new URLSearchParams({ path })}`,
     );
     out.result(listed, () =>
       listed.entries.length === 0
@@ -180,38 +187,73 @@ export async function mv(out: Output, args: Args) {
 
 // ─── Working copies ─────────────────────────────────────────────────────────
 
-async function cloneInto(out: Output, info: DeckInfo, dir: string) {
-  const { server } = settings();
-  if (existsSync(dir)) throw new CliError(`${dir} already exists.`);
-  out.note(`cloning ${info.title} into ${dir}`);
-  await gitOk([...credentialConfig(server), 'clone', '--quiet', info.git, dir], {
-    env: authEnv(server),
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/**
+ * `tobos pull`: the working copy into step with the deck's latest version, merging what both
+ * changed (copy.ts). With an id, a new copy of that deck, in `dir` or a folder named after its id;
+ * in a clone from before, made with git, once, which makes it a working copy.
+ */
+export async function pull(out: Output, args: Args) {
+  const given = args.positionals[0];
+  const note = (m: string) => out.note(m);
+  if (given) {
+    const id = parseId(given);
+    const info = await api<DeckInfo>(`/api/decks/${id}`);
+    const dir = resolve(args.positionals[1] ?? id);
+    if (existsSync(dir)) throw new CliError(`${dir} already exists.`);
+    await pullCopy(out, info, dir);
+    out.result(
+      { ...info, dir },
+      () =>
+        `Pulled ${info.title} into ${relative(process.cwd(), dir) || '.'}.\nRead AGENTS.md there first. Preview: ${info.url}`,
+    );
+    return;
+  }
+  const found = findCopy();
+  if (!found) throw new CliError('Not in a deck. `tobos pull <id>` makes a copy of one.');
+  const base = found.base ?? (await baseOfClone(found.root));
+  const pulled = await pullInto(found.root, base.deck, base.server, base, {
+    note,
+    clone: !found.base,
   });
-  await configureCredentials(dir, server);
-  return writeFormatGuide(dir, server);
+  await writeFormatGuide(found.root, base.server);
+  out.result({ id: base.deck, ...pulled }, () =>
+    [
+      `In step with the server (${pulled.rev?.slice(0, 7) ?? 'no version yet'}): ${plural(pulled.changed.length, 'file')} changed.`,
+      pulled.conflicts.length
+        ? `${plural(pulled.conflicts.length, 'conflict')}, between <<<<<<< and >>>>>>> in each: resolve them, then push.\n${pulled.conflicts.join('\n')}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  );
+  if (pulled.conflicts.length) process.exitCode = EXIT.conflict;
 }
 
-export async function clone(out: Output, args: Args) {
-  const given = args.positionals[0];
-  if (!given) throw new CliError('Which deck? `tobos clone <id>` (`tobos decks` lists them).');
-  const id = parseId(given);
-  const info = await api<DeckInfo>(`/api/decks/${id}`);
-  const dir = resolve(args.positionals[1] ?? id);
-  await cloneInto(out, info, dir);
-  out.result(
-    { ...info, dir },
-    () =>
-      `Cloned ${info.title} into ${relative(process.cwd(), dir) || '.'}.\nRead AGENTS.md there first. Preview: ${info.url}`,
-  );
+/** A new working copy of a deck in `dir`, with the format guide. */
+async function pullCopy(out: Output, info: DeckInfo, dir: string) {
+  const { server } = settings();
+  out.note(`pulling ${info.title} into ${dir}`);
+  await pullInto(dir, info.id, server, undefined, { note: (m) => out.note(m) });
+  await writeFormatGuide(dir, server);
 }
 
 /**
- * A new deck, its master copied from a template (the account's default unless `--from` names one), or
- * with `--template` a new template: a copy of all of the one it starts from.
+ * A new deck, its master copied from a template (the account's default unless `--from` names one),
+ * or with `--template` a new template: a copy of all of the one it starts from. Then pulled into
+ * a folder of its own, unless `--no-pull`.
  */
 export async function create(out: Output, args: Args) {
   const title = args.positionals.join(' ').trim();
   if (!title) throw new CliError('What is it called? `tobos new "My talk"`.');
+  // A folder given is checked first: a deck made and then refused here would be made again.
+  if (
+    !args.values['no-pull'] &&
+    typeof args.values.dir === 'string' &&
+    existsSync(resolve(args.values.dir))
+  )
+    throw new CliError(`${resolve(args.values.dir)} already exists.`);
   const info = await api<DeckInfo>('/api/decks', {
     body: {
       title,
@@ -220,238 +262,129 @@ export async function create(out: Output, args: Args) {
     },
   });
   let dir: string | undefined;
-  if (!args.values['no-clone']) {
+  if (!args.values['no-pull']) {
     dir = resolve((args.values.dir as string) ?? info.id);
-    await cloneInto(out, info, dir);
+    if (existsSync(dir)) throw new CliError(`${dir} already exists.`);
+    await pullCopy(out, info, dir);
   }
   out.result({ ...info, dir: dir ?? null }, () =>
     [
       `Created ${info.title}: ${info.url}`,
-      dir ? `Cloned into ${relative(process.cwd(), dir) || '.'}. Read AGENTS.md there first.` : '',
+      dir ? `Pulled into ${relative(process.cwd(), dir) || '.'}. Read AGENTS.md there first.` : '',
     ]
       .filter(Boolean)
       .join('\n'),
   );
 }
 
-export async function pull(out: Output) {
-  const deck = await requireRemote();
-  const result = await git(
-    [...credentialConfig(deck.server), 'pull', '--ff-only', '--quiet', 'origin', 'main'],
-    { cwd: deck.root, env: authEnv(deck.server) },
-  );
-  if (result.code !== 0)
-    throw new CliError(
-      `Couldn't fast-forward to the server's main:\n${result.stderr.trim()}\nCommit or stash your changes, then merge with \`git pull\`.`,
-    );
-  await writeFormatGuide(deck.root, deck.server);
-  const rev = (await gitOk(['rev-parse', 'HEAD'], { cwd: deck.root })).trim();
-  out.result({ id: deck.id, rev }, () => `Up to date with the server (${rev.slice(0, 7)}).`);
-}
-
 // ─── Check and push ─────────────────────────────────────────────────────────
-
-/**
- * The files `tobos push` sends: every file git doesn't ignore, when the deck is a repository of
- * its own, as push needs it to be. Otherwise undefined, for every file: without git, or in a
- * folder of another repository, whose ignores aren't the deck's.
- */
-async function pushedFiles(root: string): Promise<string[] | undefined> {
-  try {
-    const prefix = await git(['rev-parse', '--show-prefix'], { cwd: root });
-    if (prefix.code !== 0 || prefix.stdout.trim() !== '') return undefined;
-    const listed = await git(['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
-      cwd: root,
-    });
-    return listed.code === 0 ? listed.stdout.split('\0').filter(Boolean) : undefined;
-  } catch {
-    return undefined; // no git
-  }
-}
-
-async function runCheck(dir: DeckDir) {
-  // The compiler, nine tenths of the CLI, loads only for a command that checks: the rest start
-  // without it.
-  const { buildDeck } = await import('@tobos/deck');
-  const started = performance.now();
-  const files = await pushedFiles(dir.root);
-  const result = await buildDeck(directoryTree(dir.root, files));
-  return { ...result, files, ms: Math.round(performance.now() - started) };
-}
-
-/** The server's messages, which git prints as "remote: …". */
-const remoteLines = (stderr: string) =>
-  stderr
-    .split('\n')
-    .filter((l) => l.startsWith('remote: '))
-    .map((l) => l.slice(8));
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-
-/**
- * How the server's hook refuses a push that would take the deck's account past the media its plan
- * keeps: the app's LimitError (checkMediaRoom), which tells an editor first whose plan it is. The
- * app's server suite pushes past it with this CLI and expects 5, which holds the two together.
- */
-const MEDIA_LIMIT = /^tobos: (This deck belongs to .+, whose )?Tobos \w+ keeps .+ of media/;
-
-/**
- * Why a push failed, as the exit code says it (2 only for problems in the deck, which an agent
- * then sets out to fix; 5 for an archived deck, which only the person opens again, or for media
- * past the plan, which only they make room for), and what to do about it. `output` is git's,
- * `remote` the server's lines.
- */
-export function pushFailure(
-  output: string,
-  remote: string[],
-): { message: string; exit: number; archived?: true; limit?: 'media' } {
-  const forThePerson = `${remote.map((line) => line.replace(/^tobos: /, '')).join('\n')}\n${ASK_THE_PERSON}`;
-  // The deck is archived (the server's hook says so): its owner's choice, not the agent's.
-  if (remote.some((line) => /^tobos: This (deck|template) is archived/.test(line)))
-    return { message: forThePerson, exit: EXIT.limit, archived: true };
-  // Past the media its plan keeps, as an upload's 402 is: theirs to make room, not the agent's.
-  if (remote.some((line) => MEDIA_LIMIT.test(line)))
-    return { message: forThePerson, exit: EXIT.limit, limit: 'media' };
-  if (/non-fast-forward|fetch first/.test(output))
-    return {
-      message:
-        "The server has changes you don't have. Run `tobos pull` (or `git pull`), then push again.",
-      exit: EXIT.error,
-    };
-  if (remote.some((line) => line.startsWith('tobos: rejected:')))
-    return { message: `The server rejected the deck.\n${remote.join('\n')}`, exit: EXIT.problems };
-  if (/Authentication failed|returned error: 401|could not read Username/i.test(output))
-    return {
-      message: "The server didn't take your login. Run `tobos login` again, then push.",
-      exit: EXIT.auth,
-    };
-  if (/returned error: 403/.test(output))
-    return {
-      message: 'You may not push to this deck: ask its owner to make you an editor.',
-      exit: EXIT.error,
-    };
-  if (remote.length > 0)
-    return { message: `The server refused the push.\n${remote.join('\n')}`, exit: EXIT.error };
-  // Never reached, or not trusted (TLS): nothing went.
-  if (/Could not resolve host|Failed to connect|Connection refused|SSL|certificate/i.test(output))
-    return {
-      message: `Couldn't reach the server: nothing was pushed. Try again.\n${output.trim()}`,
-      exit: EXIT.error,
-    };
-  // Reached, then cut off: the server may have taken it all the same.
-  if (/timed out|Connection reset|unexpected disconnect|RPC failed/i.test(output))
-    return {
-      message: `The connection broke off, and the push may have gone through. Run \`tobos pull\` to see where the server is, then push again if it still lacks your change.\n${output.trim()}`,
-      exit: EXIT.error,
-    };
-  return { message: `The push failed.\n${output.trim()}`, exit: EXIT.error };
-}
 
 function problemSummary(problems: Problem[]) {
   const errors = problems.filter((p) => p.severity === 'error').length;
   return { errors, warnings: problems.length - errors };
 }
 
+/** The deck's media files that every viewer would download more of than they need, noted. */
+function noteSizes(out: Output, root: string, paths: string[]) {
+  for (const path of paths.filter((p) => p.startsWith('media/'))) {
+    const file = join(root, ...path.split('/'));
+    if (!existsSync(file)) continue;
+    const note = sizeNote(path.slice('media/'.length), statSync(file).size);
+    if (note) out.note(note, true);
+  }
+}
+
+/**
+ * `tobos check`: what the server's check says of the working copy's changes, written dry (ADR
+ * 0005): nothing lands. With `--types`, TypeScript's too, here.
+ */
 export async function check(out: Output, args: Args) {
-  const deck = await findDeck(args.positionals[0]);
-  // Hashing media/ into media.json needs no network; uploading waits for push.
-  await syncMediaJson(deck.root);
-  const result = await runCheck(deck);
+  const copy = requireCopy(args.positionals[0]);
+  const started = performance.now();
+  // Nothing changed: the version pulled passed the check when it landed, so there is nothing to ask.
+  const unchanged = changesOf(copy).length === 0;
+  const written = unchanged
+    ? { problems: [] }
+    : await writeCopy(copy, 'Checked', { dry: true, note: (m) => out.note(m) }).catch(
+        (error: unknown) => {
+          // The check's errors are its answer, not a failure of the command.
+          if (error instanceof CliError && error.exit === EXIT.problems)
+            return { problems: (error.extra.problems ?? []) as Problem[], refused: true };
+          throw error;
+        },
+      );
+  const problems = [...(written.problems as Problem[])];
   if (args.values.types) {
     const { checkTypes } = await import('./types.ts');
-    // Only in what a push sends, as the check above.
-    const sent = result.files && new Set(result.files);
-    result.problems.push(
-      ...(await checkTypes(deck.root, (m) => out.note(m))).filter((p) => sent?.has(p.file) ?? true),
-    );
+    problems.push(...(await checkTypes(copy.root, (m) => out.note(m))));
   }
-  const { errors, warnings } = problemSummary(result.problems);
-  const scenes = result.manifest?.chapters.reduce((n, c) => n + c.scenes.length, 0) ?? 0;
-  const beats =
-    result.manifest?.chapters.reduce(
-      (n, c) => n + c.scenes.reduce((m, s) => m + s.beats.length, 0),
-      0,
-    ) ?? 0;
-  out.result(
-    { ok: errors === 0, errors, warnings, problems: result.problems, scenes, beats, ms: result.ms },
-    () =>
-      [
-        formatProblems(result.problems),
-        errors === 0
-          ? `✓ ${plural(scenes, 'scene')}, ${plural(beats, 'beat')}${warnings ? `, ${plural(warnings, 'warning')}` : ''} (${result.ms} ms)`
-          : `✗ ${plural(errors, 'error')}${warnings ? `, ${plural(warnings, 'warning')}` : ''}`,
-      ]
-        .filter(Boolean)
-        .join('\n'),
+  const { errors, warnings } = problemSummary(problems);
+  const ms = Math.round(performance.now() - started);
+  out.result({ ok: errors === 0, changed: !unchanged, errors, warnings, problems, ms }, () =>
+    [
+      unchanged
+        ? 'Nothing changed in the copy: the version it is of passed the check when it landed.'
+        : '',
+      formatProblems(problems),
+      errors === 0
+        ? unchanged
+          ? ''
+          : `✓ The check takes it${warnings ? `, with ${plural(warnings, 'warning')}` : ''} (${ms} ms)`
+        : `✗ ${plural(errors, 'error')}${warnings ? `, ${plural(warnings, 'warning')}` : ''}`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
   );
   if (errors > 0) process.exitCode = EXIT.problems;
 }
 
 /**
- * Check the working copy, upload the new media its slides show, commit everything and push it to
- * main. The
- * server checks it again; every open preview follows. Returns the problems instead when the
- * check finds errors.
+ * The working copy's changes written as one version, which the server checks and every open
+ * preview follows; then the copy takes that version, with whatever else it merged in.
  */
-async function pushWorkingCopy(out: Output, deck: Required<DeckDir>, message?: string) {
-  const { root, server } = deck;
-  const { media } = await syncMediaJson(root);
-  const result = await runCheck(deck);
-  const { errors, warnings } = problemSummary(result.problems);
-  if (errors > 0) return { ok: false as const, errors, warnings, problems: result.problems };
-
-  // Only what slides show counts, and must be on the server: a file in media.json that none
-  // shows stays here, and one not on this machine stops nothing (mediaInUse).
-  const { mediaInUse } = await import('@tobos/deck');
-  const shown = result.manifest ? mediaInUse(result.manifest) : media;
-  for (const [name, entry] of Object.entries(shown)) {
-    const note = sizeNote(name, entry.size);
-    if (note) out.note(note, true);
-  }
-  const uploaded = await uploadMedia(root, shown, server, deck.id, (m) => out.note(m));
-
-  await gitOk(['add', '-A'], { cwd: root });
-  const committed = (await gitOk(['diff', '--cached', '--name-only'], { cwd: root }))
-    .split('\n')
-    .filter(Boolean);
-  for (const file of committed) out.note(`  ${file}`);
-  if (committed.length > 0)
-    await gitOk(['commit', '--quiet', '-m', message || 'Update the deck'], {
-      cwd: root,
-      env: await identity(root),
-    });
-
-  out.note('pushing…');
-  const pushed = await git(
-    [...credentialConfig(server), 'push', '--porcelain', 'origin', 'HEAD:main'],
-    { cwd: root, echo: !out.json, env: authEnv(server) },
+async function pushCopy(out: Output, copy: Copy, message?: string) {
+  const changes = changesOf(copy);
+  if (changes.length === 0) return { pushed: false as const, rev: copy.base.rev, uploaded: [] };
+  noteSizes(
+    out,
+    copy.root,
+    changes.filter((c) => c.hash).map((c) => c.path),
   );
-  const remote = remoteLines(pushed.stderr);
-  if (pushed.code !== 0) {
-    const { message, exit, ...extra } = pushFailure(pushed.stdout + pushed.stderr, remote);
-    throw new CliError(message, exit, { remote, ...extra });
+  for (const { path, hash } of changes) out.note(`  ${hash ? '' : 'deleted '}${path}`);
+  out.note('pushing…');
+  const written = await writeCopy(copy, message || 'Update the deck', { note: (m) => out.note(m) });
+  // The version it made, others' merged changes in it: on what was just sent as the base, so the
+  // files it sent are the server's now, and nothing is merged twice.
+  try {
+    await pullInto(
+      copy.root,
+      copy.base.deck,
+      copy.base.server,
+      { ...copy.base, files: Object.fromEntries(copyFiles(copy.root)) },
+      { note: (m) => out.note(m) },
+    );
+  } catch (error) {
+    out.note(
+      `Pushed, but the copy couldn't take the version it made: run \`tobos pull\`. (${(error as Error).message})`,
+      true,
+    );
   }
-  const rev = (await gitOk(['rev-parse', 'HEAD'], { cwd: root })).trim();
-  return { ok: true as const, rev, committed, uploaded, warnings, remote };
+  return {
+    pushed: true as const,
+    rev: written.rev,
+    uploaded: written.uploaded,
+    problems: written.problems,
+  };
 }
 
 export async function push(out: Output, args: Args) {
-  const deck = await requireRemote();
-  const result = await pushWorkingCopy(out, deck, args.values.message as string | undefined);
-  if (!result.ok) {
-    out.result(
-      { ...result, pushed: false },
-      () =>
-        `${formatProblems(result.problems)}\n✗ Not pushed: ${plural(result.errors, 'error')}. Fix them and push again.`,
-    );
-    process.exitCode = EXIT.problems;
-    return;
-  }
-  const url = `${deck.server}/${deck.id}`;
-  out.result(
-    { ...result, pushed: true, url },
-    () =>
-      `✓ Pushed ${result.rev.slice(0, 7)}${result.uploaded.length ? ` with ${plural(result.uploaded.length, 'media file')}` : ''}. Live at ${url}`,
+  const copy = requireCopy();
+  const result = await pushCopy(out, copy, args.values.message as string | undefined);
+  const url = `${copy.base.server}/${copy.base.deck}`;
+  out.result({ ...result, url }, () =>
+    result.pushed
+      ? `✓ Pushed ${result.rev?.slice(0, 7)}${result.uploaded.length ? ` with ${plural(result.uploaded.length, 'media file')}` : ''}. Live at ${url}`
+      : `Nothing to push: the copy is as the server has it. Live at ${url}`,
   );
 }
 
@@ -460,33 +393,10 @@ export async function push(out: Output, args: Args) {
  * is always what's pushed, and what everyone with the deck open sees.
  */
 async function pushIfChanged(out: Output, id: string, message?: string) {
-  const found = await findDeck().catch(() => undefined);
-  if (!found?.server || found.id !== id) return { pushed: false, uploaded: [] as string[] };
-  const deck = found as Required<DeckDir>;
-  const dirty = (await gitOk(['status', '--porcelain'], { cwd: deck.root })).trim() !== '';
-  const head = await git(['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: deck.root });
-  const remote = await git(['rev-parse', '--verify', '--quiet', 'origin/main'], { cwd: deck.root });
-  if (!dirty && head.stdout.trim() === remote.stdout.trim())
-    return { pushed: false, uploaded: [] as string[] };
-  const result = await pushWorkingCopy(out, deck, message);
-  if (!result.ok)
-    throw new CliError(
-      `${formatProblems(result.problems)}\n✗ ${plural(result.errors, 'error')} in your working copy. Fix them and try again.`,
-      EXIT.problems,
-      { problems: result.problems },
-    );
-  return { pushed: true, uploaded: result.uploaded };
-}
-
-async function identity(root: string): Promise<Record<string, string>> {
-  if ((await git(['config', 'user.email'], { cwd: root })).code === 0) return {};
-  const who = settings().email;
-  return {
-    GIT_AUTHOR_NAME: who ?? 'tobos',
-    GIT_AUTHOR_EMAIL: who ?? 'tobos@localhost',
-    GIT_COMMITTER_NAME: who ?? 'tobos',
-    GIT_COMMITTER_EMAIL: who ?? 'tobos@localhost',
-  };
+  const found = findCopy();
+  if (!found?.base || found.base.deck !== id) return { pushed: false, uploaded: [] as string[] };
+  const { pushed, uploaded } = await pushCopy(out, found as Copy, message);
+  return { pushed, uploaded };
 }
 
 // ─── Viewing ────────────────────────────────────────────────────────────────
@@ -502,17 +412,21 @@ async function viewUrl(id: string, view?: string, hours?: number) {
 /** The deck a command is about: `--deck <id>`, or the working copy's. */
 async function deckId(args: Args): Promise<string> {
   if (typeof args.values.deck === 'string') return parseId(args.values.deck);
-  return (await requireRemote()).id;
+  return requireCopy().base.deck;
 }
 
+/**
+ * `tobos open`: the deck's page, at a scene and beat if given, what changed pushed first. With
+ * `--presenter`, a presenter's link. Outside a deck, a login for a browser.
+ */
 export async function open(out: Output, args: Args) {
   const position = args.positionals[0];
-  if (!position && typeof args.values.deck !== 'string' && !(await findDeck().catch(() => null)))
-    return openApp(out);
-  const view = args.values.presenter ? 'presenter' : undefined;
+  if (!position && typeof args.values.deck !== 'string' && !findCopy()?.base) return openApp(out);
   const id = await deckId(args);
   const { pushed } = await pushIfChanged(out, id);
-  const { url } = await viewUrl(id, view, 12);
+  const url = args.values.presenter
+    ? (await viewUrl(id, 'presenter', 12)).url
+    : `${settings().server}/${id}`;
   const full = position ? `${url}#${position}` : url;
   const opened = !args.values.print && (await openUrl(full));
   out.result({ url: full, opened, pushed }, () => full);
@@ -625,50 +539,6 @@ export async function story(out: Output, args: Args) {
 
 // ─── Exports and rendering ──────────────────────────────────────────────────
 
-/** Where exports go by default: .tobos/exports/ inside a deck (ignored by git), else here. */
-async function exportTarget(args: Args, file: string): Promise<string> {
-  if (args.values.out) return resolve(args.values.out as string);
-  const deck = await findDeck().catch(() => undefined);
-  if (!deck) return resolve(file);
-  mkdirSync(join(deck.root, '.tobos', 'exports'), { recursive: true });
-  return join(deck.root, '.tobos', 'exports', file);
-}
-
-/**
- * The deck's PDF, as its page and its share link give it: the latest push, a page per scene at its
- * last beat, without the scenes that ask the room. Made on the server, once per push.
- */
-export async function exportDeck(out: Output, args: Args) {
-  const kind = args.positionals[0];
-  if (kind !== 'pdf') throw new CliError('Export what? `tobos export pdf`.');
-  const id = await deckId(args);
-  out.note('getting the PDF of the latest push…');
-  const response = await request(`/api/decks/${id}/deck.pdf`);
-  if (!response.ok) {
-    const text = await response.text();
-    let data: unknown;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { error: text.slice(0, 500) };
-    }
-    throw failure(response, data);
-  }
-  const pdf = new Uint8Array(await response.arrayBuffer());
-  const target = await exportTarget(args, `${id}.pdf`);
-  mkdirSync(dirname(target), { recursive: true });
-  writeFileSync(target, pdf);
-  // Its pages, by the page objects the file has.
-  const pages =
-    Buffer.from(pdf)
-      .toString('latin1')
-      .match(/\/Type\s*\/Page(?![s\w])/g)?.length ?? 0;
-  out.result(
-    { file: target, pages },
-    () => `Wrote ${relative(process.cwd(), target)} (${pages} pages).`,
-  );
-}
-
 /**
  * Render what's pushed. From the deck's own working copy, what changed is pushed first, so
  * that is the working copy too.
@@ -676,9 +546,10 @@ export async function exportDeck(out: Output, args: Args) {
 export async function render(out: Output, args: Args) {
   const { renderBeats } = await import('./render.ts');
   // With --deck, from anywhere: a working copy is needed only to say which deck.
-  const deck = await findDeck().catch(() => undefined);
+  const copy = findCopy();
+  const deck = copy?.base ? { id: copy.base.deck, root: copy.root } : undefined;
   const id = typeof args.values.deck === 'string' ? parseId(args.values.deck) : deck?.id;
-  if (!id) throw new CliError('Run this inside a cloned deck, or pass --deck <id>.');
+  if (!id) throw new CliError('Run this inside a deck you pulled, or pass --deck <id>.');
   const { pushed, uploaded } = await pushIfChanged(out, id, args.values.message as string);
   const view = await viewUrl(id, 'render');
   const { url } = view;
@@ -747,30 +618,4 @@ export async function skill(out: Output, args: Args) {
       next,
     ].join('\n'),
   );
-}
-
-// ─── Git credential helper ──────────────────────────────────────────────────
-
-/** git calls `tobos credential get` and reads the token from stdout. */
-export async function credential(args: Args) {
-  if (args.positionals[0] !== 'get') return; // store and erase: nothing to do
-  const input = readFileSync(0, 'utf8');
-  const fields = Object.fromEntries(
-    input
-      .split('\n')
-      .filter((l) => l.includes('='))
-      .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]),
-  );
-  let stored;
-  try {
-    stored = settings();
-  } catch (error) {
-    // Git asks quietly: a helper that can't answer gives it nothing, and git says what it lacks.
-    process.stderr.write(`tobos: ${(error as Error).message}\n`);
-    return;
-  }
-  const { server, token } = stored;
-  const target = new URL(server);
-  if (!token || fields.host !== target.host || `${fields.protocol}:` !== target.protocol) return;
-  process.stdout.write(`username=tobos\npassword=${token}\n`);
 }

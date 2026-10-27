@@ -10,6 +10,10 @@
     "./node": "./src/node.ts",
     "./format-problems": "./src/format-problems.ts",
     "./hash": "./src/hash.ts",
+    "./merge": "./src/merge.ts",
+    "./tar": "./src/tar.ts",
+    "./deck-json": "./src/deck-json.ts",
+    "./media-type": "./src/media-type.ts",
     "./types": "./src/types.ts",
     "./FORMAT.md": "./FORMAT.md",
     "./package.json": "./package.json"
