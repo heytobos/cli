@@ -46,24 +46,14 @@ from anywhere)
                                               the URL only, open nothing
   tobos open                                  outside a deck: the person's decks, in Tobos
 
-The story (what the speaker says, held by the server; a scene mentioned: [Title](scene:<id>),
-a beat: [Title](scene:<id>/<beat>))
-  tobos story                                 the text, by ¶ id
-  tobos story edit <¶> "old" "new"            change it, anchored on the exact text
-  tobos story add [--after <¶>] "…"           a new paragraph (at the end, or after ¶)
-  tobos story delete <¶>                      a paragraph goes
-                                              TOBOS_AGENT=<name> says which agent you are: the
-                                              deck's page marks what you wrote
-
 The skill (what your harness reads to know Tobos without this help)
   tobos skill install                         put it where Claude Code, Codex, OpenCode and others
                                               read skills; later CLIs keep it up to date
 
 Every command takes --json and then prints one JSON object.
 Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in (or not yet approved),
-4 a conflict: someone changed the same lines (pull, resolve, push again; for the story, the reply
-has the paragraph as it is now), 5 a plan's limit or an archived deck: the person decides what to
-do, so show them the message and wait.
+4 a conflict: someone changed the same lines (pull, resolve, push again), 5 a plan's limit or an
+archived deck: the person decides what to do, so show them the message and wait.
 `;
 
 const COMMON: ParseArgsConfig['options'] = {
@@ -103,10 +93,6 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
     },
   },
   skill: { run: commands.skill },
-  story: {
-    run: commands.story,
-    options: { deck: { type: 'string' }, after: { type: 'string' } },
-  },
   render: {
     run: commands.render,
     options: {

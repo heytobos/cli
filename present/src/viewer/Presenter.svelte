@@ -51,7 +51,7 @@
   const hasActivities = $derived(scenes.some((s) => s.activity));
   /** The scene list's numbers line up: each is as wide as the last one. */
   const digits = $derived(String(scenes.length).length);
-  /** What the deck's story says about each scene, by its id: the speaker's notes. */
+  /** Each scene's notes, by its id, in their paragraphs: the speaker's notes (notes.ts). */
   let notes = $state<Record<string, string[]>>({});
   const notesHere = $derived.by(() => {
     const id = scenes[position.scene]?.id ?? '';
@@ -241,7 +241,7 @@
       if (audience?.closed) audience = null;
       now = Date.now();
     }, 500);
-    const story =
+    const unlisten =
       config.live && config.events
         ? listen(config.events, 'notes', (data) => (notes = JSON.parse(data)))
         : undefined;
@@ -263,7 +263,7 @@
       window.clearInterval(closed);
       window.clearTimeout(confirmTimer);
       stop();
-      story?.();
+      unlisten?.();
       session.close();
       current.destroy();
       next.destroy();
@@ -309,7 +309,7 @@
       <div class="label">Now</div>
       <div class="box" bind:this={currentBox}></div>
       {#if notesHere.length}
-        <!-- What the deck's story says about this scene: the speaker's notes. -->
+        <!-- The notes of this scene, as written on the deck's page: the speaker's notes. -->
         <div class="notes" aria-label="Speaker notes">
           {#each notesHere as note, i (i)}<p>{note}</p>{/each}
         </div>
