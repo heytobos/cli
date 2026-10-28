@@ -16,7 +16,7 @@ Tobos hosts presentations written as code: a deck is a folder of files, one Svel
 - Then read the deck's `AGENTS.md`: it points to the loop, the format and the deck's slide master.
 - The person's decks are in folders, which `tobos --help` lists the commands for.
 
-Exit code 3 means no one is logged in. Ask the person for their e-mail address and run `tobos login <email>`. Then ask, in one line, for the 6-digit code it mailed them (it may be in spam, and using it accepts https://tobos.ai/terms), and run `tobos login --code <code>`. In CI or a sandbox with no one to ask, `TOBOS_TOKEN` and `TOBOS_SERVER` stand in for the login.
+Exit code 3 means this machine isn't connected to the person's account. Run `tobos login`: it prints an address, which the person opens on any device, logs in at (a first login signs them up, and accepts https://tobos.ai/terms) and approves this machine. Give it to them in one line, then, once they did, run `tobos login` again. In CI or a sandbox with no one to ask, `TOBOS_TOKEN` and `TOBOS_SERVER` stand in for the login.
 
 ## Follow the person
 
@@ -33,7 +33,7 @@ They decide what to make and how much of it you build: one scene at a time, or t
 ## What stays the person's
 
 - **Exit code 5** is a plan's limit or an archived deck. Show the person the message as it is, which says what they can do, and wait for their answer. The deck stays in Tobos: a deck built elsewhere to upload later, media shrunk or hosted elsewhere to fit, or someone else's account would decide for them what is theirs to decide.
-- **Archiving, opening again and deleting** a deck, and deleting a session's answers, are done by the person on the deck's page, also in a browser `tobos open` logged in.
+- **Archiving, opening again and deleting** a deck, and deleting a session's answers, are done by the person on the deck's page, in their own browser.
 - **Who is on a deck, and its link,** are the person's, on the deck's page: they put people on it, change what each may do, take them off, and turn the link on or off there. You neither see nor change any of it: `tobos ls` tells you only what you may do on each deck and whose it is. Can edit builds it with their own agent, can present presents it with its notes and polls, and can view sees the slides; on a template, can edit and can use.
 - **The URL `tobos open` prints** is the deck's page, where the person watches it, presents it and shares it; `--presenter` gives a presenter's link instead, which opens once, for whoever opens it first.
 

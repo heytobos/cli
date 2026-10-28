@@ -41,7 +41,7 @@ describe("the CLI's token", () => {
   });
 
   it('is not needed for what goes without one, to any server', async () => {
-    await request('/api/login', { server: `http://localhost:${port}`, anonymous: true });
+    await request('/oauth/device', { server: `http://localhost:${port}`, anonymous: true });
     expect(seen.at(-1)).toBeUndefined();
   });
 });

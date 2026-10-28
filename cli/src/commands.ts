@@ -46,51 +46,119 @@ interface DeckInfo {
 
 // ─── Account ────────────────────────────────────────────────────────────────
 
-/**
- * What the person accepts with their first code: said here too, not only in the login mail,
- * since an agent may read the mail for them. The same words for every address, so the answer
- * doesn't tell whether an account exists.
- */
-const TERMS_NOTICE = 'If the address is new, using the code accepts https://tobos.ai/terms.';
+/** How long one `tobos login` waits for the person's answer, before it says to run it again. */
+const LOGIN_WAIT_MS = 90_000;
+
+/** What the server gives a device to connect with (RFC 8628). */
+interface DeviceStart {
+  device_code: string;
+  user_code: string;
+  verification_uri_complete: string;
+  expires_in: number;
+  interval: number;
+}
 
 /**
- * Log in, or sign up, by e-mailed code, in two steps an agent can take in a conversation:
- * `tobos login <email>` sends the code; the person reads it from the mail; `tobos login --code
- * <code>` finishes. Both at once work too: `tobos login <email> --code <code>`.
+ * Connect this machine to the person's account (TOB-402, D1): they approve it in a browser, at the
+ * address this prints, where they log in at /login with their address and the code mailed to it
+ * (a first code signs them up). The first `tobos login` prints the address, and opens it where
+ * this machine has a browser; then it, or the next `tobos login`, waits a while for their answer,
+ * on the same code, so an agent whose commands time out keeps one address to give the person.
  */
 export async function login(out: Output, args: Args) {
   const server = ((args.values.server as string) || settings().server).replace(/\/$/, '');
-  const client = `the tobos CLI on ${hostname()}`;
-  const email = args.positionals[0]?.trim().toLowerCase();
-  const code = args.values.code as string | undefined;
-
-  if (!code) {
-    if (!email)
-      throw new CliError(
-        'Log in with the e-mail address of the person you work for: `tobos login <email>`.',
+  const kept = settings().device;
+  let device =
+    kept && kept.server === server && Date.parse(kept.expires) > Date.now() ? kept : undefined;
+  let opened = false;
+  if (!device) {
+    const started = await api<DeviceStart>('/oauth/device', {
+      anonymous: true,
+      server,
+      body: { label: `the tobos CLI on ${hostname()}` },
+    });
+    device = {
+      server,
+      deviceCode: started.device_code,
+      userCode: started.user_code,
+      url: started.verification_uri_complete,
+      interval: started.interval,
+      expires: new Date(Date.now() + started.expires_in * 1000).toISOString(),
+    };
+    save({ server, device });
+    opened = await openUrl(device.url);
+    if (!opened) {
+      out.result(
+        { waiting: true, url: device.url, code: device.userCode, next: 'tobos login' },
+        () =>
+          `Give the person this address, to open where they like, a phone too: they log in there and approve this machine (a first login signs them up, and accepts https://tobos.ai/terms).\n\n  ${device!.url}\n\nThe page shows the code ${device!.userCode}. Once they approved it, run \`tobos login\` again.`,
       );
-    await api('/api/login', { anonymous: true, server, body: { email, client } });
-    save({ server, pending: email });
-    out.result(
-      { sent: email, next: 'tobos login --code <code>', terms: TERMS_NOTICE },
-      () =>
-        `Sent a 6-digit code to ${email}; it works for 10 minutes. Ask the person for it in one line: check the inbox, or spam, and paste the code here. ${TERMS_NOTICE} Then run:\n\n  tobos login --code <code>`,
+      process.exitCode = EXIT.auth;
+      return;
+    }
+    out.note(`Opened ${device.url} in the browser: approve the code ${device.userCode} there.`);
+  }
+  const token = await waitForApproval(device, (m) => out.note(m));
+  if (!token) {
+    out.result({ waiting: true, url: device.url, code: device.userCode, next: 'tobos login' }, () =>
+      [
+        `Not approved yet. The person approves this machine at\n\n  ${device!.url}`,
+        `where the page shows the code ${device!.userCode}. Then run \`tobos login\` again.`,
+      ].join('\n\n'),
     );
+    process.exitCode = EXIT.auth;
     return;
   }
-
-  const address = email ?? settings().pending;
-  if (!address)
-    throw new CliError('Which address got the code? `tobos login <email> --code <code>`.');
-  const { token } = await api<{ token: string; email: string }>('/api/login/verify', {
-    anonymous: true,
-    server,
-    body: { email: address, code, client },
-  });
-  save({ server, token, pending: undefined });
+  save({ server, token, device: undefined });
   const me = await api<{ email: string }>('/api/me', { server });
   save({ email: me.email });
   out.result({ email: me.email, server }, () => `Logged in as ${me.email}.`);
+}
+
+/**
+ * The grant for `device`, once the person approved it, asking as often as the server allows, for
+ * LOGIN_WAIT_MS at most: undefined if they haven't answered by then. A CliError if they said no,
+ * or the code expired, which starts over.
+ */
+async function waitForApproval(
+  device: NonNullable<ReturnType<typeof settings>['device']>,
+  note: (m: string) => void,
+): Promise<string | undefined> {
+  const until = Date.now() + LOGIN_WAIT_MS;
+  let interval = device.interval * 1000;
+  note(`waiting for the person to approve ${device.userCode}…`);
+  while (Date.now() < until) {
+    const response = await request('/oauth/token', {
+      anonymous: true,
+      server: device.server,
+      body: {
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+        device_code: device.deviceCode,
+      },
+    });
+    const answer = (await response.json().catch(() => ({}))) as {
+      access_token?: string;
+      error?: string;
+    };
+    if (answer.access_token) return answer.access_token;
+    if (answer.error === 'slow_down') interval += 5000;
+    else if (answer.error === 'access_denied') {
+      save({ device: undefined });
+      throw new CliError('The person chose not to connect this machine.', EXIT.auth);
+    } else if (answer.error === 'expired_token' || answer.error === 'invalid_grant') {
+      save({ device: undefined });
+      throw new CliError(
+        'The code expired before the person approved it. Run `tobos login` again for a new one.',
+        EXIT.auth,
+      );
+    } else if (answer.error !== 'authorization_pending')
+      // Not the server's answer, a proxy's during a release say: the code may still be approved.
+      throw new CliError(
+        `${device.server} answered ${response.status} rather than whether the person approved. Run \`tobos login\` again: it waits on the same code.`,
+      );
+    await new Promise((done) => setTimeout(done, interval));
+  }
+  return undefined;
 }
 
 /** Revoke this machine's token on the server, then forget it here. */
@@ -432,21 +500,11 @@ export async function open(out: Output, args: Args) {
   out.result({ url: full, opened, pushed }, () => full);
 }
 
-/**
- * Outside a deck: a login for a browser as this CLI's user, at their decks and templates. Shown,
- * never opened: the person takes the last step, by opening the link or by typing its code in at
- * /login on another device, a phone or a lecture hall's PC. Either spends both.
- */
+/** Outside a deck: the person's decks, in Tobos, where they log in at /login if they aren't. */
 async function openApp(out: Output) {
-  const { url, code } = await api<{ url: string; code?: string }>('/api/login/browser', {
-    method: 'POST',
-  });
-  const page = `${new URL(url).origin}/login`;
-  out.result({ url, code, page }, () =>
-    code
-      ? `Open this link, or enter ${code} at ${page}. It works once, within 10 minutes.\n${url}`
-      : `Open this link. It works once, within 10 minutes.\n${url}`,
-  );
+  const url = `${settings().server}/`;
+  const opened = await openUrl(url);
+  out.result({ url, opened }, () => url);
 }
 
 // ─── The story ──────────────────────────────────────────────────────────────

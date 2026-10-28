@@ -95,6 +95,95 @@ describe('tobos', () => {
     }
   });
 
+  it('logs in by a code the person approves: the address first, then, run again, the token, through a proxy’s error; another server forgets it', async () => {
+    /** What the server is asked, and its answers to the agent's polls, in turn. */
+    const asked: string[] = [];
+    const polls = [
+      [400, { error: 'authorization_pending' }],
+      [502, 'Bad gateway'],
+      [200, { access_token: 'tobos_granted', token_type: 'Bearer' }],
+    ] as const;
+    const server = createServer((request, response) => {
+      asked.push(`${request.method} ${request.url} ${request.headers.authorization ?? ''}`.trim());
+      response.setHeader('content-type', 'application/json');
+      if (request.url === '/oauth/device')
+        return response.end(
+          JSON.stringify({
+            device_code: 'tobos_device_x',
+            user_code: 'BCDF-GHJK',
+            verification_uri: `${origin}/connect`,
+            verification_uri_complete: `${origin}/connect?code=BCDF-GHJK`,
+            expires_in: 600,
+            interval: 0,
+          }),
+        );
+      if (request.url === '/oauth/token') {
+        const [status, body] = polls[asked.filter((a) => a.includes('/oauth/token')).length - 1]!;
+        response.statusCode = status;
+        return response.end(typeof body === 'string' ? body : JSON.stringify(body));
+      }
+      response.end(JSON.stringify({ email: 'ada@example.com' }));
+    });
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const home = mkdtempSync(join(tmpdir(), 'tobos-cli-'));
+    const login = (...args: string[]) =>
+      new Promise<{ status: number; json: Record<string, unknown> }>((done) =>
+        execFile(
+          'node',
+          [main, 'login', ...args, '--json'],
+          {
+            env: {
+              ...process.env,
+              XDG_CONFIG_HOME: home,
+              TOBOS_SERVER: args.length ? '' : origin,
+              TOBOS_TOKEN: '',
+              TOBOS_NO_BROWSER: '1',
+            },
+          },
+          (error, stdout) =>
+            done({ status: error ? Number(error.code) : 0, json: JSON.parse(stdout) }),
+        ),
+      );
+    const stored = () => JSON.parse(readFileSync(join(home, 'tobos/config.json'), 'utf8'));
+    try {
+      // No browser here: it prints the address for the person, and keeps the code.
+      expect(await login()).toEqual({
+        status: 3,
+        json: {
+          waiting: true,
+          url: `${origin}/connect?code=BCDF-GHJK`,
+          code: 'BCDF-GHJK',
+          next: 'tobos login',
+        },
+      });
+      expect(stored().device).toMatchObject({
+        deviceCode: 'tobos_device_x',
+        userCode: 'BCDF-GHJK',
+      });
+      // Run again, it waits on the same code. A proxy's error is no answer: the code stays.
+      expect(await login()).toMatchObject({ status: 1, json: { ok: false } });
+      expect(stored().device).toMatchObject({ deviceCode: 'tobos_device_x' });
+      // And again: it saves the token once approved.
+      expect(await login()).toEqual({
+        status: 0,
+        json: { email: 'ada@example.com', server: origin },
+      });
+      expect(asked.filter((a) => a.startsWith('POST /oauth/device'))).toHaveLength(1);
+      expect(asked.at(-1)).toBe('GET /api/me Bearer tobos_granted');
+      expect(stored()).toMatchObject({ token: 'tobos_granted', email: 'ada@example.com' });
+      expect(stored()).not.toHaveProperty('device');
+      // Logging in to another server forgets this one's token, so it can't go there.
+      const other = origin.replace('127.0.0.1', 'localhost');
+      expect((await login('--server', other)).status).toBe(3);
+      expect(stored()).toMatchObject({ server: other });
+      expect(stored()).not.toHaveProperty('token');
+      expect(stored()).not.toHaveProperty('email');
+    } finally {
+      server.close();
+    }
+  });
+
   it("does without a config file it can't read when the environment names the server and token", () => {
     const broken = mkdtempSync(join(tmpdir(), 'tobos-cli-'));
     mkdirSync(join(broken, 'tobos', 'config.json'), { recursive: true });

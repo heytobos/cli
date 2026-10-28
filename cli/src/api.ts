@@ -69,14 +69,14 @@ export async function request(path: string, options: ApiOptions = {}): Promise<R
   if (!options.anonymous) {
     if (!token)
       throw new CliError(
-        'Not logged in. Ask the person you work for for their e-mail address, then run `tobos login <email>`.',
+        'Not logged in: run `tobos login`, and give the person the address it prints.',
         EXIT.auth,
       );
     // The token is the server's it was made by, and goes to no other: not to the server a
     // working copy's git remote names, whoever set that remote (git's helper is as strict).
     if (new URL(target).origin !== new URL(server).origin)
       throw new CliError(
-        `This deck is on ${target}, but you are logged in to ${server}, and the token goes only there. Log in to the deck's server with \`tobos login <email> --server ${target}\`.`,
+        `This deck is on ${target}, but you are logged in to ${server}, and the token goes only there. Log in to the deck's server with \`tobos login --server ${target}\`.`,
         EXIT.auth,
       );
     headers.authorization = `Bearer ${token}`;

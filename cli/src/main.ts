@@ -7,8 +7,9 @@ import { refresh } from './skill.ts';
 const HELP = `tobos ${VERSION}: the command line of Tobos, the office suite your coding agent works in.
 
 Account
-  tobos login <email> [--server URL]          e-mail a login code to the person (signs them up if new)
-  tobos login --code <code>                   finish: the code they read from the mail
+  tobos login [--server URL]                  connect this machine: prints an address for the
+                                              person to open and approve (logging in, or signing
+                                              up, there); run it again once they did
   tobos logout                                forget this machine's token
   tobos whoami                                who you are, on which server
   tobos ls [/path]                            your decks and templates, by id, each in its folder,
@@ -40,8 +41,7 @@ from anywhere)
   tobos open [scene/beat] [--presenter]       the deck's page in a browser (--presenter: a
          [--print]                            presenter's link, which opens once); --print: print
                                               the URL only, open nothing
-  tobos open                                  outside a deck: a link, or its code for /login,
-                                              that logs a browser in once; show the person both
+  tobos open                                  outside a deck: the person's decks, in Tobos
 
 The story (what the speaker says, held by the server; a scene mentioned: [Title](scene:<id>),
 a beat: [Title](scene:<id>/<beat>))
@@ -62,7 +62,7 @@ Templates (decks people start from: a new deck copies a template's master/)
   tobos new "Our brand" --template            a new template: a copy of Tobos simple (or of --from)
 
 Every command takes --json and then prints one JSON object.
-Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in, 4 a conflict: someone
+Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in (or not yet approved), 4 a conflict: someone
 changed the same lines (pull, resolve, push again; for the story, the reply has the paragraph as
 it is now), 5 a plan's limit or an archived deck: the person decides what to do, so show them the
 message and wait.
@@ -78,7 +78,7 @@ type Handler = (out: Output, args: commands.Args) => Promise<void>;
 const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options'] }> = {
   login: {
     run: commands.login,
-    options: { server: { type: 'string' }, code: { type: 'string' } },
+    options: { server: { type: 'string' } },
   },
   logout: { run: commands.logout },
   whoami: { run: commands.whoami },

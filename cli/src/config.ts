@@ -9,8 +9,20 @@ interface Stored {
   server?: string;
   token?: string;
   email?: string;
-  /** The address a login code went to, until `tobos login --code` uses it. */
-  pending?: string;
+  /**
+   * The code this machine connects with, until the person approves it (RFC 8628): what the next
+   * `tobos login` waits on, rather than asking for another.
+   */
+  device?: {
+    server: string;
+    /** What the CLI polls with, which only it knows. */
+    deviceCode: string;
+    /** What the person checks on the page, ABCD-EFGH. */
+    userCode: string;
+    url: string;
+    interval: number;
+    expires: string;
+  };
 }
 
 const dir = join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'tobos');
@@ -52,8 +64,15 @@ function write(stored: Stored) {
   renameSync(next, file);
 }
 
+/**
+ * What's stored, with `update`. Another server forgets what logs in to this one: its token and
+ * address go, and a code pending for it, unless the update brings its own.
+ */
 export function save(update: Stored) {
-  write({ ...read(), ...update });
+  const stored = read();
+  const elsewhere = update.server !== undefined && update.server !== stored.server;
+  const kept = elsewhere ? { server: stored.server } : stored;
+  write({ ...kept, ...update });
 }
 
 export function forget() {
@@ -65,7 +84,7 @@ export function settings(): {
   server: string;
   token?: string;
   email?: string;
-  pending?: string;
+  device?: Stored['device'];
 } {
   // With both in the environment, the file isn't needed, and one that can't be read doesn't matter.
   let stored: Stored = {};
@@ -74,10 +93,13 @@ export function settings(): {
   } catch (error) {
     if (!process.env.TOBOS_SERVER || !process.env.TOBOS_TOKEN) throw error;
   }
+  const server = (process.env.TOBOS_SERVER || stored.server || DEFAULT_SERVER).replace(/\/$/, '');
+  // The file's token is the server's it was made by: TOBOS_SERVER naming another doesn't get it.
+  const own = (stored.server || DEFAULT_SERVER).replace(/\/$/, '') === server;
   return {
-    server: (process.env.TOBOS_SERVER || stored.server || DEFAULT_SERVER).replace(/\/$/, ''),
-    token: process.env.TOBOS_TOKEN || stored.token,
-    email: stored.email,
-    pending: stored.pending,
+    server,
+    token: process.env.TOBOS_TOKEN || (own ? stored.token : undefined),
+    email: own ? stored.email : undefined,
+    device: stored.device,
   };
 }
