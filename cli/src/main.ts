@@ -1,37 +1,40 @@
 import { parseArgs, type ParseArgsConfig } from 'node:util';
+import { VERBS, type Verb, type VerbName } from '@tobos/deck/verbs';
 import { VERSION } from './api.ts';
 import * as commands from './commands.ts';
 import { CliError, createOutput, EXIT, update, type Output } from './out.ts';
 import { refresh } from './skill.ts';
 
+/** A command and what it does, in two columns, what it does wrapped to the help's width. */
+function row(usage: string, does: string): string {
+  const lines: string[] = [];
+  for (const word of does.split(' ')) {
+    const last = lines.at(-1);
+    if (last !== undefined && last.length + word.length < 50) lines[lines.length - 1] += ` ${word}`;
+    else lines.push(word);
+  }
+  const first = `  ${usage}`;
+  const pad = ' '.repeat(46);
+  return [first.length < 45 ? first.padEnd(46) + lines[0] : `${first}\n${pad}${lines[0]}`]
+    .concat(lines.slice(1).map((line) => pad + line))
+    .join('\n');
+}
+
+/** The five verbs (ADR 0005), as verbs.ts says them for every door. */
+const VERB_ROWS = Object.values(VERBS as Record<VerbName, Verb>)
+  .flatMap((verb) => verb.cli.map((c) => row(c.usage, c.does)))
+  .join('\n');
+
 const HELP = `tobos ${VERSION}: the command line of Tobos, the office suite your coding agent works in.
 
 Account
-  tobos login [--server URL]                  connect this machine: prints an address for the
-                                              person to open and approve (logging in, or signing
-                                              up, there); run it again once they did
-  tobos logout                                forget this machine's token
-  tobos whoami                                who you are, on which server
-  tobos ls [/path]                            your decks and templates, by id, each in its folder,
-                                              and those shared with you; an archived one is
-                                              read-only. With a path: what that folder holds,
-                                              its folders, then its decks
+${row('tobos login [--server URL]', 'connect this machine: prints an address for the person to open and approve (logging in, or signing up, there); run it again once they did')}
+${row('tobos logout', "forget this machine's token")}
+${row('tobos whoami', 'who you are, on which server')}
 
-Folders (your decks and templates in a tree; a deck by its id or title, a folder by its path)
-  tobos mv <deck or /folder>… </path>         move them into that folder, made if there is none;
-                                              a folder a move empties goes
-
-Working on a deck (a working copy: no git; the server keeps the versions)
-  tobos new "Title" [--dir dir] [--no-pull]   create a deck and pull it here, into ./<id>
-                                              (or into dir; --no-pull: only create it)
-  tobos pull <id> [dir]                       a working copy of a deck, with the agent pack
-  tobos pull                                  the latest version into the copy, merged with your
-                                              changes; a conflict is left between <<<<<<< and
-                                              >>>>>>> to resolve; and the format guide
-  tobos check [--types]                       the server's check of your changes; nothing lands;
-                                              --types: TypeScript too, here (installs a checker once)
-  tobos push [-m "what changed"]              your changes as one version, media uploaded; the
-                                              server checks it, and it goes live
+The five verbs (a deck by its id, or its title to mv it; a folder by its path; in a working copy,
+with no git: the server keeps the versions)
+${VERB_ROWS}
 
 Looking at it (from the working copy, render and open push what changed first; with --deck <id>,
 from anywhere)
@@ -56,16 +59,11 @@ The skill (what your harness reads to know Tobos without this help)
   tobos skill install                         put it where Claude Code, Codex, OpenCode and others
                                               read skills; later CLIs keep it up to date
 
-Templates (decks people start from: a new deck copies a template's master/)
-  tobos new "Title" --from <id>                start a deck from that template (default: Tobos
-                                              simple; \`tobos ls\` lists the person's own)
-  tobos new "Our brand" --template            a new template: a copy of Tobos simple (or of --from)
-
 Every command takes --json and then prints one JSON object.
-Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in (or not yet approved), 4 a conflict: someone
-changed the same lines (pull, resolve, push again; for the story, the reply has the paragraph as
-it is now), 5 a plan's limit or an archived deck: the person decides what to do, so show them the
-message and wait.
+Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in (or not yet approved),
+4 a conflict: someone changed the same lines (pull, resolve, push again; for the story, the reply
+has the paragraph as it is now), 5 a plan's limit or an archived deck: the person decides what to
+do, so show them the message and wait.
 `;
 
 const COMMON: ParseArgsConfig['options'] = {

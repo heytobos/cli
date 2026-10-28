@@ -121,7 +121,7 @@ describe('the skill', () => {
       cli.indexOf('const TABLE'),
       cli.indexOf('\n};', cli.indexOf('const TABLE')),
     );
-    const help = cli.slice(cli.indexOf('const HELP'), cli.indexOf('`;', cli.indexOf('const HELP')));
+    const help = spawnSync('node', [main, '--help'], { encoding: 'utf8' }).stdout;
     const commands = [...table.matchAll(/^  (\w+): \{/gm)].map((m) => m[1]!);
     const skill = readFileSync(
       join(import.meta.dirname, '../../agent-pack/skills/tobos-present/SKILL.md'),

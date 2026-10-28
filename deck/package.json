@@ -14,6 +14,7 @@
     "./tar": "./src/tar.ts",
     "./deck-json": "./src/deck-json.ts",
     "./media-type": "./src/media-type.ts",
+    "./verbs": "./src/verbs.ts",
     "./types": "./src/types.ts",
     "./FORMAT.md": "./FORMAT.md",
     "./package.json": "./package.json"
