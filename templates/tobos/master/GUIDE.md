@@ -4,7 +4,7 @@ This folder is the deck's slide master, copied from Tobos standard when the deck
 
 ## Rules the check enforces
 
-They are in `master.json`; `tobos check` and every push enforce them.
+They are in `master.json`; the check enforces them on every version.
 
 - **Nothing smaller than 28px**, anywhere in the deck: the check refuses a smaller `font-size` in the forms FORMAT.md's Checks lists (`em` and `calc()` it can't read). It's the smallest size readable from the back of a lecture hall.
 - **Every scene renders exactly one layout as its root**: the check warns about a scene that doesn't.

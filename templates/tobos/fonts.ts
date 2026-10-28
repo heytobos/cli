@@ -1,8 +1,8 @@
 /**
  * Copy the master's typefaces, tobos.ai's own (all SIL Open Font License, licences included),
- * into a template's media/master/fonts/, and record them in its media.json, as `tobos push`
- * would: this template's, or the one whose folder is given (Tobos simple's build runs it so).
- * What else media.json records stays.
+ * into a template's media/master/fonts/, and record them in its media.json, as Tobos does for
+ * what a write puts into media/: this template's, or the one whose folder is given (Tobos
+ * simple's build runs it so). What else media.json records stays.
  */
 import { createHash } from 'node:crypto';
 import {
