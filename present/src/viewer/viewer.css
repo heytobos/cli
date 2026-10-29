@@ -121,7 +121,7 @@ html.tobos-print .tobos-page {
   break-after: page;
 }
 
-/* A share link's controls (share-bar.ts): in the corner, while the pointer moves. */
+/* A share link's controls (share-bar.ts): in the bottom corners, while the pointer moves. */
 .tobos-share-bar {
   position: absolute;
   right: max(16px, env(safe-area-inset-right));
@@ -131,6 +131,10 @@ html.tobos-print .tobos-page {
   opacity: 0;
   transition: opacity 0.3s;
   pointer-events: none;
+}
+.tobos-share-bar.tobos-share-left {
+  right: auto;
+  left: max(16px, env(safe-area-inset-left));
 }
 .tobos-share-bar.tobos-shown,
 .tobos-share-bar.tobos-busy,
@@ -170,6 +174,15 @@ html.tobos-print .tobos-page {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+.tobos-share-bar .tobos-fullscreen {
+  width: 36px;
+  padding: 0;
+  justify-content: center;
+}
+.tobos-share-bar .tobos-fullscreen svg {
+  width: 16px;
+  height: 16px;
 }
 .tobos-share-bar .tobos-animations[aria-pressed='false'] {
   color: rgba(255, 255, 255, 0.6);
