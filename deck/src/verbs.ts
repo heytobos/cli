@@ -137,7 +137,7 @@ export const VERBS = {
     chat: 'Each file’s text in full, a patch of part of it, a file on the web for media/, or null to delete it. All or nothing, so put everything a step needs into one call.',
   },
   new: {
-    does: 'Makes a deck in the person’s account from a template, Tobos simple unless another is named, such as the person’s own house style (ask which when they have several), with its first version, `rev`; or, as a template, a new template: a copy of all of the one it starts from.',
+    does: 'Makes a deck in the person’s account from a template, Tobos standard unless another is named, such as the person’s own house style (ask which when they have several), with its first version, `rev`; or, as a template, a new template: a copy of all of the one it starts from.',
     input: {
       properties: {
         title: { type: 'string', description: 'The title of the talk.' },
@@ -150,7 +150,7 @@ export const VERBS = {
     cli: [
       {
         usage: 'tobos new "Title" [--from <id>] [--template] [--dir dir]',
-        does: 'a deck from a template (Tobos simple unless --from), or a template; pulled into ./<id> or dir (--no-pull: only made)',
+        does: 'a deck from a template (Tobos standard unless --from), or a template; pulled into ./<id> or dir (--no-pull: only made)',
       },
     ],
   },

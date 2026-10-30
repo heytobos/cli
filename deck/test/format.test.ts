@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'svelte/compiler';
 import { describe, expect, it } from 'vitest';
@@ -50,14 +50,8 @@ function propsOf(source: string): string[] {
   return [];
 }
 
-// Every template there is: here both, in heytobos/cli only tobos (mirror/sync.sh).
-const templates = new URL('../../templates/', import.meta.url);
-const names = readdirSync(templates, { withFileTypes: true })
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => entry.name);
-
-describe.each(names)("FORMAT.md's scenes, on the %s template's master", (name) => {
-  const root = fileURLToPath(new URL(`${name}/`, templates));
+describe("FORMAT.md's scenes, on Tobos standard's master, which new decks start from", () => {
+  const root = fileURLToPath(new URL('../../templates/tobos/', import.meta.url));
   const tree = directoryTree(root);
 
   it('build', async () => {

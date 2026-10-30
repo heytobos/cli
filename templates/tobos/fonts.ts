@@ -1,8 +1,7 @@
 /**
  * Copy the master's typefaces, tobos.ai's own (all SIL Open Font License, licences included),
- * into a template's media/master/fonts/, and record them in its media.json, as Tobos does for
- * what a write puts into media/: this template's, or the one whose folder is given (Tobos
- * simple's build runs it so). What else media.json records stays.
+ * into this template's media/master/fonts/, and record them in its media.json, as Tobos does for
+ * what a write puts into media/. What else media.json records stays.
  */
 import { createHash } from 'node:crypto';
 import {
@@ -15,11 +14,11 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { MediaJson } from '@tobos/deck';
 
-const root = resolve(process.argv[2] ?? dirname(fileURLToPath(import.meta.url)));
+const root = dirname(fileURLToPath(import.meta.url));
 const source = dirname(fileURLToPath(import.meta.resolve('@tobos/site/fonts.css')));
 const files = readdirSync(source).filter((file) => /\.(woff2|txt)$/.test(file));
 const dir = join(root, 'media', 'master', 'fonts');

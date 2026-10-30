@@ -12,7 +12,7 @@ Tobos hosts presentations written as code: a deck is a folder of files, one Svel
 ## Get to the deck
 
 - `tobos ls` lists the decks and templates the person can work on, by id. `tobos pull <id>` gets one; `tobos new "Title"` starts one and pulls it.
-- A new deck starts from Tobos simple. The person's own templates, their house styles, are in `tobos ls`: start from one with `--from <id>`, and ask which when there are several.
+- A new deck starts from Tobos standard. The person's own templates, their house styles, are in `tobos ls`: start from one with `--from <id>`, and ask which when there are several.
 - Then read the deck's `AGENTS.md`: it points to the loop, the format and the deck's slide master.
 - The person's decks are in folders, which `tobos --help` lists the commands for.
 

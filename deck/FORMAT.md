@@ -380,4 +380,4 @@ A template is a deck people start from.
 - A copy is a copy: nothing refers back to the template, so changing it changes only the decks made from it afterwards. To bring a deck along, copy the master's files across.
 - A template's scenes are its gallery, one per layout or component with sample content, shown on its page in Tobos. When you add or change a layout, add or change its scene too.
 - A new deck gets the template's master but not its `lib/` or `scenes/`, so the master imports neither: it keeps to its own files and packages.
-- Tobos simple (`50ca89b5-c668-465b-b72b-eb5da0b9b9ab`: Title, Agenda, Content with one box, Blank, and the grid's guides) and Tobos standard (`06b48295-7c5c-4e1f-90f5-a082d60941de`, the full house style) come with Tobos: anyone may read them and start from them.
+- Tobos standard (`06b48295-7c5c-4e1f-90f5-a082d60941de`, the full house style: Title, Section, Content, Agenda and Blank, with Quote, Stat, Chip and Code) comes with Tobos: anyone may read it and start from it, and a new deck or template starts from it unless it names another.

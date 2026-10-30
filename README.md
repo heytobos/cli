@@ -16,14 +16,14 @@ Read tobos.ai/start and set me up with Tobos.
 
 Everything `@tobos/cli` is built from, and the format it checks:
 
-| Folder             | What                                                                                |
-| ------------------ | ----------------------------------------------------------------------------------- |
-| `cli/`             | the `tobos` command                                                                 |
-| `deck/`            | the deck format: compiling and checking a deck. `deck/FORMAT.md` describes it       |
-| `present/`         | the engine that presents a deck, and its API for scenes (`@tobos/present`)          |
-| `agent-pack/`      | the skill `tobos skill install` puts into your harness                              |
-| `templates/tobos/` | Tobos standard, the full house style, for decks whose owner has no default template |
-| `site/`            | tobos.ai's colours and typefaces, which the engine and Tobos standard use           |
+| Folder             | What                                                                          |
+| ------------------ | ----------------------------------------------------------------------------- |
+| `cli/`             | the `tobos` command                                                           |
+| `deck/`            | the deck format: compiling and checking a deck. `deck/FORMAT.md` describes it |
+| `present/`         | the engine that presents a deck, and its API for scenes (`@tobos/present`)    |
+| `agent-pack/`      | the skill `tobos skill install` puts into your harness                        |
+| `templates/tobos/` | Tobos standard, the full house style, which new decks start from              |
+| `site/`            | tobos.ai's colours and typefaces, which the engine and Tobos standard use     |
 
 ```sh
 pnpm install

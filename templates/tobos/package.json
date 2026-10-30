@@ -4,7 +4,7 @@
   "private": true,
   "license": "FSL-1.1-ALv2",
   "type": "module",
-  "description": "Tobos standard, the full house style: a template whose scenes show off its master/, which a new deck copies when its owner has no default template.",
+  "description": "Tobos standard, the full house style: the one built-in template, whose scenes show off its master/, which a new deck copies unless it names another template.",
   "scripts": {
     "build": "node fonts.ts",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings --threshold warning",
