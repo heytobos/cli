@@ -10,7 +10,7 @@ import {
   type Manifest,
   type Problem,
 } from '../src/index.ts';
-import { mediaMatches } from '../src/analyze.ts';
+import { globMatcher, mediaMatches } from '../src/media-pattern.ts';
 import { directoryTree } from '../src/node.ts';
 
 const sampleDir = directoryTree(fileURLToPath(new URL('../fixtures/sample', import.meta.url)));
@@ -365,7 +365,8 @@ describe('compiling', () => {
   it('reports a module that is no JavaScript where it stops being, and checks nothing else in it', async () => {
     const problems = await checkDeck(
       variant({
-        'lib/format.ts': "export const far = 1;\nexport const far = 2;\nmedia('cow.jpg');",
+        'lib/format.ts':
+          "export const far = 1;\nexport const far = 2;\nimport cow from '$media/cow.jpg';",
       }),
     );
     expect(problems).toEqual([
@@ -550,7 +551,7 @@ describe('imports', () => {
     expect(problems.map((p) => p.message)).toEqual([
       '"../../x.js" points outside the deck.',
       '"../lib/nope.ts" doesn\'t exist (looked for lib/nope.ts).',
-      '"../media/cow.jpg" can\'t be imported: only .svelte, .ts, .js and .json files can. Use media() for media.',
+      "\"../media/cow.jpg\" can't be imported: only .svelte, .ts, .js and .json files can. A file of media/ is imported as `import cow from '$media/cow.jpg'`.",
     ]);
   });
 
@@ -760,8 +761,8 @@ describe('media', () => {
       variant({
         'scenes/title.svelte': scene(
           "export const beats = [{ id: 'a' }];",
-          '<img src={media("constructor")} alt="" />',
-          "import { media } from '@tobos/present';",
+          '<img src={odd} alt="" />',
+          "import odd from '$media/constructor';",
         ),
         'master/tokens.css': ':root { --x: url(../media/toString); }',
       }),
@@ -776,30 +777,67 @@ describe('media', () => {
     const problems = (await checkDeck(variant({ 'media.json': '{}' }))).filter((p) =>
       p.file.startsWith('scenes/'),
     );
-    expect(problems).toMatchObject([
-      { file: 'scenes/clip.svelte', rule: 'media', message: expect.stringContaining('clip.webm') },
+    expect(problems).toEqual([
       {
-        file: 'scenes/question.svelte',
+        file: 'scenes/clip.svelte',
+        line: 13,
+        column: 20,
         rule: 'media',
-        message: expect.stringContaining('scan.png'),
+        message:
+          "'$media/clip.webm' is not in media.json. Put the file in media/ (tobos check and push record it there).",
+        severity: 'error',
       },
-      { file: 'scenes/sound.svelte', rule: 'media', message: expect.stringContaining('tone.wav') },
-      { file: 'scenes/sound.svelte', rule: 'media', message: expect.stringContaining('tone.wav') },
+      expect.objectContaining({ file: 'scenes/question.svelte', rule: 'media' }),
+      expect.objectContaining({ file: 'scenes/sound.svelte', rule: 'media' }),
     ]);
   });
 
-  it('needs a literal name', async () => {
-    const problems = await checkDeck(
-      variant({
-        'scenes/title.svelte': scene(
-          "export const beats = [{ id: 'a' }];",
-          '<img alt="" src={media(name)} />',
-          "import { media } from '@tobos/present';\nconst name = 'scan.png';",
+  it('are compiled into lookups of the media map, so a file changing changes no module', async () => {
+    const { manifest, modules } = await buildDeck(sample);
+    const question = modules.get(manifest!.imports['@deck/scenes/question.svelte']!)!;
+    expect(question).not.toContain('$media/');
+    expect(question).toContain("from '@tobos/present/media'");
+    expect(question).toContain('__tobos_media("scan.png")');
+    const media = JSON.parse(text(sample.read('media.json')));
+    media['scan.png'].hash = 'f'.repeat(64);
+    const changed = (await buildDeck(variant({ 'media.json': JSON.stringify(media) }))).manifest!;
+    expect(changed.imports).toEqual(manifest!.imports);
+    expect(changed.format).toBe(2);
+  });
+
+  it('are imported by their default export, with an import statement', async () => {
+    const refused = async (instance: string, more: Record<string, string> = {}) =>
+      errors(
+        await checkDeck(
+          variant({
+            'scenes/title.svelte': scene("export const beats = [{ id: 'a' }];", '', instance),
+            ...more,
+          }),
         ),
+      ).map((p) => [p.file, p.line, p.rule, p.message]);
+    const defaultOnly =
+      "A file of media/ is imported by its default export, its URL: `import cow from '$media/cow.jpg'`.";
+    expect(await refused("import { scan } from '$media/scan.png';")).toEqual([
+      ['scenes/title.svelte', 5, 'media', defaultOnly],
+    ]);
+    expect(await refused("import * as scan from '$media/scan.png';")).toEqual([
+      ['scenes/title.svelte', 5, 'media', defaultOnly],
+    ]);
+    expect(await refused("import '$media/scan.png';")).toEqual([
+      ['scenes/title.svelte', 5, 'media', defaultOnly],
+    ]);
+    expect(
+      await refused("import scan from '../lib/scan.ts';", {
+        'lib/scan.ts': "export { default } from '$media/scan.png';\n",
       }),
-    );
-    expect(problems).toMatchObject([
-      { rule: 'media', message: expect.stringContaining('string literal') },
+    ).toEqual([['lib/scan.ts', 1, 'media', expect.stringContaining('then exported by that name')]]);
+    expect(await refused("const later = () => import('$media/scan.png');")).toEqual([
+      [
+        'scenes/title.svelte',
+        5,
+        'media',
+        "import() doesn't load media: import the file at the top, `import cow from '$media/cow.jpg'`.",
+      ],
     ]);
   });
 
@@ -807,10 +845,10 @@ describe('media', () => {
     const problems = await checkDeck(
       variant({
         'lib/format.ts':
-          "import { media } from '@tobos/present';\nexport const cow = media('cow.jpg');\nexport const visible = (text: string) => text;",
+          "import cow from '$media/cow.jpg';\nexport const visible = (text: string) => text + cow;",
       }),
     );
-    expect(problems).toMatchObject([{ file: 'lib/format.ts', line: 2, rule: 'media' }]);
+    expect(problems).toMatchObject([{ file: 'lib/format.ts', line: 1, rule: 'media' }]);
   });
 
   it('rejects a malformed media.json', async () => {
@@ -818,22 +856,30 @@ describe('media', () => {
     expect(problems).toMatchObject([{ file: 'media.json', rule: 'media-json' }]);
   });
 
-  it('is called by its own name, which the check reads', async () => {
+  it("refuses format 1's media(), each call with the line that replaces it", async () => {
     const problems = await checkDeck(
       variant({
         'scenes/title.svelte': scene(
           "export const beats = [{ id: 'a' }];",
-          '<img src={m("scan.png")} alt="" />',
-          "import { media as m } from '@tobos/present';",
+          '<img src={media("scan.png")} alt="" />',
+          "import { media } from '@tobos/present';",
         ),
+        'lib/engine.ts': "export { media } from '@tobos/present';\n",
       }),
     );
-    expect(errors(problems)).toMatchObject([
-      {
-        file: 'scenes/title.svelte',
-        rule: 'media',
-        message: expect.stringContaining("`import { media } from '@tobos/present'`"),
-      },
+    expect(errors(problems).map((p) => [p.file, p.line, p.rule, p.message])).toEqual([
+      [
+        'lib/engine.ts',
+        1,
+        'media',
+        "media() is gone: import each file it shows, `import cow from '$media/cow.jpg'`.",
+      ],
+      [
+        'scenes/title.svelte',
+        7,
+        'media',
+        `media("scan.png") is gone: import scan from '$media/scan.png' at the top of the script, and write {scan}.`,
+      ],
     ]);
   });
 
@@ -885,20 +931,19 @@ describe('what a share gets', () => {
       "import Frame from '../lib/Frame.svelte';",
     ),
     'lib/Frame.svelte':
-      '<script lang="ts">\n  import { media } from \'@tobos/present\';\n  let { kind }: { kind: string } = $props();\n</script>\n<img src={media(`frames/${kind}.png`)} alt="" />\n',
-    'lib/later.ts':
-      "import { media } from '@tobos/present';\nexport const later = media('later.png');\n",
+      '<script lang="ts">\n  const frames = import.meta.glob(\'$media/frames/*.png\');\n  let { kind }: { kind: string } = $props();\n</script>\n<img src={frames[`$media/frames/${kind}.png`]} alt="" />\n',
+    'lib/later.ts': "import later from '$media/later.png';\nexport { later };\n",
     'scenes/quiz.svelte': scene(
       "export const beats = [{ id: 'ask' }, { id: 'result' }];\nexport const activity = { id: 'quiz', kind: 'choice', prompt: 'Which?', options: ['A', 'B'], reveals: 'result' };",
-      '<Frame kind="b" /><img src={media("quiz/answer.png")} alt="" /><Reveal />',
-      "import { media } from '@tobos/present';\nimport Frame from '../lib/Frame.svelte';\nimport Reveal from './quiz/Reveal.svelte';",
+      '<Frame kind="b" /><img src={answer} alt="" /><Reveal />',
+      "import answer from '$media/quiz/answer.png';\nimport Frame from '../lib/Frame.svelte';\nimport Reveal from './quiz/Reveal.svelte';",
     ),
     'scenes/quiz/Reveal.svelte':
-      '<script lang="ts">\n  import { media } from \'@tobos/present\';\n</script>\n<img src={media(\'quiz/reveal.png\')} alt="" />\n',
+      '<script lang="ts">\n  import reveal from \'$media/quiz/reveal.png\';\n</script>\n<img src={reveal} alt="" />\n',
     'scenes/draft.svelte': scene(
       "export const beats = [{ id: 'a' }];",
-      '<img src={media("draft.png")} alt="" />',
-      "import { media } from '@tobos/present';",
+      '<img src={draft} alt="" />',
+      "import draft from '$media/draft.png';",
     ),
   });
 
@@ -910,7 +955,8 @@ describe('what a share gets', () => {
     expect(modules['@deck/scenes/title.svelte']).toEqual({
       imports: ['@deck/lib/Frame.svelte', '@deck/lib/later.ts'],
     });
-    // A pattern as written, which a share matches against media.json.
+    expect(modules['@deck/lib/later.ts']).toEqual({ media: ['later.png'] });
+    // A glob's pattern as written, which a share matches against media.json.
     expect(modules['@deck/lib/Frame.svelte']).toEqual({ patterns: ['frames/*.png'] });
     expect(modules['@deck/scenes/quiz.svelte']).toEqual({
       imports: ['@deck/lib/Frame.svelte', '@deck/scenes/quiz/Reveal.svelte'],
@@ -975,7 +1021,7 @@ describe('what a share gets', () => {
       const parts: Record<string, string> = {};
       for (let i = 0; i < modules; i++)
         parts[`lib/parts/${i}.ts`] =
-          "import { media } from '@tobos/present';\nexport const part = (name: string) => media(`parts/${name}.png`);\n";
+          "const parts = import.meta.glob('$media/parts/*.png');\nexport const part = (name: string) => parts[`$media/parts/${name}.png`];\n";
       const { manifest, problems } = await buildDeck(
         variant({
           ...parts,
@@ -1002,74 +1048,6 @@ describe('what a share gets', () => {
     // A share still gets every file the pattern matches.
     const shared = Object.keys(sharedManifest(large).media);
     expect(shared.filter((name) => name.startsWith('parts/'))).toHaveLength(2000);
-  });
-});
-
-describe("media() through the deck's own files", () => {
-  const titled = (body: string, instance: string, more: Record<string, string> = {}) =>
-    variant({
-      'scenes/title.svelte': scene("export const beats = [{ id: 'a' }];", body, instance),
-      ...more,
-    });
-
-  it("is read where one of them passes the engine's on", async () => {
-    const { manifest, problems } = await buildDeck(
-      titled(
-        '<img src={media("scan.png")} alt="" /><img src={tools.media(`${name}.webm`)} alt="" />',
-        "import { media } from '../lib/engine.ts';\nimport * as tools from '../lib/tools.ts';\nconst name = 'clip';",
-        {
-          'lib/engine.ts': "export { media, useDeck } from '@tobos/present';\n",
-          'lib/tools.ts': "export * from './engine.ts';\nexport const two = 2;\n",
-        },
-      ),
-    );
-    expect(errors(problems)).toEqual([]);
-    expect(manifest!.uses!.modules['@deck/scenes/title.svelte']).toMatchObject({
-      media: ['scan.png'],
-      patterns: ['*.webm'],
-    });
-  });
-
-  it("leaves alone a `media` of the deck's own", async () => {
-    const problems = await checkDeck(
-      titled('<p>{media.phone}</p>', "import { media as m, media } from '../lib/queries.ts';", {
-        'lib/queries.ts': "export const media = { phone: '(max-width: 600px)' };\n",
-      }),
-    );
-    expect(errors(problems)).toEqual([]);
-  });
-
-  it("refuses it under another name, or as a value, where one passes the engine's on", async () => {
-    const refused = async (instance: string, more: Record<string, string> = {}) =>
-      errors(
-        await checkDeck(
-          titled('<p>hi</p>', instance, {
-            'lib/engine.ts': "export * from '@tobos/present';\n",
-            ...more,
-          }),
-        ),
-      ).map((p) => [p.file, p.line, p.rule]);
-    expect(await refused("import { media as m } from '../lib/engine.ts';")).toEqual([
-      ['scenes/title.svelte', 5, 'media'],
-    ]);
-    expect(
-      await refused("import * as engine from '../lib/engine.ts';\nconst m = engine.media;"),
-    ).toEqual([['scenes/title.svelte', 6, 'media']]);
-    expect(await refused("const later = () => import('../lib/engine.ts');")).toEqual([
-      ['scenes/title.svelte', 5, 'media'],
-    ]);
-    expect(
-      await refused('', { 'lib/more.ts': "export * as engine from './engine.ts';\n" }),
-    ).toEqual([['lib/more.ts', 1, 'media']]);
-    const [problem] = errors(
-      await checkDeck(
-        titled('<p>hi</p>', "import { media as m } from '../lib/engine.ts';", {
-          'lib/engine.ts': "export * from '@tobos/present';\n",
-        }),
-      ),
-    );
-    expect(problem!.message).toContain("`import { media } from '@tobos/present'`");
-    expect(problem!.message).toContain('a share link gets only those');
   });
 });
 
@@ -1351,35 +1329,82 @@ describe('the rules a master and the stage set', () => {
   });
 });
 
-describe('media patterns', () => {
-  const body = '<img alt="" src={media(`sc${"an"}.png`)} />';
-  it('pass when a file matches', async () => {
-    const problems = await checkDeck(
-      variant({
-        'scenes/title.svelte': scene(
-          "export const beats = [{ id: 'a' }];",
-          body,
-          "import { media } from '@tobos/present';",
-        ),
-      }),
+describe('media globs', () => {
+  const titled = (instance: string, body = '<p>hi</p>') =>
+    variant({
+      'scenes/title.svelte': scene("export const beats = [{ id: 'a' }];", body, instance),
+    });
+
+  it('pass when a file matches, and give each by its specifier', async () => {
+    const { problems, manifest, modules } = await buildDeck(
+      titled(
+        "const scans = import.meta.glob(['$media/sc*.png', '$media/**/*.webm']);",
+        '<img alt="" src={scans[\'$media/scan.png\']} />',
+      ),
     );
     expect(problems).toEqual([]);
+    expect(manifest!.uses!.modules['@deck/scenes/title.svelte']).toEqual({
+      patterns: ['**/*.webm', 'sc*.png'],
+    });
+    const title = modules.get(manifest!.imports['@deck/scenes/title.svelte']!)!;
+    expect(title).toContain('__tobos_glob(["sc*.png","**/*.webm"])');
+    expect(title).toContain("import { mediaGlob as __tobos_glob } from '@tobos/present/media'");
   });
+
   it('fail when none does', async () => {
-    const problems = await checkDeck(
-      variant({
-        'scenes/title.svelte': scene(
-          "export const beats = [{ id: 'a' }];",
-          '<img alt="" src={media(`cow/${part}.png`)} />',
-          "import { media } from '@tobos/present';\nconst part = 'ear';",
-        ),
-      }),
-    );
+    const problems = await checkDeck(titled("const cow = import.meta.glob('$media/cow/*.png');"));
     expect(problems).toMatchObject([
-      { rule: 'media', message: expect.stringContaining('cow/${…}.png') },
+      {
+        line: 5,
+        rule: 'media',
+        message: "No file in media.json matches '$media/cow/*.png'. Put the files in media/.",
+      },
     ]);
   });
-  it('match * as anything and the rest literally, without backtracking', () => {
+
+  it('take literal patterns of media/, and no options', async () => {
+    const refused = async (instance: string) =>
+      errors(await checkDeck(titled(instance))).map((p) => [p.rule, p.message]);
+    expect(await refused("const all = import.meta.glob('$media/*.png', { eager: true });")).toEqual(
+      [
+        [
+          'media',
+          "import.meta.glob takes no options here: it gives each file's URL at once, by its name.",
+        ],
+      ],
+    );
+    expect(await refused("const at = '$media/*.png';\nconst all = import.meta.glob(at);")).toEqual([
+      [
+        'media',
+        "import.meta.glob takes its pattern as a string literal, `import.meta.glob('$media/cow/*.png')`, so Tobos can check it matches files.",
+      ],
+    ]);
+    expect(await refused("const all = import.meta.glob('../lib/*.ts');")).toMatchObject([
+      ['media', expect.stringContaining("starts with '$media/'")],
+    ]);
+    expect(await refused('const glob = import.meta.glob;')).toMatchObject([
+      ['media', expect.stringContaining('Call import.meta.glob where it is written')],
+    ]);
+  });
+
+  it('match * within a folder, ** across folders, without backtracking', () => {
+    expect(globMatcher('cow/*.png')('cow/ear.png')).toBe(true);
+    expect(globMatcher('cow/*.png')('cow/ear/left.png')).toBe(false);
+    expect(globMatcher('cow/**/*.png')('cow/ear.png')).toBe(true);
+    expect(globMatcher('cow/**/*.png')('cow/ear/left/1.png')).toBe(true);
+    expect(globMatcher('cow/**/*.png')('ox/ear.png')).toBe(false);
+    expect(globMatcher('**/ear/**/*.png')('cow/ear/left/1.png')).toBe(true);
+    expect(globMatcher('**/ear/**/*.png')('cow/eye/left/1.png')).toBe(false);
+    expect(globMatcher('**')('cow/ear.png')).toBe(true);
+    expect(globMatcher('a/**/b/c')('a/b/b/c')).toBe(true);
+    expect(globMatcher('*.png')('cow/ear.png')).toBe(false);
+    // The deck writes both sides: a regex would backtrack here for minutes.
+    const deep = ('b/'.repeat(100) + 'a/').repeat(19) + 'x.png';
+    expect(globMatcher('**/a/'.repeat(20) + '**/x.png')(deep)).toBe(false);
+    expect(globMatcher('**/a/'.repeat(19) + '**/x.png')(deep)).toBe(true);
+  });
+
+  it("of format 1, media()'s, match * as anything and the rest literally, without backtracking", () => {
     expect(mediaMatches('cow/*.png', 'cow/ear.png')).toBe(true);
     expect(mediaMatches('cow/*.png', 'cow/.png')).toBe(true);
     expect(mediaMatches('cow/*.png', 'cow/ear.jpg')).toBe(false);
@@ -1387,7 +1412,6 @@ describe('media patterns', () => {
     expect(mediaMatches('*a*b*', 'xxbxa')).toBe(false);
     expect(mediaMatches('a*a', 'a')).toBe(false);
     expect(mediaMatches('c.w', 'cow')).toBe(false);
-    // The deck writes both sides: a regex would backtrack here for minutes.
     expect(mediaMatches('*a'.repeat(20) + 'b.png', 'a'.repeat(10_000) + '.png')).toBe(false);
   });
 });

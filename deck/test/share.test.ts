@@ -176,6 +176,15 @@ describe('sharedManifest, with what each module uses', () => {
     expect(unrecorded.media).toEqual({});
   });
 
+  it("matches a pattern as its format wrote it: media()'s `*` across folders, a glob's within one", () => {
+    const deeper = { ...recorded, media: { ...recorded.media, 'chart/old/c.png': entry('3') } };
+    expect(Object.keys(sharedManifest(deeper).media)).toContain('chart/old/c.png');
+    const globbed = Object.keys(sharedManifest({ ...deeper, format: 2 }).media);
+    expect(globbed).toContain('chart/a.png');
+    expect(globbed).not.toContain('chart/old/c.png');
+    expect(Object.keys(mediaInUse({ ...deeper, format: 2 }))).not.toContain('chart/old/c.png');
+  });
+
   it('shares a manifest pushed before the build recorded it as it did then', () => {
     expect(shared.chapters).toEqual(sharedManifest(manifest).chapters);
     const before = sharedManifest({ ...recorded, uses: undefined });

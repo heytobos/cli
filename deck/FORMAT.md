@@ -109,13 +109,14 @@ A scene's module script may export an async `preload()`. The engine calls it onc
 
 ```svelte
 <script module lang="ts">
-  import { media, type Beat } from '@tobos/present';
+  import type { Beat } from '@tobos/present';
+  import closeUp from '$media/cow-close-up.jpg';
 
   export const beats: Beat[] = [{ id: 'cow' }, { id: 'close-up' }];
 
   export async function preload() {
     const later = new Image();
-    later.src = media('cow-close-up.jpg');
+    later.src = closeUp;
     await later.decode();
   }
 </script>
@@ -129,13 +130,14 @@ The URL names a position as `#scene/beat`. `#scene/2` is the scene's third beat,
 
 A scene, and anything in `master/` and `lib/`, may import:
 
-| Import                      | What it is                                                                                                                                          |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `svelte`, `svelte/*`        | Svelte 5                                                                                                                                            |
-| `gsap`, `gsap/*`            | GSAP 3, all plugins                                                                                                                                 |
-| `@tobos/present`            | the engine's API for scenes: `Beat`, `media()`, `playVideo()`, `playAudio()`, `useDeck()`, `Activity`, `useResponses()`, `useJoin()`, `<JoinCode/>` |
-| `./…`, `../…`               | files inside the deck: `.svelte`, `.ts`, `.js`, `.json`; the master is `../master/index.ts` from a scene                                            |
-| a package in `dependencies` | any npm package that runs in a browser                                                                                                              |
+| Import                      | What it is                                                                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `svelte`, `svelte/*`        | Svelte 5                                                                                                                                 |
+| `gsap`, `gsap/*`            | GSAP 3, all plugins                                                                                                                      |
+| `@tobos/present`            | the engine's API for scenes: `Beat`, `playVideo()`, `playAudio()`, `useDeck()`, `Activity`, `useResponses()`, `useJoin()`, `<JoinCode/>` |
+| `./…`, `../…`               | files inside the deck: `.svelte`, `.ts`, `.js`, `.json`; the master is `../master/index.ts` from a scene                                 |
+| `$media/…`                  | a file in `media/`, as its URL (see [Media](#media))                                                                                     |
+| a package in `dependencies` | any npm package that runs in a browser                                                                                                   |
 
 Nothing else: no Node APIs, no URLs, no files outside the deck.
 
@@ -166,21 +168,32 @@ Keep those scripts in `scripts/`, so the next person can rerun them. `scripts/` 
 
 ## Media
 
-Put files in `media/`: Tobos stores each by its content, and records them in `media.json`, which only it writes. Delete a file from `media/`, and it is out of the deck. In a scene:
+Put files in `media/`: Tobos stores each by its content, and records them in `media.json`, which only it writes. Delete a file from `media/`, and it is out of the deck. Import a file by its path inside `media/`: its default export is its URL.
 
 ```svelte
 <script lang="ts">
-  import { media } from '@tobos/present';
+  import cow from '$media/cow.jpg';
 </script>
 
-<img src={media('cow.jpg')} alt="A cow" />
+<img src={cow} alt="A cow" />
 ```
 
-- **A file is named by its path inside `media/`**, as a string literal, so Tobos can check it exists. When the names come from data, a template literal is checked as a pattern: ``media(`cow/${part}.png`)`` must match at least one file of `cow/*.png`.
-- **`media()` is called by its own name**: imported from `@tobos/present`, from one of the deck's files that passes it on as `media` (`export { media } from '@tobos/present'`), or as `present.media('cow.jpg')` after `import * as present from '@tobos/present'`. Tobos reads each call to know which files a scene shows, and a share link gets only those (see [the share link](#the-share-link)), so it refuses `media()` under another name (`import { media as m }`), passed on as a value (`names.map(media)`) or loaded with `import()`. A `media` of the deck's own, or a parameter by that name, isn't the engine's, and is left alone.
+- **Files by a pattern**: `import.meta.glob('$media/cow/*.png')` gives each file it matches, by its specifier (`'$media/cow/ear.png'`), with its URL, in order. `*` matches within a folder's name, and a `**` folder any number of folders (`'$media/cow/**/*.png'`). The pattern is a string literal, or an array of them, and takes no options: the URLs are there at once.
+
+  ```svelte
+  <script lang="ts">
+    const parts = import.meta.glob('$media/cow/*.png');
+    let { part }: { part: string } = $props();
+  </script>
+
+  <img src={parts[`$media/cow/${part}.png`]} alt="" />
+  ```
+
+- **Tobos checks each**: an import names a file `media.json` lists, and a pattern matches at least one. A file is imported with an import statement, by its default export, so Tobos sees which files each scene shows, and a share link gets only those (see [the share link](#the-share-link)); `import()` can't load one. To TypeScript, an import is a `string`, a glob a `Record<string, string>`.
 - **Size media for the stage**: a 4000-pixel scan shown at 800 pixels costs memory on every phone that opens the deck. Tobos notes files over 25 MB.
-- **Only media on a slide counts toward the plan**: the files the `media()` calls of the scenes `deck.json` lists name, with everything they import, the master's, and the fonts `tokens.css` links. The master's own files, under `media/master/`, count as on a slide.
+- **Only media on a slide counts toward the plan**: the files the scenes `deck.json` lists import, with everything they import, the master's, and the fonts `tokens.css` links. The master's own files, under `media/master/`, count as on a slide.
 - **A file no slide shows** draws the check's warning. The server keeps such a file for 7 days, and may delete it after that: to show it then, put it into `media/` again, or drop it on the deck's page. A scene that names a file the server no longer has is refused until it is there again.
+- **Decks from before called `media('cow.jpg')`** from `@tobos/present`. A version pushed then shows as it did; the check refuses each call now, with the line that replaces it.
 
 ## Video
 
@@ -203,10 +216,10 @@ A video plays as part of a beat: `playVideo(tl, q('video'))` in the beat's `ente
 </script>
 
 <script lang="ts">
-  import { media } from '@tobos/present';
+  import cowTurns from '$media/cow-turns.webm';
 </script>
 
-<video src={media('cow-turns.webm')} muted playsinline preload="auto"></video>
+<video src={cowTurns} muted playsinline preload="auto"></video>
 <p data-part="caption">She knows she's being watched.</p>
 ```
 
@@ -239,17 +252,16 @@ A sound plays as part of a beat, as a video does: `playAudio(tl, q('audio'))` in
 </script>
 
 <script lang="ts">
-  import { media } from '@tobos/present';
+  import blackbird from '$media/blackbird.m4a';
 </script>
 
-<audio src={media('blackbird.m4a')} preload="auto"></audio>
-<p data-part="caption">A blackbird, at dawn.</p>
+<audio src={blackbird} preload="auto"></audio><p data-part="caption">A blackbird, at dawn.</p>
 ```
 
 - **Stepping forward plays it** in real time, and the beat lasts as long as the clip. A click while it plays stops it and starts the next beat. Going back, jumping or reloading is silent, and so is a scene waiting mounted ahead.
 - **Options**, `playAudio(tl, target, { from, to, rate, position })`, as for a video.
 - **Playing on through beats**: `playAudio(tl, q('audio'), { until: 'outro' })` starts the sound on this beat and lets it play on, while the presenter clicks on, or back, through the beats before `outro`. It fades out over a second when `outro`, or a beat before its own, is shown, or the scene is left; `fade` sets the seconds, `0` stops it at once (iPhone and iPad always stop it at once). The beat it starts in doesn't wait for it, so `to` and `position` don't apply: it plays from `from` to its end, or until then. Only a step forward onto its beat starts it: a jump or a reload into the middle of the range is silent. `until` is a string literal naming a later beat of the same scene; the check refuses any other. A range ends with its scene at the latest.
-- **The timeline starts and stops the sound.** Write `<audio src={media(…)} preload="auto">`, without `controls`, `autoplay` or `loop`, and don't call `play()` yourself. Nothing of it shows on stage: where the room needs to know what it hears, say so on the slide, which is also all a PDF shows.
+- **The timeline starts and stops the sound.** Write `<audio src={blackbird} preload="auto">`, without `controls`, `autoplay` or `loop`, and don't call `play()` yourself. Nothing of it shows on stage: where the room needs to know what it hears, say so on the slide, which is also all a PDF shows.
 - **A video's own sound**: `playVideo(tl, q('video'), { sound: true })`, by the same rules.
 - **One window is heard**: the one someone clicks through, a share link's among them, and, while presenting, the audience window, which plays the presenter's clicks aloud. The presenter's view, other windows that follow the show, renders and PDFs are silent, and so is a deck with its animations turned off.
 - **A browser lets a page make sound once someone has clicked or pressed a key in it.** Presenting, the click that makes the audience window fullscreen does it. Where a browser refuses all the same, the window says "Click for sound": a click there plays on with sound. A sound waits meanwhile, and a video plays on muted.
@@ -316,7 +328,7 @@ export const activity: Activity = {
 
 The share link (turned on on the deck's page) shows the deck to anyone with the link, without an account, to click through and download as a PDF, one page per scene at its last beat; it always shows the latest version. The deck's members download the same PDF from the page, shared or not. A share never opens a room: a scene with a poll is left out of it, and a chapter left with no scene goes too. So a scene that shows the join code next to other content still works shared: `<JoinCode/>` draws nothing there, and `useJoin()` is undefined.
 
-A share gets only what the scenes it shows use, and so does a member who may only view the deck: those scenes' code and everything it imports, the master's among it, the files their `media()` calls name, and the fonts `tokens.css` links. Nothing else of the deck reaches it. This goes by file: a scene that imports a component gets every file the component names; a pattern, every file it matches (``media(`${name}`)`` matches them all); a module that re-exports others (`lib/index.ts`), all of them. So import a poll's own components directly, not through such a module. A file Tobos doesn't see a scene use, such as a `media/<hash>` address written out, is missing on a share rather than shown.
+A share gets only what the scenes it shows use, and so does a member who may only view the deck: those scenes' code and everything it imports, the master's among it, the files of `media/` it imports, and the fonts `tokens.css` links. Nothing else of the deck reaches it. This goes by file: a scene that imports a component gets every file the component imports; a glob, every file it matches (`import.meta.glob('$media/**')` matches them all); a module that re-exports others (`lib/index.ts`), all of them. So import a poll's own components directly, not through such a module. A file Tobos doesn't see a scene use, such as a `media/<hash>` address written out, is missing on a share rather than shown.
 
 ## Checks
 
@@ -356,7 +368,7 @@ media/master/         the master's own files: its fonts, a logo (media like any 
 
 - Change the master when the deck needs something it doesn't have, and write the change down in `master/GUIDE.md`.
 - `tokens.css` is linked on every page that shows the deck. Its `url()`s name files in `media/`, relative to `master/`: `src: url(../media/master/fonts/brand.woff2)`. Nothing else in the deck may be a stylesheet; a component's own CSS goes in its `<style>` block.
-- A file the master's components show, such as a logo, is media: `media('master/logo.svg')`.
+- A file the master's components show, such as a logo, is media: `import logo from '$media/master/logo.svg'`.
 - `master.json`'s rules apply to every scene. Both are optional: without them, nothing is checked beyond the format.
 
 ## Templates

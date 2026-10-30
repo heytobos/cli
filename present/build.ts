@@ -63,6 +63,12 @@ const entries: { in: string; out: string; specifiers: string[] }[] = [
     specifiers: [...TYPES_ONLY].map((subpath) => `svelte/${subpath.slice(2)}`),
   },
   { in: join(root, 'src/index.ts'), out: 'present', specifiers: ['@tobos/present'] },
+  // What a deck's `$media` imports compile to (deck/src/media-imports.ts).
+  {
+    in: join(root, 'src/media-lookup.ts'),
+    out: 'media',
+    specifiers: ['@tobos/present/media'],
+  },
   { in: join(root, 'src/viewer/index.ts'), out: 'viewer', specifiers: ['@tobos/present/viewer'] },
 ];
 

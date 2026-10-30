@@ -1,15 +1,10 @@
 import { init as initLexer, parse as lexImports } from 'es-module-lexer';
 import { compile as compileSvelte, VERSION as SVELTE_VERSION } from 'svelte/compiler';
-import {
-  analyzeScript,
-  analyzeSvelte,
-  mediaMatcher,
-  type Analysis,
-  type MediaRef,
-  type Rules,
-} from './analyze.ts';
+import { analyzeScript, analyzeSvelte, type Analysis, type Rules } from './analyze.ts';
 import { parseDeckJson, parseMasterJson, parseMediaJson } from './deck-json.ts';
 import { sha256 } from './hash.ts';
+import { compileMedia, MEDIA } from './media-imports.ts';
+import { globMatcher } from './media-pattern.ts';
 import { mediaInUse } from './share.ts';
 import { stripTypes } from './strip-types.ts';
 import { position, readText, resolvePath } from './tree.ts';
@@ -212,6 +207,7 @@ function compileFile(path: string, source: string, rules: Rules, isScene: boolea
       return { code: '', imports: [], analysis, problems: [...problems, ...analysis.problems] };
   }
   problems.push(...analysis.problems);
+  code = compileMedia(code);
 
   const imports: CompiledFile['imports'] = [];
   try {
@@ -311,6 +307,8 @@ async function compileGraph(
         error('import() needs a string literal, so Tobos can check what it loads.');
         continue;
       }
+      // What compileMedia left of media/: analyze.ts says what is wrong with it.
+      if (spec.startsWith(MEDIA)) continue;
       if (spec.startsWith('./') || spec.startsWith('../')) {
         const target = resolvePath(path, spec);
         if (target === undefined) error(`"${spec}" points outside the deck.`);
@@ -320,7 +318,7 @@ async function compileGraph(
           );
         else if (!SOURCE.test(target) || target.startsWith('media/'))
           error(
-            `"${spec}" can't be imported: only .svelte, .ts, .js and .json files can. Use media() for media.`,
+            `"${spec}" can't be imported: only .svelte, .ts, .js and .json files can. A file of media/ is imported as \`import cow from '${MEDIA}cow.jpg'\`.`,
           );
         else if (!files.has(target)) error(`"${spec}" doesn't exist (looked for ${target}).`);
         else queue.push(target);
@@ -481,42 +479,12 @@ function emitModules(compiled: Map<string, CompiledFile>): {
 }
 
 /**
- * Whether a deck's file passes the engine's media() on as `media`: `export { media } from
- * '@tobos/present'`, the same from a file that does, or `export *` of either. A `media` of its
- * own, or a package's, is not it.
- */
-function passingMedia(compiled: Map<string, CompiledFile>): (path: string) => boolean {
-  const known = new Map<string, boolean>();
-  // Only what a whole walk finds is kept: one cut short by a circle of `export *` may say less.
-  const passes = (path: string, seen: Set<string>): boolean => {
-    if (known.has(path)) return known.get(path)!;
-    const exports = compiled.get(path)?.analysis.exports;
-    if (!exports || seen.has(path)) return false;
-    seen.add(path);
-    const from = (spec: string) =>
-      spec === '@tobos/present' ||
-      ((spec.startsWith('./') || spec.startsWith('../')) &&
-        passes(resolvePath(path, spec) ?? '', seen));
-    const named = exports.from.find(([name]) => name === 'media');
-    if (named) return named[2] === 'media' && from(named[1]);
-    return !exports.names.includes('media') && exports.all.some(from);
-  };
-  return (path) => {
-    if (!known.has(path)) known.set(path, passes(path, new Set()));
-    return known.get(path)!;
-  };
-}
-
-/**
  * What each compiled file uses of the deck: the deck's files it imports, the same imports
- * emitModules rewrites, so none is missed; the media.json names its media() calls name; and
- * their patterns as written (`frames/*.png`), which a share matches against media.json. So the
+ * emitModules rewrites, so none is missed; the media.json names it imports; and its globs'
+ * patterns as written (`frames/*.png`), which a share matches against media.json. So the
  * manifest grows with the deck's code and media.json, never with the one times the other.
  */
-function modulesUses(
-  compiled: Map<string, CompiledFile>,
-  mediaOf: Map<string, MediaRef[]>,
-): Uses['modules'] {
+function modulesUses(compiled: Map<string, CompiledFile>): Uses['modules'] {
   const modules: Uses['modules'] = {};
   for (const [path, file] of [...compiled].sort(([a], [b]) => a.localeCompare(b))) {
     const imports = new Set<string>();
@@ -525,7 +493,7 @@ function modulesUses(
         imports.add(DECK_PREFIX + resolvePath(path, specifier)!);
     const names = new Set<string>();
     const patterns = new Set<string>();
-    for (const ref of mediaOf.get(path) ?? []) (ref.pattern ? patterns : names).add(ref.name);
+    for (const ref of file.analysis.media) (ref.pattern ? patterns : names).add(ref.name);
     modules[DECK_PREFIX + path] = {
       ...(imports.size ? { imports: [...imports].sort() } : {}),
       ...(names.size ? { media: [...names].sort() } : {}),
@@ -546,12 +514,15 @@ const sizeText = (bytes: number) =>
 export const KEPT_MEDIA_DAYS = 7;
 
 /**
- * The files media.json lists that no slide shows (mediaInUse): neither a media() call of a scene
- * deck.json lists, or of what it imports, nor the master, nor tokens.css. They don't count toward
- * the plan, and the server keeps each only for a while, so a later save that shows one may find
- * it gone. The master's own files, under media/master/, come and go with it, so are in use.
+ * The files media.json lists that no slide shows (mediaInUse): imported neither by a scene
+ * deck.json lists, or by what it imports, nor by the master, nor linked by tokens.css. They don't
+ * count toward the plan, and the server keeps each only for a while, so a later save that shows
+ * one may find it gone. The master's own files, under media/master/, come and go with it, so are
+ * in use.
  */
-function unusedMedia(manifest: Pick<Manifest, 'chapters' | 'media' | 'uses'>): Problem | undefined {
+function unusedMedia(
+  manifest: Pick<Manifest, 'format' | 'chapters' | 'media' | 'uses'>,
+): Problem | undefined {
   const { media } = manifest;
   const used = mediaInUse(manifest);
   const unused = Object.keys(media).filter((name) => !Object.hasOwn(used, name));
@@ -623,41 +594,26 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
         severity: 'warning',
       });
 
-  // What each file shows of media(): its own calls, and those through one of the deck's files,
-  // if it passes the engine's media() on, which is known only now that every file is read.
-  const passes = passingMedia(graph.compiled);
-  const mediaOf = new Map<string, MediaRef[]>();
-  for (const [path, file] of graph.compiled) {
-    const refs = [...file.analysis.media];
-    for (const found of file.analysis.through ?? []) {
-      const target = resolvePath(path, found.specifier);
-      if (target === undefined || !passes(target)) continue;
-      refs.push(...found.media);
-      problems.push(...found.problems);
-    }
-    mediaOf.set(path, refs);
-  }
-
-  // Media: every media() name must be in media.json (unless media.json itself is broken). A
-  // pattern is matched once, however many calls write it.
+  // Media: every file a module imports must be in media.json, and every glob match one (unless
+  // media.json itself is broken). A pattern is matched once, however many modules write it.
   const names = Object.keys(media);
   const matching = new Map<string, boolean>();
   const matches = (pattern: string) => {
-    if (!matching.has(pattern)) matching.set(pattern, names.some(mediaMatcher(pattern)));
+    if (!matching.has(pattern)) matching.set(pattern, names.some(globMatcher(pattern)));
     return matching.get(pattern)!;
   };
   if (mediaProblems.length === 0)
-    for (const [path, refs] of mediaOf)
-      for (const ref of refs)
-        if (ref.pattern ? !matches(ref.name) : !(ref.name in media))
+    for (const [path, file] of graph.compiled)
+      for (const ref of file.analysis.media)
+        if (ref.pattern ? !matches(ref.name) : !Object.hasOwn(media, ref.name))
           problems.push({
             file: path,
             line: ref.line,
             column: ref.column,
             rule: 'media',
             message: ref.pattern
-              ? `No file in media.json matches media(\`${ref.name.replaceAll('*', '${…}')}\`). Put the files in media/.`
-              : `media("${ref.name}") is not in media.json. Put the file in media/ (tobos check and push record it there).`,
+              ? `No file in media.json matches '${MEDIA}${ref.name}'. Put the files in media/.`
+              : `'${MEDIA}${ref.name}' is not in media.json. Put the file in media/ (tobos check and push record it there).`,
             severity: 'error',
           });
 
@@ -678,14 +634,14 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
     else activityFiles.set(found.activity.id, file);
   }
 
-  // Unless media.json itself is broken, as for media() above.
+  // Unless media.json itself is broken, as for the imports above.
   const stylesheet = masterStylesheet(tree, media, mediaProblems.length ? [] : problems);
   if (problems.some((p) => p.severity === 'error')) return { problems, modules, deck };
 
   const emitted = emitModules(graph.compiled);
   if (stylesheet) emitted.modules.set(stylesheet.name, stylesheet.code);
   const uses: Uses = {
-    modules: modulesUses(graph.compiled, mediaOf),
+    modules: modulesUses(graph.compiled),
     styles: stylesheet?.media ?? [],
   };
   const chapters: ManifestChapter[] = deck.chapters.map((chapter) => ({
@@ -704,7 +660,7 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
     }),
   }));
 
-  const unused = unusedMedia({ chapters, media, uses });
+  const unused = unusedMedia({ format: 2, chapters, media, uses });
   if (unused) problems.push(unused);
 
   // Passed: what it compiled is worth keeping.
@@ -714,7 +670,7 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
     deck,
     modules: emitted.modules,
     manifest: {
-      format: 1,
+      format: 2,
       title: deck.title,
       chapters,
       imports: emitted.imports,

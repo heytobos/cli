@@ -17,15 +17,15 @@
 </script>
 
 <script lang="ts">
-  import { media } from '@tobos/present';
+  import tone from '$media/tone.wav';
   import { Blank } from '../master/index.ts';
 </script>
 
 <Blank>
   <section>
     <p>A tone, in two halves.</p>
-    <audio data-part="tone" src={media('tone.wav')} preload="auto"></audio>
-    <audio data-part="bed" src={media('tone.wav')} preload="auto"></audio>
+    <audio data-part="tone" src={tone} preload="auto"></audio>
+    <audio data-part="bed" src={tone} preload="auto"></audio>
   </section>
 </Blank>
 

@@ -8,7 +8,9 @@ import { readTree, SKILL_NAME } from './src/skill.ts';
 
 /**
  * The declarations of @tobos/present, generated from its source, so `tobos check --types` can
- * never describe an engine API that differs from the one the viewer runs.
+ * never describe an engine API that differs from the one the viewer runs: but for what is kept
+ * only for revisions pushed before (`@internal`), and with what a deck writes of media/,
+ * `$media` imports and `import.meta.glob`, as media.d.ts.
  */
 function presentTypes(): Record<string, string> {
   const root = new URL('../present/src/', import.meta.url).pathname;
@@ -25,6 +27,7 @@ function presentTypes(): Record<string, string> {
     target: ts.ScriptTarget.ES2023,
     skipLibCheck: true,
     strict: true,
+    stripInternal: true,
   });
   program.emit(undefined, (name, text) => {
     if (name.startsWith(root)) files[name.slice(root.length)] = text;
@@ -32,6 +35,7 @@ function presentTypes(): Record<string, string> {
   });
   if (!files['index.d.ts'] || !files['deck/types.d.ts'])
     throw new Error('No declarations for @tobos/present.');
+  files['media.d.ts'] = readFileSync(`${root}media.d.ts`, 'utf8');
   return files;
 }
 

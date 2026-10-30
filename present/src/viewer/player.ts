@@ -111,7 +111,9 @@ export class Player {
 
   /**
    * Follow a push. Changed scene files swap in place; anything else (a shared component,
-   * data, the master's styles) needs a fresh page, which the caller does.
+   * data, the master's styles, media) needs a fresh page, which the caller does. Media too: a
+   * module looks up its `$media` imports' URLs once, when it first runs (deck/src/media-imports.ts),
+   * and the browser runs a module it has once, so only a fresh page sees a file's new address.
    */
   async update(next: Manifest, base: string): Promise<'same' | 'swapped' | 'reload'> {
     const before = this.manifest;
@@ -139,7 +141,8 @@ export class Player {
       removed.some((key) => !beforeScenes.has(key)) ||
       changed.some((key) => !sceneModules.has(key)) ||
       JSON.stringify(before.dependencies) !== JSON.stringify(next.dependencies) ||
-      JSON.stringify(before.styles) !== JSON.stringify(next.styles)
+      JSON.stringify(before.styles) !== JSON.stringify(next.styles) ||
+      JSON.stringify(before.media) !== JSON.stringify(next.media)
     )
       return 'reload';
 

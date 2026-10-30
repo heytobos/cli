@@ -113,12 +113,12 @@ A video is motion like any other: it plays in a beat, with `playVideo` from `@to
 </script>
 
 <script lang="ts">
-  import { media } from '@tobos/present';
+  import cowTurns from '$media/cow-turns.webm';
   import { Blank } from '../master/index.ts';
 </script>
 
 <Blank>
-  <video src={media('cow-turns.webm')} muted playsinline preload="auto"></video>
+  <video src={cowTurns} muted playsinline preload="auto"></video>
 </Blank>
 
 <style>

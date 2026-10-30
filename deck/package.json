@@ -13,6 +13,7 @@
     "./merge": "./src/merge.ts",
     "./tar": "./src/tar.ts",
     "./deck-json": "./src/deck-json.ts",
+    "./media-pattern": "./src/media-pattern.ts",
     "./media-type": "./src/media-type.ts",
     "./verbs": "./src/verbs.ts",
     "./types": "./src/types.ts",

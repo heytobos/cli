@@ -1,4 +1,4 @@
-import { mediaMatching } from './analyze.ts';
+import { mediaMatching } from './media-pattern.ts';
 import type { Manifest, MediaJson, Uses } from './types.ts';
 
 const DECK_PREFIX = '@deck/';
@@ -12,7 +12,7 @@ const MASTER_PREFIX = `${DECK_PREFIX}master/`;
  *
  * What the scenes it leaves out are made of goes with them: a share gets the deck's modules and
  * media the scenes it shows reach (their own code, what it imports, the master's, and the files
- * their media() calls name), and the files tokens.css links. So neither a poll's helpers nor a
+ * it imports of media/), and the files tokens.css links. So neither a poll's helpers nor a
  * draft scene deck.json doesn't list, nor a file in media.json that nothing shows, reaches it. A
  * file the build didn't see a scene use isn't there: it shows as missing, never as more than the
  * scenes.
@@ -49,7 +49,7 @@ export function sharedManifest(manifest: Manifest): Manifest {
   }
 
   const { reached, media } = walk(
-    manifest.media,
+    manifest,
     uses,
     chapters.flatMap((c) => c.scenes.map((s) => s.module)),
   );
@@ -68,22 +68,24 @@ export function sharedManifest(manifest: Manifest): Manifest {
 
 /**
  * The media a revision has in use, which alone counts toward its account's plan and must be on the
- * server for it to be saved (TOB-369): the files the media() calls of the scenes deck.json lists
- * name, through all they import, polls' too; those of the master's modules, and its own files under
+ * server for it to be saved (TOB-369): the files the scenes deck.json lists import, through all
+ * they import, polls' too; those the master's modules import, and its own files under
  * media/master/, which come and go with it (masterOf), its fonts' licences among them; and those
- * tokens.css links. media() takes only literal names and patterns, so this is exact. Every other
+ * tokens.css links. Media is imported by literal names and patterns, so this is exact. Every other
  * entry of media.json is on no slide: the server keeps its file for a while, and may have deleted
  * it. A manifest pushed before the build recorded what its modules use has it all in use, as it
  * counted then.
  */
-export function mediaInUse(manifest: Pick<Manifest, 'chapters' | 'media' | 'uses'>): MediaJson {
+export function mediaInUse(
+  manifest: Pick<Manifest, 'format' | 'chapters' | 'media' | 'uses'>,
+): MediaJson {
   const { uses } = manifest;
   if (!uses) return manifest.media;
   const roots = [
     ...manifest.chapters.flatMap((c) => c.scenes.map((s) => s.module)),
     ...Object.keys(uses.modules).filter((specifier) => specifier.startsWith(MASTER_PREFIX)),
   ];
-  const { media } = walk(manifest.media, uses, roots);
+  const { media } = walk(manifest, uses, roots);
   return Object.fromEntries(
     Object.entries(manifest.media).filter(
       ([name]) => media.has(name) || name.startsWith('master/'),
@@ -92,12 +94,13 @@ export function mediaInUse(manifest: Pick<Manifest, 'chapters' | 'media' | 'uses
 }
 
 /**
- * The deck's modules `roots` reach through their imports, and the media.json names their media()
- * calls and tokens.css name. A pattern is every name it matches: matched here, each pattern once,
- * so the manifest holds it once rather than every name in every module that writes it.
+ * The deck's modules `roots` reach through their imports, and the media.json names they and
+ * tokens.css name. A pattern is every name it matches: matched here, each pattern once, so the
+ * manifest holds it once rather than every name in every module that writes it. A manifest of
+ * format 1 has media()'s patterns, whose `*` matches `/` too; a later one its globs'.
  */
 function walk(
-  all: MediaJson,
+  manifest: Pick<Manifest, 'format' | 'media'>,
   uses: Uses,
   roots: string[],
 ): { reached: Set<string>; media: Set<string> } {
@@ -114,8 +117,8 @@ function walk(
     for (const name of used?.media ?? []) media.add(name);
     for (const pattern of used?.patterns ?? []) patterns.add(pattern);
   }
-  const named = Object.keys(all).filter((name) => !media.has(name));
-  for (const name of mediaMatching(named, patterns)) media.add(name);
+  const named = Object.keys(manifest.media).filter((name) => !media.has(name));
+  for (const name of mediaMatching(named, patterns, manifest.format !== 1)) media.add(name);
   return { reached, media };
 }
 

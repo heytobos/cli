@@ -84,9 +84,13 @@ export interface ManifestChapter {
   scenes: ManifestScene[];
 }
 
-/** What the viewer needs to show one revision of a deck. */
+/**
+ * What the viewer needs to show one revision of a deck. Format 1's modules call the engine's
+ * media(); a later one's import media (`import cow from '$media/cow.jpg'`), compiled into lookups
+ * of the same media map. A revision keeps the format it was pushed with.
+ */
 export interface Manifest {
-  format: 1;
+  format: 1 | 2;
   title: string;
   chapters: ManifestChapter[];
   /**
@@ -116,9 +120,9 @@ export interface Manifest {
 export interface Uses {
   /**
    * By specifier (`@deck/scenes/a.svelte`): the deck's modules it imports, statically or not; the
-   * media.json names its media() calls name; and their patterns (`frames/*.png`), which a share
-   * matches against media.json, so a pattern is here once, not as every name it matches. Each is
-   * left out when it has none.
+   * media.json names it imports; and its `import.meta.glob` patterns (`frames/*.png`), or in format
+   * 1 its media() calls' (share.ts), which a share matches against media.json, so a pattern is here
+   * once, not as every name it matches. Each is left out when it has none.
    */
   modules: Record<string, { imports?: string[]; media?: string[]; patterns?: string[] }>;
   /** The media.json names tokens.css links, which every page that shows the deck loads. */

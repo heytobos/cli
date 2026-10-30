@@ -136,6 +136,8 @@ function writeConfig(root: string): string {
           paths,
         },
         include: [
+          // `$media` imports and `import.meta.glob`, as the build compiles them.
+          'present/media.d.ts',
           '../../scenes/**/*',
           '../../master/**/*',
           '../../lib/**/*',

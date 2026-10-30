@@ -43,7 +43,13 @@ export function useDeck(): DeckContext {
   return getContext<DeckContext>(DECK_CONTEXT);
 }
 
-/** The URL of a file in the deck's media/ folder. The name must be a string literal. */
+/**
+ * The URL of a file in media/, as revisions of format 1 call it: they still run as pushed. A deck
+ * now imports the file, `import cow from '$media/cow.jpg'`, and the check refuses a call.
+ *
+ * @deprecated `import cow from '$media/cow.jpg'`
+ * @internal
+ */
 export function media(name: string): string {
   return mediaUrl(name);
 }

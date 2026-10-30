@@ -10,13 +10,13 @@
 </script>
 
 <script lang="ts">
-  import { media } from '@tobos/present';
+  import clip from '$media/clip.webm';
   import { Blank } from '../master/index.ts';
 </script>
 
 <Blank>
   <section>
-    <video src={media('clip.webm')} muted playsinline preload="auto"></video>
+    <video src={clip} muted playsinline preload="auto"></video>
   </section>
 </Blank>
 

@@ -11,13 +11,13 @@
 </script>
 
 <script lang="ts">
-  import { media } from '@tobos/present';
+  import scan from '$media/scan.png';
   import { Blank } from '../master/index.ts';
 </script>
 
 <Blank>
   <section>
-    <img src={media('scan.png')} alt="The 1955 Dartmouth proposal" />
+    <img src={scan} alt="The 1955 Dartmouth proposal" />
     <p data-part="ask">What would it take for a machine to use language?</p>
   </section>
 </Blank>

@@ -49,119 +49,96 @@ describe('beats', () => {
   });
 });
 
-describe('media()', () => {
-  it('is read with its position, a template literal as a pattern', () => {
+describe('media', () => {
+  it('is read from $media imports and globs, with where each is written', () => {
     const { media, problems } = analyzeScript(
       'lib/a.js',
-      "import { media } from '@tobos/present';\nexport const cow = media('cow.jpg');\nexport const part = (p) => media(`cow/${p}.png`);",
+      "import cow from '$media/cow.jpg';\nexport const parts = import.meta.glob(['$media/cow/*.png', '$media/ox/**/*.png']);\nexport { cow };",
     );
     expect(problems).toEqual([]);
     expect(media).toEqual([
-      { name: 'cow.jpg', line: 2, column: 26 },
-      { name: 'cow/*.png', pattern: true, line: 3, column: 34 },
+      { name: 'cow.jpg', line: 1, column: 17 },
+      { name: 'cow/*.png', pattern: true, line: 2, column: 40 },
+      { name: 'ox/**/*.png', pattern: true, line: 2, column: 60 },
     ]);
   });
 
-  it("is read through the engine's namespace too", () => {
-    const { media, problems } = analyzeScript(
-      'lib/a.js',
-      "import * as present from '@tobos/present';\nexport const cow = present.media('cow.jpg');\nexport const ear = present['media']('ear.jpg');",
+  it('is read in either script of a component, and its markup', () => {
+    const { media, problems } = analyzeSvelte(
+      'lib/A.svelte',
+      "<script module>\n  import later from '$media/later.png';\n</script>\n<script lang=\"ts\">\n  import type Url from '$media/type.png';\n  import cow from '$media/cow.jpg';\n</script>\n{#each Object.values(import.meta.glob('$media/ear/*.png')) as ear}<img src={ear} alt=\"\" />{/each}\n<img src={cow} alt=\"\" />\n",
+      { scene: false },
     );
     expect(problems).toEqual([]);
-    expect(media.map((m) => m.name)).toEqual(['cow.jpg', 'ear.jpg']);
+    expect(media.map((m) => [m.name, m.line])).toEqual([
+      ['cow.jpg', 6],
+      ['later.png', 2],
+      ['ear/*.png', 8],
+    ]);
   });
 
-  it('is refused under another name, or passed on, where the check could not read its calls', () => {
-    const refused = (source: string) =>
-      analyzeScript('lib/a.js', source).problems.map((p) => [p.rule, p.line]);
-    const imported = "import { media } from '@tobos/present';\n";
-    expect(refused("import { media as m } from '@tobos/present';\nm('cow.jpg');")).toEqual([
-      ['media', 1],
-    ]);
-    expect(refused(`${imported}const m = media;`)).toEqual([['media', 2]]);
-    expect(refused(`${imported}export const all = ['a.jpg'].map(media);`)).toEqual([['media', 2]]);
-    expect(refused(`${imported}export const api = { media };`)).toEqual([['media', 2]]);
-    expect(refused(`${imported}export default media;`)).toEqual([['media', 2]]);
-    expect(refused(`${imported}export { media as m };`)).toEqual([['media', 2]]);
-    expect(refused("export { media as m } from '@tobos/present';")).toEqual([['media', 1]]);
-    // The engine's namespace, or import(), is media() under another name too.
-    const namespace = "import * as present from '@tobos/present';\n";
-    expect(refused(`${namespace}export const m = present.media;`)).toEqual([['media', 2]]);
-    expect(refused(`${namespace}const { media: m } = present;\nm('cow.jpg');`)).toEqual([
-      ['media', 2],
-    ]);
-    expect(refused(`${namespace}const p = present;\np.media('cow.jpg');`)).toEqual([['media', 2]]);
-    expect(refused(`${namespace}export { present };`)).toEqual([['media', 2]]);
-    expect(refused("const { media: m } = await import('@tobos/present');")).toEqual([['media', 1]]);
-    expect(refused("export * as present from '@tobos/present';")).toEqual([['media', 1]]);
-    // A package's `media` is its own.
-    expect(refused("import { media as mq } from 'queries';\nexport const a = mq;")).toEqual([]);
-    expect(refused("import { media } from 'queries';\nexport const a = media.phone;")).toEqual([]);
-    expect(refused("export { media as mq } from 'queries';")).toEqual([]);
-    expect(analyzeScript('lib/a.js', `${imported}const m = media;`).problems[0]!.message).toContain(
-      "as `media('cow.jpg')`",
-    );
-  });
-
-  it('is read wherever it is called by name, and its name is free to use otherwise', () => {
-    const { media, problems } = analyzeScript(
-      'lib/a.js',
-      "import { media } from '@tobos/present';\nexport { media };\nexport const cow = { media: media('cow.jpg') };\nexport const query = (window) => window.media;",
-    );
-    expect(problems).toEqual([]);
-    expect(media.map((m) => m.name)).toEqual(['cow.jpg']);
-    // A file that doesn't import it may have a media of its own.
+  it("refuses format 1's media(), each call with the line that replaces it", () => {
+    const fixes = (file: string, source: string) =>
+      (file.endsWith('.svelte')
+        ? analyzeSvelte(file, source, { scene: false })
+        : analyzeScript(file, source)
+      ).problems.map((p) => [p.rule, p.line, p.message]);
     expect(
-      analyzeScript('lib/b.js', 'const media = 1;\nexport const two = media + 1;').problems,
-    ).toEqual([]);
-    // So may a function or a block of one that does: that `media` is theirs.
-    const own = analyzeScript(
-      'lib/c.js',
-      "import { media } from '@tobos/present';\nexport const f = (media) => media.x;\nexport function g() { const media = {}; return [media]; }\nexport function h() { if (f) { var media = 1; } return media; }\ntry { f(); } catch (media) { g(media); }\nexport const cow = media('cow.jpg');",
-    );
-    expect(own.problems).toEqual([]);
-    expect(own.media.map((m) => m.name)).toEqual(['cow.jpg']);
-  });
-
-  it("through one of the deck's files, holds only if that file passes the engine's on", () => {
-    // The build knows whether it does (build.test.ts); here, a `media` of the deck's own is
-    // as likely.
-    const { media, problems, through } = analyzeScript(
-      'lib/a.js',
-      "import { media as m } from './index.ts';\nimport * as lib from './index.ts';\nexport const cow = lib.media('cow.jpg');\nexport const all = lib;\nexport const later = () => import('./later.ts');",
-    );
-    expect(media).toEqual([]);
-    expect(problems).toEqual([]);
-    expect(
-      through?.map((found) => [
-        found.specifier,
-        found.media.map((m) => m.name),
-        found.problems.map((p) => p.line),
-      ]),
+      fixes(
+        'lib/A.svelte',
+        '<script lang="ts">\n  import { media } from \'@tobos/present\';\n  let { part }: { part: string } = $props();\n</script>\n<img src={media(\'cow-close-up.jpg\')} alt="" />\n<img src={media(`frames/${part}.png`)} alt="" />\n<img src={media(part)} alt="" />\n',
+      ),
     ).toEqual([
-      ['./index.ts', ['cow.jpg'], [1, 4]],
-      ['./later.ts', [], [5]],
+      [
+        'media',
+        5,
+        "media('cow-close-up.jpg') is gone: import cowCloseUp from '$media/cow-close-up.jpg' at the top of the script, and write {cowCloseUp}.",
+      ],
+      [
+        'media',
+        6,
+        "media(`frames/${part}.png`) is gone: const frames = import.meta.glob('$media/frames/*.png') at the top of the script gives each file's URL, so write {frames[`$media/frames/${part}.png`]}.",
+      ],
+      [
+        'media',
+        7,
+        "media(part) is gone: import each file it shows at the top of the script, as `import cow from '$media/cow.jpg'`, or those a pattern matches, as `const frames = import.meta.glob('$media/frames/*.png')`.",
+      ],
+    ]);
+    expect(
+      fixes(
+        'lib/a.ts',
+        "import * as present from '@tobos/present';\nexport const cow = present.media('2024/cow.jpg');",
+      ),
+    ).toEqual([
+      [
+        'media',
+        2,
+        "present.media('2024/cow.jpg') is gone: import cow from '$media/2024/cow.jpg' at the top of the file, and write cow in its place.",
+      ],
+    ]);
+    // Imported and never called: said at the import.
+    expect(
+      fixes(
+        'lib/a.ts',
+        "import { media } from '@tobos/present';\nexport const all = ['a'].map(media);",
+      ),
+    ).toEqual([
+      [
+        'media',
+        1,
+        "media() is gone: import each file it shows at the top of the file, `import cow from '$media/cow.jpg'`, and use cow where media('cow.jpg') was.",
+      ],
     ]);
   });
 
-  it('is refused under another name in a component, its types aside', () => {
-    const { media, problems } = analyzeSvelte(
-      'lib/A.svelte',
-      "<script lang=\"ts\">\n  import { media, type Beat } from '@tobos/present';\n  import Frame from './Frame.svelte';\n  type Media = typeof media;\n</script>\n<img src={media('cow.jpg')} alt=\"\" />\n<Frame {media} />\n",
-      { scene: false },
-    );
-    expect(media.map((m) => m.name)).toEqual(['cow.jpg']);
-    expect(problems.map((p) => [p.rule, p.line])).toEqual([['media', 7]]);
-  });
-
-  it('leaves alone a `media` the markup declares, and refuses a directive that names it', () => {
-    const { media, problems } = analyzeSvelte(
-      'lib/A.svelte',
-      '<script lang="ts">\n  import { media } from \'@tobos/present\';\n  let { items }: { items: { src: string }[] } = $props();\n</script>\n{#each items as media}<img src={media.src} alt="" />{/each}\n{#snippet frame(media: string)}<img src={media} alt="" />{/snippet}\n<img src={media(\'cow.jpg\')} alt="" />\n<p use:media></p>\n',
-      { scene: false },
-    );
-    expect(media.map((m) => m.name)).toEqual(['cow.jpg']);
-    expect(problems.map((p) => [p.rule, p.line])).toEqual([['media', 8]]);
+  it("leaves alone a `media` of the deck's own, or a package's", () => {
+    expect(
+      analyzeScript(
+        'lib/a.js',
+        "import { media } from './queries.ts';\nimport * as q from 'queries';\nexport const a = media('phone') + q.media('x');",
+      ).problems,
+    ).toEqual([]);
   });
 });
 

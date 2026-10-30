@@ -1,4 +1,5 @@
 /** State the viewer sets up before any scene loads, and the scene API reads. */
+import { globMatcher } from '@tobos/deck/media-pattern';
 
 let files: Record<string, { hash: string }> = {};
 
@@ -6,6 +7,7 @@ export function setMedia(media: Record<string, { hash: string }>) {
   files = media;
 }
 
+/** The URL of a file in media/, what `import cow from '$media/cow.jpg'` gives. */
 export function mediaUrl(name: string): string {
   // Only its own names: `constructor` is a file like any other, not Object's.
   const entry = Object.hasOwn(files, name) ? files[name] : undefined;
@@ -14,12 +16,24 @@ export function mediaUrl(name: string): string {
     // missing there may well be in media.json.
     console.warn(
       isShared()
-        ? `[tobos] media("${name}") isn't available here`
-        : `[tobos] media("${name}") is not in media.json`,
+        ? `[tobos] media/${name} isn't available here`
+        : `[tobos] media/${name} is not in media.json`,
     );
     return '';
   }
   return 'media/' + entry.hash;
+}
+
+/**
+ * What `import.meta.glob('$media/cow/*.png')` gives: each file of media/ a pattern matches, by its
+ * specifier (`$media/cow/a.png`), in order, with its URL. On a share, only those it has.
+ */
+export function mediaGlob(patterns: string[]): Record<string, string> {
+  const matchers = patterns.map(globMatcher);
+  const names = Object.keys(files)
+    .filter((name) => matchers.some((matches) => matches(name)))
+    .sort();
+  return Object.fromEntries(names.map((name) => [`$media/${name}`, 'media/' + files[name]!.hash]));
 }
 
 /** The deck's join code, and the ways to show it. */
