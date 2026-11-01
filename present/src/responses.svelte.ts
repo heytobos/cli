@@ -3,7 +3,7 @@
  * preview on the deck's page, follow it from the server. Print and render, and a link that isn't
  * a presenter's, have zeros. It is live data, which the position can't recreate.
  */
-import type { Activity, Manifest } from '@tobos/deck/types';
+import type { Activity, SharedManifest } from '@tobos/deck/types';
 import type { Results } from './activities.ts';
 import { listen } from './viewer/events.ts';
 
@@ -24,7 +24,7 @@ const results = $state<Results>({ show: null, joined: 0, activities: {} });
 let declared = new Map<string, Activity>();
 
 /** The deck's activities, so a poll nobody answered yet has a zero per option. */
-export function setActivities(manifest: Manifest) {
+export function setActivities(manifest: SharedManifest) {
   declared = new Map(
     manifest.chapters.flatMap((c) =>
       c.scenes.flatMap((s) => (s.activity ? [[s.activity.id, s.activity] as const] : [])),

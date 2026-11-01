@@ -1,4 +1,4 @@
-import type { Manifest } from '@tobos/deck';
+import type { SharedManifest } from '@tobos/deck';
 import { setMedia } from '../registry.ts';
 import { setActivities } from '../responses.svelte.ts';
 import { reload, type ViewerConfig } from './config.ts';
@@ -27,7 +27,7 @@ export function follow(
     busy = busy.then(async () => {
       const response = await fetch(manifestUrl, { cache: 'no-store' });
       if (!response.ok) return;
-      const next = (await response.json()) as Manifest & { rev?: string };
+      const next = (await response.json()) as SharedManifest & { rev?: string };
       if (!next.rev || next.rev === rev) return;
       const before = rev;
       rev = next.rev;

@@ -26,7 +26,7 @@ export function openActivity(
 }
 
 /** Every activity in the deck, in the order of its scenes. */
-export function activitiesOf(manifest: Manifest): Activity[] {
+export function activitiesOf(manifest: Pick<Manifest, 'chapters'>): Activity[] {
   return manifest.chapters.flatMap((c) =>
     c.scenes.flatMap((s) => (s.activity ? [s.activity] : [])),
   );

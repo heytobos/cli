@@ -109,12 +109,15 @@ export interface Manifest {
    */
   styles?: string[];
   /**
-   * What the deck's code uses of the deck, so a share gets only what the scenes it shows reach
-   * (share.ts). Not in a manifest pushed before the build recorded it, which sharedManifest()
-   * shares as it did then.
+   * What the deck's code uses of the deck, so a share gets only what the scenes it shows reach,
+   * and only what is on a slide counts (share.ts). A manifest pushed before the build recorded it
+   * had it written in afterwards, as its build then would have (TOB-397).
    */
-  uses?: Uses;
+  uses: Uses;
 }
+
+/** A manifest as a share link has it: what its modules use isn't part of it (share.ts). */
+export type SharedManifest = Omit<Manifest, 'uses'>;
 
 /** What each of a deck's modules uses of the deck itself, and what its stylesheet does. */
 export interface Uses {

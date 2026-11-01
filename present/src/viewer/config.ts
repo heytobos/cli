@@ -1,4 +1,4 @@
-import type { Manifest } from '@tobos/deck';
+import type { SharedManifest } from '@tobos/deck';
 import type { JoinInfo } from '../registry.ts';
 
 export type View = 'deck' | 'audience' | 'presenter' | 'print' | 'render' | 'sheet';
@@ -8,7 +8,7 @@ export interface ViewerConfig {
   /** The deck's id: names the presenting session. */
   deck: string;
   rev: string;
-  manifest: Manifest;
+  manifest: SharedManifest;
   /**
    * The window's server-sent events (events.ts): pushes for live follow, and on a presenter's link
    * the room's results and the speaker's notes; absent in a static folder (the e2e suite's fixture).

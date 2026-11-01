@@ -12,8 +12,6 @@ const manifest: Manifest = {
         {
           id: 'title',
           title: 'Title',
-          // @ts-expect-error A scene's note, which deck.json no longer has.
-          note: 'Wait for the room to settle.',
           beats: ['title'],
           module: '@deck/scenes/title.svelte',
         },
@@ -56,6 +54,15 @@ const manifest: Manifest = {
   media: {},
   dependencies: {},
   packages: {},
+  uses: {
+    modules: {
+      '@deck/scenes/title.svelte': { imports: ['@deck/lib/chart.ts'] },
+      '@deck/scenes/poll.svelte': {},
+      '@deck/scenes/wishes.svelte': {},
+      '@deck/lib/chart.ts': {},
+    },
+    styles: [],
+  },
 };
 
 describe('sharedManifest', () => {
@@ -63,11 +70,6 @@ describe('sharedManifest', () => {
 
   it('leaves out the scenes with an activity, and chapters with nothing left', () => {
     expect(shared.chapters.map((c) => c.scenes.map((s) => s.id))).toEqual([['title']]);
-  });
-
-  it('leaves out a note an older push left in the manifest', () => {
-    expect(shared.chapters[0]!.scenes[0]).not.toHaveProperty('note');
-    expect(shared.chapters[0]!.scenes[0]).toMatchObject({ id: 'title', beats: ['title'] });
   });
 
   it('leaves the scenes it leaves out out of the import map: their code holds their prompts', () => {
@@ -79,7 +81,6 @@ describe('sharedManifest', () => {
 
   it('keeps the rest, and the manifest it was given as it was', () => {
     expect(shared.styles).toEqual(manifest.styles);
-    expect(manifest.chapters[0]!.scenes[0]).toHaveProperty('note', 'Wait for the room to settle.');
     expect(manifest.chapters[0]!.scenes).toHaveLength(2);
     expect(Object.keys(manifest.imports)).toHaveLength(4);
   });
@@ -167,7 +168,7 @@ describe('sharedManifest, with what each module uses', () => {
   });
 
   it('leaves out what it has no record of, rather than giving more', () => {
-    const { modules } = recorded.uses!;
+    const { modules } = recorded.uses;
     const unrecorded = sharedManifest({
       ...recorded,
       uses: { modules: { ...modules, '@deck/scenes/title.svelte': {} }, styles: [] },
@@ -183,14 +184,6 @@ describe('sharedManifest, with what each module uses', () => {
     expect(globbed).toContain('chart/a.png');
     expect(globbed).not.toContain('chart/old/c.png');
     expect(Object.keys(mediaInUse({ ...deeper, format: 2 }))).not.toContain('chart/old/c.png');
-  });
-
-  it('shares a manifest pushed before the build recorded it as it did then', () => {
-    expect(shared.chapters).toEqual(sharedManifest(manifest).chapters);
-    const before = sharedManifest({ ...recorded, uses: undefined });
-    expect(Object.keys(before.imports)).not.toContain('@deck/scenes/poll.svelte');
-    expect(Object.keys(before.imports)).toContain('@deck/scenes/poll/Reveal.svelte');
-    expect(before.media).toEqual(recorded.media);
   });
 });
 
@@ -245,10 +238,6 @@ describe('mediaInUse', () => {
     const used = mediaInUse(recorded);
     expect(used).not.toHaveProperty('draft.png');
     expect(used).not.toHaveProperty('old/deleted.png');
-  });
-
-  it('is all of media.json in a manifest pushed before the build recorded what it uses', () => {
-    expect(mediaInUse({ ...recorded, uses: undefined })).toEqual(recorded.media);
   });
 });
 

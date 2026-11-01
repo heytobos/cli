@@ -1,5 +1,5 @@
 import { mediaMatching } from './media-pattern.ts';
-import type { Manifest, MediaJson, Uses } from './types.ts';
+import type { Manifest, MediaJson, SharedManifest, Uses } from './types.ts';
 
 const DECK_PREFIX = '@deck/';
 const MASTER_PREFIX = `${DECK_PREFIX}master/`;
@@ -7,8 +7,6 @@ const MASTER_PREFIX = `${DECK_PREFIX}master/`;
 /**
  * A revision as a share link shows it to people outside the deck's account: without the scenes
  * that have an activity, since a share never opens a room. A chapter left with no scene goes too.
- * A revision pushed while scenes still had a `note` in deck.json keeps it in its manifest; that
- * was for the people working on the deck, so it goes as well.
  *
  * What the scenes it leaves out are made of goes with them: a share gets the deck's modules and
  * media the scenes it shows reach (their own code, what it imports, the master's, and the files
@@ -17,36 +15,14 @@ const MASTER_PREFIX = `${DECK_PREFIX}master/`;
  * file the build didn't see a scene use isn't there: it shows as missing, never as more than the
  * scenes.
  */
-export function sharedManifest(manifest: Manifest): Manifest {
+export function sharedManifest(manifest: Manifest): SharedManifest {
   const { uses, ...rest } = manifest;
   const chapters = manifest.chapters
     .map((chapter) => ({
       ...chapter,
-      scenes: chapter.scenes
-        .filter((scene) => !scene.activity)
-        .map((scene) => {
-          const shown: typeof scene & { note?: string } = { ...scene };
-          delete shown.note;
-          return shown;
-        }),
+      scenes: chapter.scenes.filter((scene) => !scene.activity),
     }))
     .filter((chapter) => chapter.scenes.length > 0);
-
-  // A manifest pushed before the build recorded what its modules use has nothing to walk. It is
-  // shared as it was then, until the deck's next push: without the left-out scenes' own modules,
-  // which hold their prompts, and everything else. No revision is rebuilt for it.
-  if (!uses) {
-    const left = new Set(
-      manifest.chapters.flatMap((c) => c.scenes.filter((s) => s.activity).map((s) => s.module)),
-    );
-    return {
-      ...rest,
-      imports: Object.fromEntries(
-        Object.entries(manifest.imports).filter(([specifier]) => !left.has(specifier)),
-      ),
-      chapters,
-    };
-  }
 
   const { reached, media } = walk(
     manifest,
@@ -73,14 +49,12 @@ export function sharedManifest(manifest: Manifest): Manifest {
  * media/master/, which come and go with it (masterOf), its fonts' licences among them; and those
  * tokens.css links. Media is imported by literal names and patterns, so this is exact. Every other
  * entry of media.json is on no slide: the server keeps its file for a while, and may have deleted
- * it. A manifest pushed before the build recorded what its modules use has it all in use, as it
- * counted then.
+ * it.
  */
 export function mediaInUse(
   manifest: Pick<Manifest, 'format' | 'chapters' | 'media' | 'uses'>,
 ): MediaJson {
   const { uses } = manifest;
-  if (!uses) return manifest.media;
   const roots = [
     ...manifest.chapters.flatMap((c) => c.scenes.map((s) => s.module)),
     ...Object.keys(uses.modules).filter((specifier) => specifier.startsWith(MASTER_PREFIX)),
@@ -126,6 +100,6 @@ function walk(
  * Whether a viewer of this manifest may load a compiled module (`m/<hash>.js` or `.css`): one
  * its import map or its stylesheets name, and no other the deck ever had.
  */
-export function servesModule(manifest: Manifest, path: string): boolean {
+export function servesModule(manifest: SharedManifest, path: string): boolean {
   return Object.values(manifest.imports).includes(path) || (manifest.styles ?? []).includes(path);
 }

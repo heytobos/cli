@@ -1,4 +1,4 @@
-import type { Manifest } from '@tobos/deck';
+import type { SharedManifest } from '@tobos/deck';
 import type { DeckContext } from '../index.ts';
 import {
   carry,
@@ -14,13 +14,13 @@ import {
 } from '../position.ts';
 import { Stage, type SceneModule } from '../stage.svelte.ts';
 
-export function outlineOf(manifest: Manifest): Outline {
+export function outlineOf(manifest: SharedManifest): Outline {
   return {
     scenes: manifest.chapters.flatMap((c) => c.scenes.map((s) => ({ id: s.id, beats: s.beats }))),
   };
 }
 
-export function contextFor(manifest: Manifest, index: number): DeckContext {
+export function contextFor(manifest: SharedManifest, index: number): DeckContext {
   let n = 0;
   for (const chapter of manifest.chapters)
     for (const scene of chapter.scenes) {
@@ -47,7 +47,7 @@ export interface PlayerOptions {
 
 /** A deck on a stage: the position, and moving it. */
 export class Player {
-  manifest: Manifest;
+  manifest: SharedManifest;
   outline: Outline;
   position: Position | null = null;
   readonly stage: Stage;
@@ -56,7 +56,7 @@ export class Player {
 
   private options: PlayerOptions;
 
-  constructor(host: HTMLElement, manifest: Manifest, options: PlayerOptions = {}) {
+  constructor(host: HTMLElement, manifest: SharedManifest, options: PlayerOptions = {}) {
     this.options = options;
     this.manifest = manifest;
     this.outline = outlineOf(manifest);
@@ -115,17 +115,17 @@ export class Player {
    * module looks up its `$media` imports' URLs once, when it first runs (deck/src/media-imports.ts),
    * and the browser runs a module it has once, so only a fresh page sees a file's new address.
    */
-  async update(next: Manifest, base: string): Promise<'same' | 'swapped' | 'reload'> {
+  async update(next: SharedManifest, base: string): Promise<'same' | 'swapped' | 'reload'> {
     const before = this.manifest;
     const changed = Object.keys(next.imports).filter(
       (key) => before.imports[key] !== next.imports[key],
     );
     const removed = Object.keys(before.imports).filter((key) => !(key in next.imports));
-    const scenesOf = (m: Manifest) =>
+    const scenesOf = (m: SharedManifest) =>
       new Set(m.chapters.flatMap((c) => c.scenes.map((s) => s.module)));
     const sceneModules = scenesOf(next);
     const beforeScenes = scenesOf(before);
-    const structure = (m: Manifest) => JSON.stringify(m.chapters);
+    const structure = (m: SharedManifest) => JSON.stringify(m.chapters);
     if (
       changed.length === 0 &&
       removed.length === 0 &&

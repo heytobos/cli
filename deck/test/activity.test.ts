@@ -50,6 +50,7 @@ const manifest: Manifest = {
   media: {},
   dependencies: {},
   packages: {},
+  uses: { modules: {}, styles: [] },
 };
 
 const at = (scene: string, beat: string) => openActivity(manifest, { scene, beat });
