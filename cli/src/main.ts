@@ -41,9 +41,8 @@ from anywhere)
   tobos render scene/beat | scene | --all     PNGs of beats, for you to look at
          [--film] [--frames 6] [--out dir]    --film: frames through the animation
          [--scale 2] [-m "what changed"]      --scale: pixels per stage pixel; -m: for the push
-  tobos open [scene/beat] [--presenter]       the deck's page in a browser (--presenter: a
-         [--print]                            presenter's link, which opens once); --print: print
-                                              the URL only, open nothing
+  tobos open [scene/beat] [--print]           the deck's page in a browser, where the person
+                                              presents it; --print: print the URL only, open nothing
   tobos open                                  outside a deck: the person's decks, in Tobos
 
 The skill (what your harness reads to know Tobos without this help)
@@ -87,7 +86,6 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
   open: {
     run: commands.open,
     options: {
-      presenter: { type: 'boolean' },
       deck: { type: 'string' },
       print: { type: 'boolean' },
     },

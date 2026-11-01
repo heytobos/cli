@@ -469,12 +469,16 @@ async function pushIfChanged(out: Output, id: string, message?: string) {
 
 // ─── Viewing ────────────────────────────────────────────────────────────────
 
-async function viewUrl(id: string, view?: string, hours?: number) {
+/**
+ * What `tobos render` draws from: a renderer's link to the deck's latest push, the only link the
+ * API makes (TOB-404), its revision and its scenes.
+ */
+async function renderView(id: string) {
   return api<{
     url: string;
     rev: string | null;
     scenes: DeckInfo['scenes'];
-  }>(`/api/decks/${id}/view`, { body: { view, hours } });
+  }>(`/api/decks/${id}/view`, { body: { view: 'render' } });
 }
 
 /** The deck a command is about: `--deck <id>`, or the working copy's. */
@@ -484,17 +488,15 @@ async function deckId(args: Args): Promise<string> {
 }
 
 /**
- * `tobos open`: the deck's page, at a scene and beat if given, what changed pushed first. With
- * `--presenter`, a presenter's link. Outside a deck, a login for a browser.
+ * `tobos open`: the deck's page, at a scene and beat if given, what changed pushed first: where
+ * the person presents it. Outside a deck, their decks.
  */
 export async function open(out: Output, args: Args) {
   const position = args.positionals[0];
   if (!position && typeof args.values.deck !== 'string' && !findCopy()?.base) return openApp(out);
   const id = await deckId(args);
   const { pushed } = await pushIfChanged(out, id);
-  const url = args.values.presenter
-    ? (await viewUrl(id, 'presenter', 12)).url
-    : `${settings().server}/${id}`;
+  const url = `${settings().server}/${id}`;
   const full = position ? `${url}#${position}` : url;
   const opened = !args.values.print && (await openUrl(full));
   out.result({ url: full, opened, pushed }, () => full);
@@ -521,7 +523,7 @@ export async function render(out: Output, args: Args) {
   const id = typeof args.values.deck === 'string' ? parseId(args.values.deck) : deck?.id;
   if (!id) throw new CliError('Run this inside a deck you pulled, or pass --deck <id>.');
   const { pushed, uploaded } = await pushIfChanged(out, id, args.values.message as string);
-  const view = await viewUrl(id, 'render');
+  const view = await renderView(id);
   const { url } = view;
   const rev = view.rev ?? undefined;
 

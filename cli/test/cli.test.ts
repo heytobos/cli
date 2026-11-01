@@ -47,6 +47,13 @@ describe('tobos', () => {
     expect(JSON.parse(bad.stdout).error).toContain('tobos help');
   });
 
+  it("gives no presenter's link: a show starts on the deck's page alone", () => {
+    const asked = run(['open', '--presenter', '--json']);
+    expect(asked.status).toBe(1);
+    expect(JSON.parse(asked.stdout).error).toContain("Unknown option '--presenter'");
+    expect(run(['help']).stdout).not.toContain('--presenter');
+  });
+
   it('says when the server names a newer CLI: once on stderr, or in the --json result', async () => {
     const server = createServer((_, response) => {
       response.writeHead(200, { 'content-type': 'application/json', 'tobos-latest-cli': '0.2.0' });
