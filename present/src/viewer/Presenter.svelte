@@ -14,7 +14,7 @@
     type Position,
   } from '../position.ts';
   import { liveResults } from '../responses.svelte.ts';
-  import { showHash, urlForView, type ViewerConfig } from './config.ts';
+  import { projectorUrl, showHash, type ViewerConfig } from './config.ts';
   import { action } from './keys.ts';
   import { follow } from './live.ts';
   import { listen } from './events.ts';
@@ -164,9 +164,7 @@
 
   async function present() {
     if (showing) return;
-    audience = await openAudience(
-      urlForView(config, 'audience', formatHash(current.outline, position)),
-    );
+    audience = await openAudience(projectorUrl(config, formatHash(current.outline, position)));
     started ??= Date.now();
   }
 

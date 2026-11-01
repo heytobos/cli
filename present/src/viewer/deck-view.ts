@@ -1,12 +1,11 @@
 import { letterbox } from '../letterbox.ts';
 import { onSoundRefused } from '../playback.ts';
 import { formatHash, parseHash, same, START } from '../position.ts';
-import { showHash, urlForView, type View, type ViewerConfig } from './config.ts';
+import { showHash, type View, type ViewerConfig } from './config.ts';
 import { action } from './keys.ts';
 import { follow } from './live.ts';
 import { Player } from './player.ts';
 import { settled } from './ready.ts';
-import { openAudience } from './screens.ts';
 import { joinSession, type BeatRef } from './session.ts';
 import { shareBar } from './share-bar.ts';
 import { onTap } from './taps.ts';
@@ -126,22 +125,10 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     else document.documentElement.requestFullscreen().catch(() => undefined);
   };
 
-  // A key press may open one window, never make it fullscreen too: the audience opens, and this
-  // window (or the page around this preview) becomes the presenter.
-  const present = async () => {
-    const audience = await openAudience(urlForView(config, 'audience'));
-    if (embedded) {
-      window.parent.postMessage({ type: 'tobos:present', hash: player.hash }, '*');
-      return;
-    }
-    // Without a link of its own, this window can't become the presenter: no show, then.
-    try {
-      location.href = await urlForView(config, 'presenter');
-    } catch (error) {
-      audience?.close();
-      console.warn('[tobos] the presenter window has no link', error);
-    }
-  };
+  // A show starts on the deck's page alone (TOB-404, D1): ⌘-Enter in its preview asks the page,
+  // whose key press it is too, to open the projector and become the presenter's view.
+  const present = () =>
+    window.parent.postMessage({ type: 'tobos:present', hash: player.hash }, '*');
 
   window.addEventListener('keydown', (event) => {
     const what = action(event);
@@ -150,7 +137,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
       event.preventDefault();
       player.step(what === 'next' ? 1 : -1);
     } else if (what === 'fullscreen') toggleFullscreen();
-    else if (what === 'present' && view === 'deck' && !shared) void present();
+    else if (what === 'present' && view === 'deck' && embedded && !shared) present();
     else if (what === 'guides') document.documentElement.classList.toggle('tobos-guides');
   });
   if (view === 'audience') {

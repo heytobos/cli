@@ -17,9 +17,9 @@ export function start(config: ViewerConfig) {
   setShared(Boolean(config.shared));
   const root = document.getElementById('tobos')!;
   const view = viewFromUrl(Boolean(config.shared));
-  // A presenter's link sees what the room answers: the show's windows, and the preview on the
-  // deck's page. Print and render are documents, so they show zeros.
-  if (config.live && config.events && view !== 'print' && view !== 'render' && view !== 'sheet')
+  // A show's windows see what the room answers, the deck page's preview among them. Print and
+  // render are documents, so they show zeros.
+  if (config.answers && config.events && view !== 'print' && view !== 'render' && view !== 'sheet')
     followResponses(config.events);
   document.documentElement.dataset.view = view;
   document.title = config.manifest.title;

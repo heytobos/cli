@@ -62,11 +62,6 @@ export interface ViewerPage {
   /** The tab's icon, a URL: the app's gives Tobos's, so a deck's tab is ours, a share link's too. */
   icon?: string;
   /**
-   * Where the relative URLs go instead of beside the page: a window's capability, when the link
-   * in the address bar opens once. The tab keeps it, for a reload (the app's content.ts).
-   */
-  base?: string;
-  /**
    * A page meant to be found and shared, as the tour on tobos.ai is: search engines may list it,
    * and a link to it shows a preview with this description and image. Every other page, a deck's
    * or a share link's, stays unlisted.
@@ -93,13 +88,7 @@ export function viewerHtml(page: ViewerPage): string {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-${
-  page.base
-    ? `<base href="${escapeHtml(page.base)}">
-<script>try { for (const at of [location.pathname, new URL(document.baseURI).pathname]) sessionStorage.setItem('tobos:' + at, document.baseURI); } catch {}</script>
-`
-    : ''
-}<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 ${page.listed ? listing(page.listed) : '<meta name="robots" content="noindex">\n'}<title>${escapeHtml(page.title)}</title>
 ${page.icon ? `<link rel="icon" href="${escapeHtml(page.icon)}">\n` : ''}<meta property="og:title" content="${escapeHtml(page.title)}">
 <script type="importmap">${scriptJson(importMap)}</script>

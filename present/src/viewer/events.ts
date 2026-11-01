@@ -1,8 +1,8 @@
 /**
- * The window's one stream from the server (`config.events`): every link's pushes, and on a
- * presenter's link the room's `results` and the speaker's `notes` too. Live follow, the projector's
- * results and the presenter's notes each listen for their own type; the stream opens with the
- * first listener and closes with the last.
+ * The window's one stream from the server (`config.events`): every link's pushes, to a show's
+ * windows the room's `results` too, and to the presenter's view the speaker's `notes`. Live follow,
+ * the room's results and the presenter's notes each listen for their own type; the stream opens
+ * with the first listener and closes with the last.
  */
 import { stream } from './stream.ts';
 
