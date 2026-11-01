@@ -2,7 +2,7 @@ import { letterbox } from '../letterbox.ts';
 import { onSoundRefused } from '../playback.ts';
 import { formatHash, parseHash, same, START } from '../position.ts';
 import { showHash, type View, type ViewerConfig } from './config.ts';
-import { action } from './keys.ts';
+import { action, actionIn, actionMessage, ownerOf, type Action } from './keys.ts';
 import { follow } from './live.ts';
 import { Player } from './player.ts';
 import { settled } from './ready.ts';
@@ -103,42 +103,38 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     if (position) player.go(position);
   });
 
-  window.addEventListener('message', (event) => {
-    const data = event.data as {
-      type?: string;
-      hash?: string;
-      delta?: unknown;
-      on?: unknown;
-    } | null;
-    if (data?.type === 'tobos:goto' && typeof data.hash === 'string')
-      player.goHash(data.hash, false);
-    // The page around this preview passes on the arrow keys it gets while it has the focus.
-    if (data?.type === 'tobos:step' && (data.delta === 1 || data.delta === -1))
-      player.step(data.delta);
-    if (data?.type === 'tobos:fullscreen') toggleFullscreen();
-    // The deck's page can turn the preview's animations off, to click through the end states.
-    if (data?.type === 'tobos:animate') player.stage.animate(Boolean(data.on));
-  });
-
   const toggleFullscreen = () => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
     else document.documentElement.requestFullscreen().catch(() => undefined);
   };
 
-  // A show starts on the deck's page alone (TOB-404, D1): ⌘-Enter in its preview asks the page,
-  // whose key press it is too, to open the projector and become the presenter's view.
-  const present = () =>
-    window.parent.postMessage({ type: 'tobos:present', hash: player.hash }, '*');
+  /** One of the slides' actions (keys.ts), from a key pressed here or handed on by its owner. */
+  const run = (what: Action) => {
+    if (what === 'next' || what === 'prev') player.step(what === 'next' ? 1 : -1);
+    else if (what === 'fullscreen') toggleFullscreen();
+    else if (what === 'guides') document.documentElement.classList.toggle('tobos-guides');
+  };
+
+  window.addEventListener('message', (event) => {
+    const data = event.data as { type?: string; hash?: string; on?: unknown } | null;
+    if (data?.type === 'tobos:goto' && typeof data.hash === 'string')
+      player.goHash(data.hash, false);
+    // A key pressed on the deck's page around this preview, or F in the presenter's view for the
+    // projector: the action, if it is the slides'.
+    const what = actionIn(data);
+    if (what && ownerOf(what) === 'slides') run(what);
+    // The deck's page can turn the preview's animations off, to click through the end states.
+    if (data?.type === 'tobos:animate') player.stage.animate(Boolean(data.on));
+  });
 
   window.addEventListener('keydown', (event) => {
     const what = action(event);
     if (!what) return;
-    if (what === 'next' || what === 'prev') {
-      event.preventDefault();
-      player.step(what === 'next' ? 1 : -1);
-    } else if (what === 'fullscreen') toggleFullscreen();
-    else if (what === 'present' && view === 'deck' && embedded && !shared) present();
-    else if (what === 'guides') document.documentElement.classList.toggle('tobos-guides');
+    if (what === 'next' || what === 'prev') event.preventDefault();
+    if (ownerOf(what) === 'slides') return run(what);
+    // Presenting is the deck page's (TOB-404, D1): in its preview, the key press is the page's
+    // too, so it may open the projector. A viewer on its own presents nothing.
+    if (view === 'deck' && embedded && !shared) window.parent.postMessage(actionMessage(what), '*');
   });
   if (view === 'audience') {
     // Esc ends the show. On release, so the same press doesn't also leave fullscreen elsewhere.

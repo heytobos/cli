@@ -15,7 +15,7 @@
   } from '../position.ts';
   import { liveResults } from '../responses.svelte.ts';
   import { projectorUrl, showHash, type ViewerConfig } from './config.ts';
-  import { action } from './keys.ts';
+  import { action, actionMessage } from './keys.ts';
   import { follow } from './live.ts';
   import { listen } from './events.ts';
   import { Player } from './player.ts';
@@ -196,7 +196,7 @@
 
   function fullscreen() {
     // Capability delegation: this key press lets the audience window go fullscreen.
-    audience?.postMessage({ type: 'tobos:fullscreen' }, {
+    audience?.postMessage(actionMessage('fullscreen'), {
       targetOrigin: location.origin,
       delegate: 'fullscreen',
     } as WindowPostMessageOptions);
