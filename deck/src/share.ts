@@ -6,7 +6,8 @@ const MASTER_PREFIX = `${DECK_PREFIX}master/`;
 
 /**
  * A revision as a share link shows it to people outside the deck's account: without the scenes
- * that have an activity, since a share never opens a room. A chapter left with no scene goes too.
+ * that have an activity, since a share never opens a room, nor those deck.json hides from the
+ * audience. A chapter left with no scene goes too.
  *
  * What the scenes it leaves out are made of goes with them: a share gets the deck's modules and
  * media the scenes it shows reach (their own code, what it imports, the master's, and the files
@@ -20,7 +21,7 @@ export function sharedManifest(manifest: Manifest): SharedManifest {
   const chapters = manifest.chapters
     .map((chapter) => ({
       ...chapter,
-      scenes: chapter.scenes.filter((scene) => !scene.activity),
+      scenes: chapter.scenes.filter((scene) => !scene.activity && !scene.hidden),
     }))
     .filter((chapter) => chapter.scenes.length > 0);
 

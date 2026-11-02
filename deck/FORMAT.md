@@ -38,7 +38,7 @@ Besides `media/`, a deck's files may take 100 MB together and number at most 10,
 
 - `title`: the deck's title.
 - `chapters`: at least one. Each has an `id` and a `title`, and at least one scene. A deck has at most 500 scenes in all; a longer one is several decks.
-- `scenes[]`: an `id` and a `title`. The scene's code is in `scenes/<id>.svelte`.
+- `scenes[]`: an `id` and a `title`. The scene's code is in `scenes/<id>.svelte`. `"hidden": true` (optional) keeps a scene in the deck and on its page, while presenting, the share link and its PDF skip it: a backup slide for questions, or one for another audience. At least one scene shows. People hide and show scenes on the deck's page too, which writes this key in deck.json as a new version, so pull before you change the file.
 - `dependencies` (optional): npm packages the scenes import, with exact versions. Svelte and GSAP come with Tobos and aren't listed.
 
 IDs are lowercase letters, digits and dashes, starting with a letter: `same-problem`, `q2`. Scene IDs are unique across the whole deck, chapter IDs across the chapters. Titles, of the deck, a chapter or a scene, are at most 200 characters. Tobos reads these keys and no others; any others stay in the file.
@@ -326,7 +326,7 @@ export const activity: Activity = {
 
 ## The share link
 
-The share link (turned on on the deck's page) shows the deck to anyone with the link, without an account, to click through and download as a PDF, one page per scene at its last beat; it always shows the latest version. The deck's members download the same PDF from the page, shared or not. A share never opens a room: a scene with a poll is left out of it, and a chapter left with no scene goes too. So a scene that shows the join code next to other content still works shared: `<JoinCode/>` draws nothing there, and `useJoin()` is undefined.
+The share link (turned on on the deck's page) shows the deck to anyone with the link, without an account, to click through and download as a PDF, one page per scene at its last beat; it always shows the latest version. The deck's members download the same PDF from the page, shared or not. A share never opens a room: a scene with a poll is left out of it, as is a hidden scene, and a chapter left with no scene goes too. So a scene that shows the join code next to other content still works shared: `<JoinCode/>` draws nothing there, and `useJoin()` is undefined.
 
 A share gets only what the scenes it shows use, and so does a member who may only view the deck: those scenes' code and everything it imports, the master's among it, the files of `media/` it imports, and the fonts `tokens.css` links. Nothing else of the deck reaches it. This goes by file: a scene that imports a component gets every file the component imports; a glob, every file it matches (`import.meta.glob('$media/**')` matches them all); a module that re-exports others (`lib/index.ts`), all of them. So import a poll's own components directly, not through such a module. A file Tobos doesn't see a scene use, such as a `media/<hash>` address written out, is missing on a share rather than shown.
 

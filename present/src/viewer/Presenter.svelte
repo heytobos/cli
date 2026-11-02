@@ -7,7 +7,6 @@
     count,
     formatHash,
     ordinal,
-    parseHash,
     START,
     step,
     type Outline,
@@ -205,10 +204,18 @@
   onMount(() => {
     const a = letterbox(currentBox);
     const b = letterbox(nextBox);
-    current = new Player(a.stage, config.manifest, { still: true, mountAhead: false });
-    next = new Player(b.stage, config.manifest, { still: true, mountAhead: true });
+    current = new Player(a.stage, config.manifest, {
+      skipHidden: true,
+      still: true,
+      mountAhead: false,
+    });
+    next = new Player(b.stage, config.manifest, {
+      skipHidden: true,
+      still: true,
+      mountAhead: true,
+    });
     outline = current.outline;
-    chapters = config.manifest.chapters;
+    chapters = current.manifest.chapters;
     title = config.manifest.title;
     session = joinSession(config.deck, 'presenter', {
       current: () => refOf(position),
@@ -219,11 +226,12 @@
         if (open) started ??= Date.now();
       },
       onState: (ref) => {
-        const to = parseHash(current.outline, `#${ref.scene}/${ref.beat}`);
+        // The deck's page shows hidden scenes too: one it moves to is where the audience goes.
+        const to = current.placeOf(`#${ref.scene}/${ref.beat}`);
         if (to) show(to, false);
       },
     });
-    show(parseHash(current.outline, location.hash) ?? START, false);
+    show(current.positionOf(location.hash), false);
 
     const onKey = (event: KeyboardEvent) => {
       const what = action(event);

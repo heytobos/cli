@@ -41,6 +41,13 @@ const manifest: Manifest = {
           module: '@deck/scenes/wishes.svelte',
           activity: { id: 'course-wishes', kind: 'text', fields: [{ id: 'a', label: 'A' }] },
         },
+        {
+          id: 'backup',
+          title: 'Backup',
+          hidden: true,
+          beats: ['table'],
+          module: '@deck/scenes/backup.svelte',
+        },
       ],
     },
   ],
@@ -49,6 +56,7 @@ const manifest: Manifest = {
     '@deck/scenes/poll.svelte': 'm/1111111111aaaaaaaaaa.js',
     '@deck/scenes/wishes.svelte': 'm/2222222222bbbbbbbbbb.js',
     '@deck/lib/chart.ts': 'm/3333333333cccccccccc.js',
+    '@deck/scenes/backup.svelte': 'm/aaaaaaaaaa0000000000.js',
   },
   styles: ['m/4444444444dddddddddd.css'],
   media: {},
@@ -68,7 +76,7 @@ const manifest: Manifest = {
 describe('sharedManifest', () => {
   const shared = sharedManifest(manifest);
 
-  it('leaves out the scenes with an activity, and chapters with nothing left', () => {
+  it('leaves out the scenes with an activity or hidden, and chapters with nothing left', () => {
     expect(shared.chapters.map((c) => c.scenes.map((s) => s.id))).toEqual([['title']]);
   });
 
@@ -82,7 +90,7 @@ describe('sharedManifest', () => {
   it('keeps the rest, and the manifest it was given as it was', () => {
     expect(shared.styles).toEqual(manifest.styles);
     expect(manifest.chapters[0]!.scenes).toHaveLength(2);
-    expect(Object.keys(manifest.imports)).toHaveLength(4);
+    expect(Object.keys(manifest.imports)).toHaveLength(5);
   });
 });
 

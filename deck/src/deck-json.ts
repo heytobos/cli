@@ -51,6 +51,8 @@ export function parseDeckJson(text: string | undefined): { deck?: DeckJson; prob
 
   const chapterIds = new Set<string>();
   const sceneIds = new Set<string>();
+  /** The scenes not hidden: a show needs one. */
+  let shown = 0;
   if (!Array.isArray(raw.chapters) || raw.chapters.length === 0) {
     problems.push(problem('"chapters" must be a list with at least one chapter.'));
   } else {
@@ -74,8 +76,13 @@ export function parseDeckJson(text: string | undefined): { deck?: DeckJson; prob
           problems.push(problem(`Scene "${scene.id}" is listed twice.`));
         else sceneIds.add(scene.id);
         titled(scene.title, `${at}.title`);
+        if (scene.hidden !== undefined && typeof scene.hidden !== 'boolean')
+          problems.push(problem(`${at}.hidden is true or false.`));
+        if (scene.hidden !== true) shown++;
       });
     });
+    if (shown === 0 && sceneIds.size > 0)
+      problems.push(problem('Every scene is hidden: at least one has to show.'));
     const count = raw.chapters.reduce(
       (sum: number, chapter: unknown) =>
         sum + (isObject(chapter) && Array.isArray(chapter.scenes) ? chapter.scenes.length : 0),
@@ -110,11 +117,17 @@ export function parseDeckJson(text: string | undefined): { deck?: DeckJson; prob
   type Raw = { id: string; title: string };
   const deck: DeckJson = {
     title: raw.title as string,
-    chapters: (raw.chapters as (Raw & { scenes: Raw[] })[]).map((chapter) => ({
-      id: chapter.id,
-      title: chapter.title,
-      scenes: chapter.scenes.map((scene) => ({ id: scene.id, title: scene.title })),
-    })),
+    chapters: (raw.chapters as (Raw & { scenes: (Raw & { hidden?: boolean })[] })[]).map(
+      (chapter) => ({
+        id: chapter.id,
+        title: chapter.title,
+        scenes: chapter.scenes.map((scene) => ({
+          id: scene.id,
+          title: scene.title,
+          ...(scene.hidden ? { hidden: true as const } : {}),
+        })),
+      }),
+    ),
   };
   if (raw.dependencies !== undefined)
     deck.dependencies = own(Object.entries(raw.dependencies as Record<string, string>));
@@ -181,4 +194,122 @@ export function parseMasterJson(text: string | undefined): { rules: Rules; probl
   if (rules.layoutRoot !== undefined && typeof rules.layoutRoot !== 'boolean')
     return bad('"layoutRoot" is true or false.');
   return { rules: rules as Rules, problems: [] };
+}
+
+/** A JSON value's place in its text: where it starts and ends, and an object's keys in order. */
+type Located =
+  | { kind: 'object'; start: number; end: number; keys: Key[] }
+  | { kind: 'array'; start: number; end: number; items: Located[] }
+  | { kind: 'value'; start: number; end: number; value: unknown };
+interface Key {
+  name: string;
+  /** Where its name starts, quote and all. */
+  start: number;
+  value: Located;
+}
+
+/** Valid JSON, read for where each value is in the text, or undefined if it isn't JSON. */
+function locate(text: string): Located | undefined {
+  let at = 0;
+  const space = () => {
+    while (at < text.length && ' \t\n\r'.includes(text[at]!)) at++;
+  };
+  const string = (): number => {
+    const start = at++;
+    while (text[at] !== '"') {
+      if (at >= text.length) throw new SyntaxError();
+      at += text[at] === '\\' ? 2 : 1;
+    }
+    at++;
+    return start;
+  };
+  const value = (): Located => {
+    space();
+    const start = at;
+    if (text[at] === '{') {
+      at++;
+      const keys: Key[] = [];
+      space();
+      if (text[at] === '}') return { kind: 'object', start, end: ++at, keys };
+      for (;;) {
+        space();
+        if (text[at] !== '"') throw new SyntaxError();
+        const from = string();
+        const name = JSON.parse(text.slice(from, at)) as string;
+        space();
+        if (text[at++] !== ':') throw new SyntaxError();
+        keys.push({ name, start: from, value: value() });
+        space();
+        if (text[at] === ',') at++;
+        else if (text[at] === '}') return { kind: 'object', start, end: ++at, keys };
+        else throw new SyntaxError();
+      }
+    }
+    if (text[at] === '[') {
+      at++;
+      const items: Located[] = [];
+      space();
+      if (text[at] === ']') return { kind: 'array', start, end: ++at, items };
+      for (;;) {
+        items.push(value());
+        space();
+        if (text[at] === ',') at++;
+        else if (text[at] === ']') return { kind: 'array', start, end: ++at, items };
+        else throw new SyntaxError();
+      }
+    }
+    if (text[at] === '"') string();
+    else while (at < text.length && !',]} \t\n\r'.includes(text[at]!)) at++;
+    if (at === start) throw new SyntaxError();
+    return { kind: 'value', start, end: at, value: JSON.parse(text.slice(start, at)) };
+  };
+  try {
+    JSON.parse(text);
+    return value();
+  } catch {
+    return undefined;
+  }
+}
+
+const keyOf = (node: Located | undefined, name: string) =>
+  node?.kind === 'object' ? node.keys.find((key) => key.name === name) : undefined;
+
+/**
+ * deck.json's text with one scene hidden, or shown again: `"hidden": true` added to the scene, or
+ * taken out. The rest of the file stays as it was written, so an agent's working copy merges it
+ * line by line. Undefined if the text isn't JSON or lists no scene `id`.
+ */
+export function setSceneHidden(text: string, id: string, hidden: boolean): string | undefined {
+  const root = locate(text);
+  const chapters = keyOf(root, 'chapters')?.value;
+  if (chapters?.kind !== 'array') return undefined;
+  const scene = chapters.items
+    .flatMap((chapter) => {
+      const scenes = keyOf(chapter, 'scenes')?.value;
+      return scenes?.kind === 'array' ? scenes.items : [];
+    })
+    .find((node) => {
+      const key = keyOf(node, 'id')?.value;
+      return key?.kind === 'value' && key.value === id;
+    });
+  if (scene?.kind !== 'object') return undefined;
+  const at = scene.keys.findIndex((key) => key.name === 'hidden');
+  const was = scene.keys[at];
+  if (hidden) {
+    if (was) return text.slice(0, was.value.start) + 'true' + text.slice(was.value.end);
+    const last = scene.keys.at(-1);
+    if (!last) return text.slice(0, scene.start + 1) + '"hidden": true' + text.slice(scene.end - 1);
+    // On a line of its own, indented as the key before it, if the scene's keys are; else after it.
+    const before = text.slice(scene.start, last.start);
+    const lineAt = before.lastIndexOf('\n');
+    const between = lineAt === -1 ? ', ' : `,\n${before.slice(lineAt + 1).match(/^[ \t]*/)![0]}`;
+    return text.slice(0, last.value.end) + between + '"hidden": true' + text.slice(last.value.end);
+  }
+  if (!was) return text;
+  // Out with the comma that joins it to the key before it, or to the one after if it's the first.
+  const previous = scene.keys[at - 1];
+  const next = scene.keys[at + 1];
+  if (previous) return text.slice(0, previous.value.end) + text.slice(was.value.end);
+  if (next) return text.slice(0, was.start) + text.slice(next.start);
+  return text.slice(0, scene.start + 1) + text.slice(scene.end - 1);
 }

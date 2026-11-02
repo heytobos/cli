@@ -2,7 +2,7 @@ export type * from './types.ts';
 export { buildDeck, createCache, KEPT_MEDIA_DAYS } from './build.ts';
 export type { BuildCache, BuildOptions, BuildResult } from './build.ts';
 export type { Rules } from './analyze.ts';
-export { formatMediaJson, ID, parseDeckJson, parseMediaJson } from './deck-json.ts';
+export { formatMediaJson, ID, parseDeckJson, parseMediaJson, setSceneHidden } from './deck-json.ts';
 export { masterOf } from './master.ts';
 export type { Master } from './master.ts';
 export { isSafePath, memoryTree, readText } from './tree.ts';

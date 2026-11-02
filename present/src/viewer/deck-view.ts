@@ -27,6 +27,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   // the box around it is 16:9 already, and the sub-pixel it misses by would show as a black line.
   if (embedded) document.documentElement.classList.add('tobos-embedded');
   const player: Player = new Player(stage, config.manifest, {
+    skipHidden: view === 'audience',
     mountAhead: !render,
     onMove: (position) => {
       const hash = formatHash(player.outline, position);

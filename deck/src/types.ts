@@ -13,6 +13,8 @@ export interface Problem {
 export interface DeckScene {
   id: string;
   title: string;
+  /** Left out of the show, the share link and its PDF; still on the deck's page. */
+  hidden?: true;
 }
 
 export interface DeckChapter {
@@ -72,6 +74,8 @@ export type Activity = ChoiceActivity | TextActivity;
 export interface ManifestScene {
   id: string;
   title: string;
+  /** Left out of the show, the share link and its PDF (deck.json's `hidden`). */
+  hidden?: true;
   beats: string[];
   /** The scene's specifier in the import map. */
   module: string;
