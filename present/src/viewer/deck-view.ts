@@ -23,7 +23,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   let sync: ReturnType<typeof joinWindows> | null = null;
   let currentRev = config.rev;
   const embedded = window.parent !== window;
-  // On someone else's page (a deck's preview, a template's gallery) the stage has no black bars:
+  // On someone else's page (a deck's preview on the app's) the stage has no black bars:
   // the box around it is 16:9 already, and the sub-pixel it misses by would show as a black line.
   if (embedded) document.documentElement.classList.add('tobos-embedded');
   const player: Player = new Player(stage, config.manifest, {
@@ -46,13 +46,6 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   };
 
   const ready = player.goHash(location.hash);
-
-  // The page around it (a template's gallery) may draw the grid's guides over the stage.
-  window.addEventListener('message', (event) => {
-    const data = event.data as { type?: string; on?: unknown } | null;
-    if (data?.type === 'tobos:guides')
-      document.documentElement.classList.toggle('tobos-guides', Boolean(data.on));
-  });
 
   if (render) {
     // The API `tobos render` drives through a headless browser. goto and sample say whether the
