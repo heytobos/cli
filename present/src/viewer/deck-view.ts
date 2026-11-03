@@ -104,9 +104,10 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     if (position) player.go(position);
   });
 
+  // An iPhone has no fullscreen for a page: there, F does nothing.
   const toggleFullscreen = () => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
-    else document.documentElement.requestFullscreen().catch(() => undefined);
+    else document.documentElement.requestFullscreen?.().catch(() => undefined);
   };
 
   /** One of the slides' actions (keys.ts), from a key pressed here or handed on by its owner. */

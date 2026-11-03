@@ -289,4 +289,18 @@ describe('the phone page', () => {
         `Zufallszahl dieses Handys: ${id}`,
     );
   });
+
+  it('woken while live, it follows afresh: asleep, its stream heard nothing', async () => {
+    state = live('show-1');
+    await open();
+    const asleep = streams.at(-1)!;
+    // The room moved on while the phone slept, and its stream, as iOS left it, never said so.
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(asleep.readyState).toBe(FakeEventSource.CLOSED);
+    const awake = streams.at(-1)!;
+    expect(awake).not.toBe(asleep);
+    // The server answers a new stream with the state.
+    awake.tell(live('show-1', { ...poll('food'), prompt: 'Lunch?' }));
+    expect(screen()).toContain('Lunch?');
+  });
 });

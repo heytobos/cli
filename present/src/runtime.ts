@@ -82,6 +82,16 @@ const listing = ({ description, url, image }: NonNullable<ViewerPage['listed']>)
     '<meta name="twitter:card" content="summary_large_image">',
   ].join('\n') + '\n';
 
+/**
+ * What a browser without import maps shows (Safari before 16.4, Firefox before 108): the deck
+ * can't start there, and the page would stay black. A classic script, so it runs where they don't.
+ */
+const TOO_OLD =
+  '<p style="position:fixed;top:0;right:0;bottom:0;left:0;margin:0;padding:24px;display:flex;' +
+  'align-items:center;justify-content:center;background:#000;color:#fff;text-align:center;' +
+  'font:16px/1.5 system-ui,sans-serif">This browser is too old to show the deck. Update it, or ' +
+  'open the link in another browser.</p>';
+
 export function viewerHtml(page: ViewerPage): string {
   const importMap = { imports: page.imports };
   return `<!doctype html>
@@ -100,6 +110,10 @@ ${Object.values(page.imports)
 </head>
 <body>
 <div id="tobos"></div>
+<script>
+if (!(HTMLScriptElement.supports && HTMLScriptElement.supports('importmap')))
+  document.getElementById('tobos').innerHTML = ${scriptJson(TOO_OLD)};
+</script>
 <script type="module">
 import { start } from '@tobos/present/viewer';
 start(${scriptJson(page.config)});

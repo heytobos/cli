@@ -36,6 +36,8 @@ body {
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
+  /* A long press on a slide steps, not iOS's menu to save its picture. */
+  -webkit-touch-callout: none;
 }
 .tobos-stage {
   position: absolute;

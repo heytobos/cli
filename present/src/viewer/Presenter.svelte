@@ -100,22 +100,41 @@
    * the next one puts it right.
    */
   let reported = false;
+  let lastReport: Promise<unknown> = Promise.resolve();
+  /** The end on its way: no move is reported after it, which would open the show again. */
+  let ending: Promise<void> | undefined;
   function report(at: BeatRef) {
-    if (!config.live) return;
+    if (ending || !config.live) return;
     reported = true;
-    fetch(config.live, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(at),
-      keepalive: true,
-    }).catch(() => undefined);
+    lastReport = post(config.live, at);
   }
 
-  /** The show is over: everything open on the phones closes. */
-  function reportEnd() {
-    if (!config.live || !reported) return;
+  /**
+   * The show is over: everything open on the phones closes. As JSON, the way every report goes,
+   * never a beacon: a beacon's text is a form's to the server, and Safari and Firefox send it from
+   * this page (no referrer) with its origin as `null`, which the server takes for another site's.
+   * After the last move's report, which landing after the end would open the show again; for half
+   * a second at most, since the page is leaving. Ended again meanwhile, as by Esc twice, it waits
+   * for the same end, rather than leave before it goes.
+   */
+  function reportEnd(): Promise<void> {
+    const live = config.live;
+    if (ending || !live || !reported) return ending ?? Promise.resolve();
     reported = false;
-    navigator.sendBeacon(config.live, JSON.stringify({ end: true }));
+    ending = Promise.race([lastReport, new Promise((resolve) => setTimeout(resolve, 500))])
+      .then(() => void post(live, { end: true }))
+      .finally(() => (ending = undefined));
+    return ending;
+  }
+
+  /** A report, as JSON; one that fails is ignored. It outlasts the page, which may be leaving. */
+  function post(url: string, body: unknown): Promise<unknown> {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      keepalive: true,
+    }).catch(() => undefined);
   }
 
   $effect(() => {
@@ -176,8 +195,8 @@
   }
 
   /** The show has ended: back to the deck's page in the app, at this beat. */
-  function goHome() {
-    reportEnd();
+  async function goHome() {
+    await reportEnd();
     if (config.home) location.replace(`${config.home}${location.hash}`);
   }
 

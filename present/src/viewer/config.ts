@@ -54,10 +54,42 @@ export function viewFromUrl(shared = false): View {
     : 'deck';
 }
 
-/** The position in the address bar. */
+/** Changes to the address in 10 seconds: Safari takes 100, and then throws. */
+const WINDOW_MS = 10_000;
+const MOST = 90;
+/** When the address changed in the last 10 seconds; the position waiting for room, if any. */
+const writtenAt: number[] = [];
+let waiting: string | undefined;
+let retry: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * The position in the address bar. Safari throws past 100 changes to it in 10 seconds, which an
+ * arrow key held down reaches in three, and the move after it would never reach the stage: past
+ * 90, a move waits for room, and of those waiting only the last is written. One the browser
+ * refuses all the same is left for the next.
+ */
 export function showHash(hash: string) {
-  if (location.hash !== hash)
+  waiting = hash;
+  const now = Date.now();
+  while (writtenAt.length > 0 && now - writtenAt[0]! >= WINDOW_MS) writtenAt.shift();
+  if (writtenAt.length >= MOST) {
+    retry ??= setTimeout(
+      () => {
+        retry = undefined;
+        if (waiting !== undefined) showHash(waiting);
+      },
+      writtenAt[0]! + WINDOW_MS - now,
+    );
+    return;
+  }
+  waiting = undefined;
+  if (location.hash === hash) return;
+  writtenAt.push(now);
+  try {
     history.replaceState(null, '', `${location.pathname}${location.search}${hash}`);
+  } catch {
+    // A limit of the browser's own: the next move writes it.
+  }
 }
 
 /**

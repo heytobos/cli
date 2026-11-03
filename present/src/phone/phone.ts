@@ -212,7 +212,9 @@ async function look(): Promise<boolean> {
 }
 
 // While nothing is live: a look every 30 s, and whenever the page is shown again. Offline for a
-// moment, the next look tries again.
+// moment, the next look tries again. Shown again while live, the stream starts afresh, which the
+// server answers with the state: a phone asleep, as iOS puts one, kept no connection, though its
+// stream may look open or still wait a minute to reconnect.
 let timer = 0;
 async function poll() {
   window.clearTimeout(timer);
@@ -223,7 +225,10 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   renew();
   render();
-  if (!events) void poll();
+  if (!events) return void poll();
+  events();
+  events = null;
+  follow();
 });
 
 // While live: the server's stream of the same state, which reconnects by itself (stream.ts). The
