@@ -11,8 +11,8 @@ Tobos hosts presentations written as code: a deck is a folder of files, one Svel
 
 ## Get to the deck
 
-- `tobos ls` lists the decks and templates the person can work on, by id. `tobos pull <id>` gets one; `tobos new "Title"` starts one and pulls it.
-- A new deck starts from Tobos standard. The person's own templates, their house styles, are in `tobos ls`: start from one with `--from <id>`, and ask which when there are several.
+- `tobos ls` lists the decks the person can work on, by id. `tobos pull <id>` gets one; `tobos new "Title"` starts one and pulls it.
+- A new deck starts from Tobos standard's design. The person's own house styles are decks in `tobos ls`: start from one with `--from <id>`, which copies its master, and ask which when there are several.
 - Then read the deck's `AGENTS.md`: it points to the loop, the format and the deck's slide master.
 - The person's decks are in folders, which `tobos --help` lists the commands for.
 
@@ -34,6 +34,6 @@ They decide what to make and how much of it you build: one scene at a time, or t
 
 - **Exit code 5** is a limit or an archived deck. Show the person the message as it is, which says what they can do, and wait for their answer. The deck stays in Tobos: a deck built elsewhere to upload later, media shrunk or hosted elsewhere to fit, or someone else's account would decide for them what is theirs to decide.
 - **Archiving, opening again and deleting** a deck, and deleting a session's answers, are done by the person on the deck's page, in their own browser.
-- **Who is on a deck, and its link,** are the person's, on the deck's page: they put people on it, change what each may do, take them off, and turn the link on or off there. You neither see nor change any of it: `tobos ls` tells you only what you may do on each deck and whose it is. Can edit builds it with their own agent, can present presents it with its notes and polls, and can view sees the slides; on a template, can edit and can use.
+- **Who is on a deck, and its link,** are the person's, on the deck's page: they put people on it, change what each may do, take them off, and turn the link on or off there. You neither see nor change any of it: `tobos ls` tells you only what you may do on each deck and whose it is. Can edit builds it with their own agent, can present presents it with its notes and polls and starts decks from its design, and can view sees the slides.
 - **Each scene's notes,** what the speaker says, are the person's: they write them under the stage on the deck's page, and the presenter sees them. You neither read nor write them, and a scene needs none from you.
 - **The URL `tobos open` prints** is the deck's page, where the person watches it, presents it and shares it. A show starts there alone: no link you can get presents the deck.

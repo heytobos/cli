@@ -70,7 +70,7 @@ A presentation is a sequence of **beats**. One click advances one beat. A scene 
 </Content>
 ```
 
-- `Content` is a layout from the deck's master (see [The master](#the-master)). The templates Tobos comes with all have `Title` and `Content`, which the examples here use; `master/GUIDE.md` says what the deck's own master has, and with which props.
+- `Content` is a layout from the deck's master (see [The master](#the-master)). Tobos standard, which a new deck starts from unless it names another, has `Title` and `Content`, which the examples here use; `master/GUIDE.md` says what the deck's own master has, and with which props.
 
 - `beats` is exported as an array literal, and every `id` is a string literal. Tobos reads the beats without running your code, so computed lists and IDs are rejected.
 - A scene has at most 100 beats. One that needs more is several scenes.
@@ -354,7 +354,7 @@ The viewer keeps a connection open to follow new versions, so a browser test tha
 
 ## The master
 
-`master/` is the deck's slide master, and the deck's own code: a new deck gets a copy of a template's master, and from then on nothing outside the deck changes it.
+`master/` is the deck's slide master, and the deck's own code: a new deck gets a copy of another deck's master, and from then on nothing outside the deck changes it.
 
 ```
 master/index.ts       what scenes import: `import { Title, Content } from '../master/index.ts'`
@@ -371,13 +371,12 @@ media/master/         the master's own files: its fonts, a logo (media like any 
 - A file the master's components show, such as a logo, is media: `import logo from '$media/master/logo.svg'`.
 - `master.json`'s rules apply to every scene. Both are optional: without them, nothing is checked beyond the format.
 
-## Templates
+## Starting from another deck
 
-A template is a deck people start from.
+A new deck starts from another deck's design: Tobos standard, unless `new` names another with `from`, one the person may edit or present, such as their own house style.
 
-- A new deck starts with a copy of its template's master: `master/`, the media in `media/master/`, and the `dependencies` the master imports.
-- A new template is a copy of all of the template it starts from, scenes and master.
-- A copy is a copy: nothing refers back to the template, so changing it changes only the decks made from it afterwards. To bring a deck along, copy the master's files across.
-- A template's scenes are its gallery, one per layout or component with sample content, shown on its page in Tobos. When you add or change a layout, add or change its scene too.
-- A new deck gets the template's master but not its `lib/` or `scenes/`, so the master imports neither: it keeps to its own files and packages.
-- Tobos standard (`06b48295-7c5c-4e1f-90f5-a082d60941de`, the full house style: Title, Section, Content, Agenda and Blank, with Quote, Stat, Chip and Code) comes with Tobos: anyone may read it and start from it, and a new deck or template starts from it unless it names another.
+- It gets a copy of that deck's master: `master/`, the media in `media/master/`, and the `dependencies` the master imports. Not its `lib/` or `scenes/`, so a master imports neither: it keeps to its own files and packages.
+- A copy is a copy: nothing refers back, so changing the other deck changes only the decks started from it afterwards. To bring a deck along, copy the master's files across.
+- To use the other deck's scenes too, read them and write them like any file.
+- A deck others start from keeps a scene per layout and component, with sample content, so its page shows its design as any deck's does. When you add or change a layout, add or change its scene too.
+- Tobos standard (`06b48295-7c5c-4e1f-90f5-a082d60941de`, the full house style: Title, Section, Content, Agenda and Blank, with Quote, Stat, Chip and Code) comes with Tobos: anyone may read it and start from it.

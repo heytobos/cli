@@ -76,7 +76,6 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
       dir: { type: 'string' },
       'no-pull': { type: 'boolean' },
       from: { type: 'string' },
-      template: { type: 'boolean' },
     },
   },
   mv: { run: commands.mv },

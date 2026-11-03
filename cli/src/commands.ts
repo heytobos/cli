@@ -29,7 +29,6 @@ export interface Args {
 
 interface DeckInfo {
   id: string;
-  kind: 'deck' | 'template';
   title: string;
   /** What you may do with it: you own it, or it was shared with you to edit, present or view. */
   role?: 'owner' | 'editor' | 'presenter' | 'viewer';
@@ -184,11 +183,10 @@ export async function whoami(out: Output) {
   out.result({ ...me, server: settings().server }, () => `${me.email} on ${settings().server}`);
 }
 
-/** What `tobos ls` says of one besides its title: a template, someone else's, archived. */
+/** What `tobos ls` says of one besides its title: someone else's, archived. */
 function aboutDeck(d: DeckInfo): string {
   const can = { editor: 'you edit', presenter: 'you present', viewer: 'you view' } as const;
   const notes = [
-    d.kind === 'template' && 'template',
     d.role && d.role !== 'owner' && `${d.owner ?? 'someone else'}’s, ${can[d.role]}`,
     d.archived && 'archived: read-only',
   ].filter(Boolean);
@@ -204,7 +202,7 @@ type Entry =
   { kind: 'folder'; name: string; path: string } | { kind: 'deck'; id: string; title: string };
 
 /**
- * The decks and templates the person can work on, each in its folder, and those shared with
+ * The decks the person can work on, each in its folder, and those shared with
  * them; with a path, what that folder of their drive holds instead: its folders, then its decks.
  */
 export async function ls(out: Output, args: Args) {
@@ -308,9 +306,9 @@ async function pullCopy(out: Output, info: DeckInfo, dir: string) {
 }
 
 /**
- * A new deck, its master copied from a template (the account's default unless `--from` names one),
- * or with `--template` a new template: a copy of all of the one it starts from. Then pulled into
- * a folder of its own, unless `--no-pull`.
+ * A new deck, its design copied from another deck (Tobos standard unless `--from` names one): its
+ * master, the master's media and the packages it imports. Then pulled into a folder of its own,
+ * unless `--no-pull`.
  */
 export async function create(out: Output, args: Args) {
   const title = args.positionals.join(' ').trim();
@@ -323,11 +321,7 @@ export async function create(out: Output, args: Args) {
   )
     throw new CliError(`${resolve(args.values.dir)} already exists.`);
   const info = await api<DeckInfo>('/api/decks', {
-    body: {
-      title,
-      from: args.values.from,
-      template: Boolean(args.values.template),
-    },
+    body: { title, from: args.values.from },
   });
   let dir: string | undefined;
   if (!args.values['no-pull']) {

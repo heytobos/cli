@@ -82,12 +82,12 @@ const CHANGESET_SCHEMA = {
 
 export const VERBS = {
   list: {
-    does: 'The decks and templates the person works on, by id: their own, and those shared with them that they may present or change. Each with its title, your level on it and whose it is, whether it is archived (read-only), when it last changed, its address in Tobos, and, for the person’s own, its folder. With a path, what that folder holds: its folders, then its decks.',
+    does: 'The decks the person works on, by id: their own, and those shared with them that they may present or change. Each with its title, your level on it and whose it is, whether it is archived (read-only), when it last changed, its address in Tobos, and, for the person’s own, its folder. With a path, what that folder holds: its folders, then its decks.',
     input: { properties: { path: { type: 'string', description: FOLDER_PATH } }, required: [] },
     cli: [
       {
         usage: 'tobos ls [/path]',
-        does: 'your decks and templates, by id, with your level on each, whose it is and its folder; with a path, what that folder holds',
+        does: 'your decks, by id, with your level on each, whose it is and its folder; with a path, what that folder holds',
       },
     ],
   },
@@ -137,31 +137,34 @@ export const VERBS = {
     chat: 'Each file’s text in full, a patch of part of it, a file on the web for media/, or null to delete it. All or nothing, so put everything a step needs into one call.',
   },
   new: {
-    does: 'Makes a deck in the person’s account from a template, Tobos standard unless another is named, such as the person’s own house style (ask which when they have several), with its first version, `rev`; or, as a template, a new template: a copy of all of the one it starts from.',
+    does: 'Makes a deck in the person’s account, with its first version, `rev`: one title scene, and the design of the deck it starts from, its master, the master’s media and the packages it imports. Tobos standard unless another deck is named, such as the person’s own house style (ask which when they have several). To use another deck’s scenes too, read them and write them like any file.',
     input: {
       properties: {
         title: { type: 'string', description: 'The title of the talk.' },
-        from: { type: 'string', description: 'The id of the template to start from.' },
-        template: { type: 'boolean', description: 'Make a template rather than a deck.' },
+        from: {
+          type: 'string',
+          description:
+            'The id of the deck whose design to start from, one you may edit or present.',
+        },
       },
       required: ['title'],
     },
-    chat: 'Gives the deck’s id, its first version, `rev`, its files, and its address in Tobos; `list` gives templates’ ids.',
+    chat: 'Gives the deck’s id, its first version, `rev`, its files, and its address in Tobos; `list` gives the ids of the decks to start from.',
     cli: [
       {
-        usage: 'tobos new "Title" [--from <id>] [--template] [--dir dir]',
-        does: 'a deck from a template (Tobos standard unless --from), or a template; pulled into ./<id> or dir (--no-pull: only made)',
+        usage: 'tobos new "Title" [--from <id>] [--dir dir]',
+        does: 'a deck with the design of another (Tobos standard unless --from); pulled into ./<id> or dir (--no-pull: only made)',
       },
     ],
   },
   move: {
-    does: 'Moves the person’s decks and templates, a deck by its id or title, and folders, by path, with all that is in them, into a folder, made with the folders on its path if there are none. A folder a move empties goes. Refused, with nothing moved, if one isn’t there, if a title is two decks’ (name that one by its id), if the folder has one of a moved folder’s name, or if a folder would go into itself.',
+    does: 'Moves the person’s decks, a deck by its id or title, and folders, by path, with all that is in them, into a folder, made with the folders on its path if there are none. A folder a move empties goes. Refused, with nothing moved, if one isn’t there, if a title is two decks’ (name that one by its id), if the folder has one of a moved folder’s name, or if a folder would go into itself.',
     input: {
       properties: {
         decks: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Decks and templates to move, each by its id or title.',
+          description: 'Decks to move, each by its id or title.',
         },
         folders: {
           type: 'array',
