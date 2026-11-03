@@ -34,6 +34,8 @@
   let audience = $state<Window | null>(null);
   /** Whether an audience window is open, whichever window opened it. */
   let audienceOpen = $state(false);
+  /** The audience refused fullscreen to F here, as outside Chromium: it takes a click there. */
+  let fullscreenRefused = $state(false);
   let started = $state<number | null>(null);
   let now = $state(Date.now());
 
@@ -244,6 +246,7 @@
         audienceOpen = open;
         if (open) started ??= Date.now();
       },
+      onRefused: () => (fullscreenRefused = true),
       onState: (ref) => {
         // The deck's page shows hidden scenes too: one it moves to is where the audience goes.
         const to = current.placeOf(`#${ref.scene}/${ref.beat}`);
@@ -378,8 +381,8 @@
     </aside>
   </main>
   <footer>
-    → / Space next · ← back · {#if audience}F fullscreen · Esc end{:else if showing}click the
-      audience for fullscreen · Esc end{:else}⌘/Ctrl-Enter present{/if}
+    → / Space next · ← back · {#if audience && !fullscreenRefused}F fullscreen · Esc end{:else if showing}click
+      the audience for fullscreen · Esc end{:else}⌘/Ctrl-Enter present{/if}
   </footer>
 </div>
 

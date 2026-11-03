@@ -80,6 +80,8 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   }
 
   const shared = Boolean(config.shared);
+  /** A preview on the app's page, the deck's or a template's gallery, which takes its actions. */
+  const inApp = view === 'deck' && embedded && !shared;
   if (!shared)
     session = joinSession(config.deck, view, {
       current: () => (player.position ? refOf() : null),
@@ -104,10 +106,11 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     if (position) player.go(position);
   });
 
-  // An iPhone has no fullscreen for a page: there, F does nothing.
+  // An iPhone has no fullscreen for a page: there, F does nothing. Refused, as the projector
+  // refuses F in the presenter's view outside Chromium, the presenter's view hears so (session.ts).
   const toggleFullscreen = () => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
-    else document.documentElement.requestFullscreen?.().catch(() => undefined);
+    else document.documentElement.requestFullscreen?.().catch(() => session?.refused());
   };
 
   /** One of the slides' actions (keys.ts), from a key pressed here or handed on by its owner. */
@@ -124,7 +127,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     // A key pressed on the deck's page around this preview, or F in the presenter's view for the
     // projector: the action, if it is the slides'.
     const what = actionIn(data);
-    if (what && ownerOf(what) === 'slides') run(what);
+    if (what && ownerOf(what, inApp) === 'slides') run(what);
     // The deck's page can turn the preview's animations off, to click through the end states.
     if (data?.type === 'tobos:animate') player.stage.animate(Boolean(data.on));
   });
@@ -133,10 +136,11 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     const what = action(event);
     if (!what) return;
     if (what === 'next' || what === 'prev') event.preventDefault();
-    if (ownerOf(what) === 'slides') return run(what);
-    // Presenting is the deck page's (TOB-404, D1): in its preview, the key press is the page's
-    // too, so it may open the projector. A viewer on its own presents nothing.
-    if (view === 'deck' && embedded && !shared) window.parent.postMessage(actionMessage(what), '*');
+    if (ownerOf(what, inApp) === 'slides') return run(what);
+    // Presenting is the deck page's (TOB-404, D1), and in its preview fullscreen is too: the key
+    // press is the page's too, so it may open the projector, or make the preview fullscreen. A
+    // viewer on its own presents nothing.
+    if (inApp) window.parent.postMessage(actionMessage(what), '*');
   });
   if (view === 'audience') {
     // Esc ends the show. On release, so the same press doesn't also leave fullscreen elsewhere.

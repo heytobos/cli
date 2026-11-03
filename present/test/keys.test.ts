@@ -35,6 +35,13 @@ describe('the one key map', () => {
       expect(ownerOf(what), what).toBe('slides');
   });
 
+  it("gives fullscreen to the page too, for slides on the app's page", () => {
+    expect(ownerOf('fullscreen', true)).toBe('page');
+    expect(ownerOf('present', true)).toBe('page');
+    for (const what of ['next', 'prev', 'guides', 'end'] as Action[])
+      expect(ownerOf(what, true), what).toBe('slides');
+  });
+
   it('reads an action from its one message, and nothing else', () => {
     expect(actionIn({ type: 'tobos:action', action: 'next' })).toBe('next');
     expect(actionIn({ type: 'tobos:action', action: 'present' })).toBe('present');

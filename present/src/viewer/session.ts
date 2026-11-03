@@ -17,12 +17,16 @@ type Message = { from: string; view: View } & (
   | { kind: 'here' }
   | { kind: 'state'; at: BeatRef; time: number }
   | { kind: 'end' }
+  /** The audience refused fullscreen to a key press elsewhere: it needs a click of its own. */
+  | { kind: 'refused' }
   | { kind: 'bye' }
 );
 
 export interface Session {
   publish(at: BeatRef): void;
   end(): void;
+  /** Fullscreen, asked for from another window, was refused here. */
+  refused(): void;
   close(): void;
 }
 
@@ -34,10 +38,12 @@ export function joinSession(
     onEnd?: () => void;
     /** Whether an audience window is open, as it changes. */
     onAudience?: (open: boolean) => void;
+    /** The audience refused fullscreen to a key press in this window. */
+    onRefused?: () => void;
     current: () => BeatRef | null;
   },
 ): Session {
-  if (!('BroadcastChannel' in window)) return { publish() {}, end() {}, close() {} };
+  if (!('BroadcastChannel' in window)) return { publish() {}, end() {}, refused() {}, close() {} };
   const me = Math.random().toString(36).slice(2);
   const channel = new BroadcastChannel(`tobos:${deck}`);
   let lastTime = 0;
@@ -61,6 +67,7 @@ export function joinSession(
       lastTime = message.time;
       handlers.onState(message.at);
     } else if (message.kind === 'end') handlers.onEnd?.();
+    else if (message.kind === 'refused' && message.view === 'audience') handlers.onRefused?.();
   };
   const hello = () => send({ kind: 'hello', from: me, view });
   const bye = () => send({ kind: 'bye', from: me, view });
@@ -74,6 +81,9 @@ export function joinSession(
     },
     end() {
       send({ kind: 'end', from: me, view });
+    },
+    refused() {
+      send({ kind: 'refused', from: me, view });
     },
     close() {
       bye();
