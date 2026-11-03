@@ -284,9 +284,14 @@ export async function pull(out: Output, args: Args) {
     clone: !found.base,
   });
   await writeFormatGuide(found.root, base.server);
-  out.result({ id: base.deck, ...pulled }, () =>
+  const page =
+    pulled.rev === base.rev
+      ? []
+      : await pageChanges(out, base.deck, base.server, base.rev, pulled.rev);
+  out.result({ id: base.deck, ...pulled, page }, () =>
     [
       `In step with the server (${pulled.rev?.slice(0, 7) ?? 'no version yet'}): ${plural(pulled.changed.length, 'file')} changed.`,
+      saidPage(page),
       pulled.conflicts.length
         ? `${plural(pulled.conflicts.length, 'conflict')}, between <<<<<<< and >>>>>>> in each: resolve them, then push.\n${pulled.conflicts.join('\n')}`
         : '',
@@ -296,6 +301,57 @@ export async function pull(out: Output, args: Args) {
   );
   if (pulled.conflicts.length) process.exitCode = EXIT.conflict;
 }
+
+/** What someone changed on the deck's page: a version's message, and who made it. */
+interface PageChange {
+  message: string;
+  author: string | null;
+}
+
+/**
+ * What people changed on the deck's page after version `since`, up to `until` (the version the
+ * copy took), oldest first: each version made there, so the agent knows what moved, was hidden or renamed. If the server can't say now, a
+ * warning that names the version to ask about later, and none: the files are what count.
+ */
+async function pageChanges(
+  out: Output,
+  deck: string,
+  server: string,
+  since: string | null,
+  until: string | null = null,
+) {
+  if (!since) return [];
+  const range = `since=${encodeURIComponent(since)}${until ? `&until=${encodeURIComponent(until)}` : ''}`;
+  try {
+    const { pushes } = await api<{
+      pushes: { message: string | null; author: string | null; door: string | null }[];
+    }>(`/api/decks/${deck}?${range}`, { server });
+    return pushes
+      .filter((p) => p.door === 'browser')
+      .map((p): PageChange => ({ message: p.message ?? 'Changed', author: p.author }));
+  } catch (error) {
+    out.note(
+      `Couldn't ask what changed on the deck's page since ${since.slice(0, 7)}: its versions say. (${(error as Error).message})`,
+      true,
+    );
+    return [];
+  }
+}
+
+/** Those changes, said: a scene renamed there keeps its slide's heading, the agent's to change. */
+const saidPage = (changes: PageChange[]) =>
+  changes.length
+    ? [
+        "Changed on the deck's page meanwhile:",
+        ...changes.map((c) => `  ${c.message}${c.author ? ` (${c.author})` : ''}`),
+        // As the page's messages say it (arrangedMessage): “Renamed “…” to …”, or after a “; ”.
+        changes.some((c) => /(^|; )renamed “/i.test(c.message))
+          ? "A scene renamed there keeps its slide's own heading: change that to match."
+          : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : '';
 
 /** A new working copy of a deck in `dir`, with the format guide. */
 async function pullCopy(out: Output, info: DeckInfo, dir: string) {
@@ -406,7 +462,8 @@ export async function check(out: Output, args: Args) {
  */
 async function pushCopy(out: Output, copy: Copy, message?: string) {
   const changes = changesOf(copy);
-  if (changes.length === 0) return { pushed: false as const, rev: copy.base.rev, uploaded: [] };
+  if (changes.length === 0)
+    return { pushed: false as const, rev: copy.base.rev, uploaded: [], page: [] as PageChange[] };
   noteSizes(
     out,
     copy.root,
@@ -436,17 +493,30 @@ async function pushCopy(out: Output, copy: Copy, message?: string) {
     rev: written.rev,
     uploaded: written.uploaded,
     problems: written.problems,
+    // What the page changed that this push merged in, which the copy has now.
+    page: await pageChanges(out, copy.base.deck, copy.base.server, copy.base.rev, written.rev),
   };
 }
 
 export async function push(out: Output, args: Args) {
   const copy = requireCopy();
-  const result = await pushCopy(out, copy, args.values.message as string | undefined);
+  const pushed = await pushCopy(out, copy, args.values.message as string | undefined);
+  // Nothing to push, the page may still have changed since the copy's version: pull takes it.
+  const result = pushed.pushed
+    ? pushed
+    : { ...pushed, page: await pageChanges(out, copy.base.deck, copy.base.server, copy.base.rev) };
   const url = `${copy.base.server}/${copy.base.deck}`;
   out.result({ ...result, url }, () =>
-    result.pushed
-      ? `✓ Pushed ${result.rev?.slice(0, 7)}${result.uploaded.length ? ` with ${plural(result.uploaded.length, 'media file')}` : ''}. Live at ${url}`
-      : `Nothing to push: the copy is as the server has it. Live at ${url}`,
+    [
+      result.pushed
+        ? `✓ Pushed ${result.rev?.slice(0, 7)}${result.uploaded.length ? ` with ${plural(result.uploaded.length, 'media file')}` : ''}. Live at ${url}`
+        : result.page.length
+          ? `Nothing to push, but the deck's page changed since this copy's version: run \`tobos pull\`. Live at ${url}`
+          : `Nothing to push: the copy has no changes of its own. Live at ${url}`,
+      saidPage(result.page),
+    ]
+      .filter(Boolean)
+      .join('\n'),
   );
 }
 

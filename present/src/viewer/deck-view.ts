@@ -2,7 +2,15 @@ import { letterbox } from '../letterbox.ts';
 import { onSoundRefused } from '../playback.ts';
 import { formatHash, parseHash, same, START } from '../position.ts';
 import { showHash, type View, type ViewerConfig } from './config.ts';
-import { action, actionIn, actionMessage, ownerOf, type Action } from './keys.ts';
+import {
+  action,
+  actionIn,
+  actionMessage,
+  ARRANGING,
+  ownerOf,
+  PRESSED,
+  type Action,
+} from './keys.ts';
 import { follow } from './live.ts';
 import { Player } from './player.ts';
 import { settled } from './ready.ts';
@@ -115,6 +123,8 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     else if (what === 'guides') document.documentElement.classList.toggle('tobos-guides');
   };
 
+  /** Whether the deck's page around it arranges its scenes now, so it takes their keys. */
+  let arranging = false;
   window.addEventListener('message', (event) => {
     const data = event.data as { type?: string; hash?: string; on?: unknown } | null;
     if (data?.type === 'tobos:goto' && typeof data.hash === 'string')
@@ -125,6 +135,8 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     if (what && ownerOf(what) === 'slides') run(what);
     // The deck's page can turn the preview's animations off, to click through the end states.
     if (data?.type === 'tobos:animate') player.stage.animate(Boolean(data.on));
+    // And say whether its keys arrange the scenes now.
+    if (data?.type === 'tobos:arranging') arranging = Boolean(data.on);
   });
 
   window.addEventListener('keydown', (event) => {
@@ -132,9 +144,16 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     if (!what) return;
     if (what === 'next' || what === 'prev') event.preventDefault();
     if (ownerOf(what) === 'slides') return run(what);
-    // Presenting is the deck page's (TOB-404, D1): in its preview, the key press is the page's
-    // too, so it may open the projector. A viewer on its own presents nothing.
-    if (view === 'deck' && embedded && !shared) window.parent.postMessage(actionMessage(what), '*');
+    // Presenting and arranging are the deck page's (TOB-404, D1): in its preview, the key press is
+    // the page's too, so it may open the projector. A viewer on its own presents nothing. Enter on
+    // a slide's own button presses it.
+    if (!(view === 'deck' && embedded && !shared)) return;
+    // Arranging's keys only while the page arranges (its Scenes tab, for its editors), so they
+    // stay the slides' otherwise; and Enter on a slide's own control presses it.
+    if (ARRANGING.has(what) && !arranging) return;
+    if (what === 'rename' && (event.target as Element | null)?.closest?.(PRESSED)) return;
+    event.preventDefault();
+    window.parent.postMessage(actionMessage(what), '*');
   });
   if (view === 'audience') {
     // Esc stops presenting. On release, so the same press doesn't also leave fullscreen elsewhere.

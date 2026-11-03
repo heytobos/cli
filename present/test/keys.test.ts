@@ -19,6 +19,38 @@ describe('the one key map', () => {
       'end',
     ]);
     expect([action(press('h')), action(press('H'))]).toEqual(['hide', 'hide']);
+    // Arranging the deck's scenes, as its page does them.
+    const command = { metaKey: true };
+    expect(
+      [
+        press('z', command),
+        press('Z', { ...command, shiftKey: true }),
+        press('ArrowUp', command),
+        press('ArrowDown', command),
+        press('ArrowUp', { ...command, shiftKey: true }),
+        press('ArrowDown', { ctrlKey: true, shiftKey: true }),
+        press('Backspace', command),
+        press('Delete'),
+        press('Enter'),
+        press('F2'),
+        press('F10', { shiftKey: true }),
+        press('ContextMenu'),
+      ].map(action),
+    ).toEqual([
+      'undo',
+      'redo',
+      'up',
+      'down',
+      'first',
+      'last',
+      'remove',
+      'remove',
+      'rename',
+      'rename',
+      'menu',
+      'menu',
+    ]);
+    expect(action(press('ArrowDown', { shiftKey: true }))).toBe('next');
     expect(action(press('Enter', { metaKey: true }))).toBe('present');
     expect(action(press('Enter', { ctrlKey: true }))).toBe('present');
     // Other keys with a modifier are the browser's.
@@ -30,9 +62,21 @@ describe('the one key map', () => {
     expect(action(press('ArrowRight', { target: field as unknown as EventTarget }))).toBeNull();
   });
 
-  it('gives presenting and hiding to the page, and everything else to the slides', () => {
+  it('gives presenting and arranging to the page, and everything else to the slides', () => {
     expect(ownerOf('present')).toBe('page');
-    expect(ownerOf('hide')).toBe('page');
+    for (const what of [
+      'hide',
+      'undo',
+      'redo',
+      'up',
+      'down',
+      'first',
+      'last',
+      'remove',
+      'rename',
+      'menu',
+    ] as Action[])
+      expect(ownerOf(what), what).toBe('page');
     for (const what of ['next', 'prev', 'fullscreen', 'guides', 'end'] as Action[])
       expect(ownerOf(what), what).toBe('slides');
   });

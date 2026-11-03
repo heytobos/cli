@@ -23,7 +23,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { parseMediaJson } from '@tobos/deck/deck-json';
 import { mediaTypeOf } from '@tobos/deck/media-type';
 import type { MediaJson } from '@tobos/deck/types';
-import { mergeText } from '@tobos/deck/merge';
+import { mergeFile } from '@tobos/deck/merge';
 import { unpackTar } from '@tobos/deck/tar';
 import { api, request, failure } from './api.ts';
 import { CliError, EXIT } from './out.ts';
@@ -162,14 +162,15 @@ export interface Pulled {
 
 /**
  * Bring the copy at `root` into step with the deck's latest version: a file the copy didn't
- * change since its base is the server's; one both changed is merged, three ways, line by line,
- * and a conflict is left in it between git's markers; one only the copy changed stays. Where
- * there is nothing to mark, a file deleted here but changed there, or bytes both changed, the
- * server's is taken, and the copy's own kept in `.tobos/conflicts/`. Then the copy's base is that
- * version. A copy made now has no base: every file is the server's. A `clone` from before never
- * had its media, which are fetched. A file the server can't give now keeps the base it had, so a
- * push doesn't take it for the copy's own change, and a later pull tries again. Nothing is written
- * outside the copy, through a link in it, or where the copy leaves files out (held).
+ * change since its base is the server's; one both changed is merged, three ways (mergeFile:
+ * deck.json scene by scene, any other line by line), and a conflict is left in it between git's
+ * markers; one only the copy changed stays. Where there is nothing to mark, a file deleted here
+ * but changed there, or bytes both changed, the server's is taken, and the copy's own kept in
+ * `.tobos/conflicts/`. Then the copy's base is that version. A copy made now has no base: every
+ * file is the server's. A `clone` from before never had its media, which are fetched. A file the
+ * server can't give now keeps the base it had, so a push doesn't take it for the copy's own
+ * change, and a later pull tries again. Nothing is written outside the copy, through a link in
+ * it, or where the copy leaves files out (held).
  */
 export async function pullInto(
   root: string,
@@ -231,7 +232,7 @@ export async function pullInto(
     const theirs = s === undefined ? undefined : await bytesOf(path, s);
     const older = b === undefined ? new Uint8Array() : await fileAt(deck, server, base!.rev, path);
     const texts = [older, ours, theirs].every((bytes) => bytes && isUtf8(bytes));
-    const merged = texts ? mergeText(textOf(older), textOf(ours), textOf(theirs)) : undefined;
+    const merged = texts ? mergeFile(path, textOf(older), textOf(ours), textOf(theirs)) : undefined;
     if (merged !== undefined) write(file, Buffer.from(merged));
     else if (texts) {
       write(file, Buffer.from(marked(textOf(ours), textOf(theirs))));
