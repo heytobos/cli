@@ -17,7 +17,7 @@ export function start(config: ViewerConfig) {
   setShared(Boolean(config.shared));
   const root = document.getElementById('tobos')!;
   const view = viewFromUrl(Boolean(config.shared));
-  // A show's windows see what the room answers, the deck page's preview among them. Print and
+  // The presenting windows see what the room answers, the deck page's preview among them. Print and
   // render are documents, so they show zeros.
   if (config.answers && config.events && view !== 'print' && view !== 'render' && view !== 'sheet')
     followResponses(config.events);

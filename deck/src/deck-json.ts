@@ -51,7 +51,7 @@ export function parseDeckJson(text: string | undefined): { deck?: DeckJson; prob
 
   const chapterIds = new Set<string>();
   const sceneIds = new Set<string>();
-  /** The scenes not hidden: a show needs one. */
+  /** The scenes not hidden: presenting needs one. */
   let shown = 0;
   if (!Array.isArray(raw.chapters) || raw.chapters.length === 0) {
     problems.push(problem('"chapters" must be a list with at least one chapter.'));

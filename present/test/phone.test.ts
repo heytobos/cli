@@ -173,14 +173,14 @@ describe('the phone page', () => {
     expect(kept()).toMatchObject({ show: 'show-2', sent: ['drink'], drafts: {} });
   });
 
-  it('sends the show with each answer; refused in a show that is over, it goes again in the next', async () => {
+  it('sends the session with each answer; refused in a session that is over, it goes again in the next', async () => {
     state = live('show-1');
     await open();
     await answer('Tea');
     expect(answers[0]).toMatchObject({ show: 'show-1', activity: 'drink' });
     const first = answers[0]!.participant;
 
-    // The next question; the presenter clears the responses before the phone hears of it.
+    // The next question; the presenter starts a new session before the phone hears of it.
     streams.at(-1)!.tell(live('show-1', poll('food')));
     state = live('show-2', poll('food'));
     await answer('Coffee');
@@ -188,7 +188,7 @@ describe('the phone page', () => {
     // Refused in the show that is over: the phone asks what is open, and forgets that show.
     expect(answers[1]).toMatchObject({ show: 'show-1', participant: first, activity: 'food' });
     expect(kept()).toBeNull();
-    expect(screen()).toBe('Tea or coffee?TeaCoffeeSendThe session started over. Send again.');
+    expect(screen()).toBe('Tea or coffee?TeaCoffeeSendA new session started. Send again.');
     // Sent again, picked as it was: in the next show, with an id of that show's.
     document.querySelector<HTMLButtonElement>('button.send')!.click();
     await settle();
@@ -211,7 +211,7 @@ describe('the phone page', () => {
     // Picked, not sent yet: answering.
     document.querySelector<HTMLButtonElement>('button.option')!.click();
     expect(answering()).toBe(true);
-    // The responses cleared: the next show isn't answered yet.
+    // A new session: it isn't answered yet.
     streams.at(-1)!.tell(live('show-2'));
     expect(answering()).toBe(false);
     await answer('Tea');

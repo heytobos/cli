@@ -2,7 +2,7 @@ import type { SharedManifest } from '@tobos/deck';
 import type { Outline, Position } from '../position.ts';
 
 /**
- * The deck as the show has it: without the scenes deck.json hides from the audience, and without
+ * The deck as presenting has it: without the scenes deck.json hides from the audience, and without
  * a chapter they leave empty. deck.json always has a scene that shows.
  */
 export function shownOf<M extends SharedManifest>(manifest: M): M {
@@ -16,7 +16,7 @@ export function shownOf<M extends SharedManifest>(manifest: M): M {
 }
 
 /**
- * Where the show is when `hash` names a scene it skips, as the deck's page may have been on when
+ * Where presenting is when `hash` names a scene it skips, as the deck's page may have been on when
  * presenting began: at the start of the next scene that shows, or at the end of the last one if
  * none follows. Undefined if `hash` names no hidden scene of `all`.
  */

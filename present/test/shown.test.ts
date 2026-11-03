@@ -38,7 +38,7 @@ describe('shownOf', () => {
 });
 
 describe('hiddenPlace', () => {
-  // The outline the show's player makes of it (player.ts's outlineOf).
+  // The outline the presenting player makes of it (player.ts's outlineOf).
   const shown = {
     scenes: shownOf(deck).chapters.flatMap((c) =>
       c.scenes.map((s) => ({ id: s.id, beats: s.beats })),

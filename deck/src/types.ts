@@ -13,7 +13,7 @@ export interface Problem {
 export interface DeckScene {
   id: string;
   title: string;
-  /** Left out of the show, the share link and its PDF; still on the deck's page. */
+  /** Left out of presenting, the share link and its PDF; still on the deck's page. */
   hidden?: true;
 }
 
@@ -39,7 +39,7 @@ export interface MediaEntry {
 /** media.json: path inside media/ → the file's content hash. */
 export type MediaJson = Record<string, MediaEntry>;
 
-/** A poll: each phone picks one option. Its result shows on the projector from `reveals` on. */
+/** A multiple-choice poll: each phone picks one option; its result shows from `reveals` on. */
 export interface ChoiceActivity {
   id: string;
   kind: 'choice';
@@ -57,7 +57,7 @@ export interface TextField {
   max?: number;
 }
 
-/** A form: each phone fills in its fields. The answers are only stored. */
+/** An open-text poll: each phone fills in its fields. The answers are only stored. */
 export interface TextActivity {
   id: string;
   kind: 'text';
@@ -66,15 +66,15 @@ export interface TextActivity {
 }
 
 /**
- * Something the room responds to on their phones, declared by a scene. It is open while the
- * deck is presented on its scene, up to its `reveals` beat.
+ * A poll: what a scene asks the room, who answer on their phones (the format's `activity`). It
+ * is open while the deck is presented on its scene, up to its `reveals` beat.
  */
 export type Activity = ChoiceActivity | TextActivity;
 
 export interface ManifestScene {
   id: string;
   title: string;
-  /** Left out of the show, the share link and its PDF (deck.json's `hidden`). */
+  /** Left out of presenting, the share link and its PDF (deck.json's `hidden`). */
   hidden?: true;
   beats: string[];
   /** The scene's specifier in the import map. */

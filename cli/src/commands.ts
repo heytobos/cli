@@ -576,7 +576,7 @@ export async function skill(out: Output, args: Args) {
       EXIT.error,
       { targets },
     );
-  const next = 'New sessions of the harness load the skill.';
+  const next = 'New conversations in the harness load the skill.';
   out.result({ skill: SKILL_NAME, version: VERSION, targets, next }, () =>
     [
       `The ${SKILL_NAME} skill (${VERSION}):`,

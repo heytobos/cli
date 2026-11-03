@@ -7,16 +7,16 @@ import type { Activity, SharedManifest } from '@tobos/deck/types';
 import type { Results } from './activities.ts';
 import { listen } from './viewer/events.ts';
 
-/** One activity's responses in the current show. */
+/** One activity's responses in the current session. */
 export interface Responses {
   /**
-   * The most phones that had the deck's join link open at once during this show, and never fewer
+   * The most phones that had the deck's join link open at once during this session, and never fewer
    * than answered.
    */
   readonly joined: number;
-  /** People who have answered this activity during this show. */
+  /** People who have answered this activity during this session. */
   readonly answered: number;
-  /** A poll's responses per option, in the order the scene declares them. A form's is empty. */
+  /** Multiple choice's responses per option, in the order the scene declares them; else empty. */
   readonly counts: number[];
 }
 
@@ -32,13 +32,13 @@ export function setActivities(manifest: SharedManifest) {
   );
 }
 
-/** The current show's responses: reactive, for a scene or the presenter's view. */
+/** The current session's responses: reactive, for a scene or the presenter's view. */
 export function liveResults(): Readonly<Results> {
   return results;
 }
 
 /**
- * The room's responses to an activity of this deck in the current show: how many joined, how
+ * The room's responses to an activity of this deck in the current session: how many joined, how
  * many answered, and a poll's counts per option. Call during component setup.
  */
 export function useResponses(id: string): Responses {

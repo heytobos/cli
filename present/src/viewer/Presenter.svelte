@@ -19,7 +19,7 @@
   import { listen } from './events.ts';
   import { Player } from './player.ts';
   import { openAudience } from './screens.ts';
-  import { joinSession, type BeatRef } from './session.ts';
+  import { joinWindows, type BeatRef } from './windows.ts';
 
   let { config }: { config: ViewerConfig } = $props();
 
@@ -41,7 +41,7 @@
 
   let current: Player;
   let next: Player;
-  let session: ReturnType<typeof joinSession>;
+  let sync: ReturnType<typeof joinWindows>;
 
   const total = $derived(outline.scenes.length ? count(outline) : 0);
   const at = $derived(outline.scenes.length ? ordinal(outline, position) + 1 : 0);
@@ -60,11 +60,11 @@
   });
   /** The current scene's activity, open or revealed. */
   const activityHere = $derived(scenes[position.scene]?.activity);
-  /** Answers in the show, to every activity: before Present, what is left from the last one. */
+  /** Answers in the session, to every poll: before Present, what is left from the last one. */
   const answeredAll = $derived(
     Object.values(results.activities).reduce((sum, a) => sum + a.answered, 0),
   );
-  /** The room: "312 joined · 204 answered", this scene's while the show is on. */
+  /** The room: "312 joined · 204 answered", this scene's while presenting. */
   const room = $derived(
     !showing
       ? `${results.joined} joined · ${answeredAll} answered`
@@ -73,8 +73,8 @@
         : `${results.joined} joined`,
   );
   /**
-   * Responses the room has given in this show, or the last one: what Clear clears. Not who
-   * joined: phones still following are in the next show too.
+   * Answers the room has given in this session, or the last one: New session is offered once
+   * there are some. Not who joined: phones still following are in the next session too.
    */
   const answered = $derived(Object.keys(results.activities).length > 0);
 
@@ -92,18 +92,18 @@
     next.go(after, false);
     const hash = formatHash(current.outline, to);
     showHash(hash);
-    if (publish) session.publish(refOf(to));
+    if (publish) sync.publish(refOf(to));
     if (showing) report(refOf(to));
   }
 
   /**
-   * The server hears where the show is, so the room's phones follow it: every move while the
-   * show is on, and a heartbeat. Presenting never waits for it: a failed report is ignored, and
+   * The server hears where the presenter is, so the room's phones follow: every move while
+   * presenting, and a heartbeat. Presenting never waits for it: a failed report is ignored, and
    * the next one puts it right.
    */
   let reported = false;
   let lastReport: Promise<unknown> = Promise.resolve();
-  /** The end on its way: no move is reported after it, which would open the show again. */
+  /** The end on its way: no move is reported after it, which would open the session again. */
   let ending: Promise<void> | undefined;
   function report(at: BeatRef) {
     if (ending || !config.live) return;
@@ -112,10 +112,10 @@
   }
 
   /**
-   * The show is over: everything open on the phones closes. As JSON, the way every report goes,
+   * Presenting has stopped: everything open on the phones closes. As JSON, the way every report goes,
    * never a beacon: a beacon's text is a form's to the server, and Safari and Firefox send it from
    * this page (no referrer) with its origin as `null`, which the server takes for another site's.
-   * After the last move's report, which landing after the end would open the show again; for half
+   * After the last move's report, which landing after the end would open the session again; for half
    * a second at most, since the page is leaving. Ended again meanwhile, as by Esc twice, it waits
    * for the same end, rather than leave before it goes.
    */
@@ -153,10 +153,10 @@
    * downloads keep every answer all the same.
    */
   let confirming = $state(false);
-  let clearing = $state(false);
+  let startingSession = $state(false);
   let confirmTimer = 0;
-  function clearResponses() {
-    if (!config.live || clearing) return;
+  function newSession() {
+    if (!config.live || startingSession) return;
     window.clearTimeout(confirmTimer);
     if (!confirming) {
       confirming = true;
@@ -164,14 +164,14 @@
       return;
     }
     confirming = false;
-    clearing = true;
+    startingSession = true;
     fetch(config.live, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ restart: true }),
     })
       .catch(() => undefined)
-      .finally(() => (clearing = false));
+      .finally(() => (startingSession = false));
   }
 
   function move(delta: 1 | -1) {
@@ -189,20 +189,20 @@
   }
 
   function end() {
-    session.end();
+    sync.end();
     audience?.close();
     audience = null;
     audienceOpen = false;
     goHome();
   }
 
-  /** The show has ended: back to the deck's page in the app, at this beat. */
+  /** Presenting has stopped: back to the deck's page in the app, at this beat. */
   async function goHome() {
     await reportEnd();
     if (config.home) location.replace(`${config.home}${location.hash}`);
   }
 
-  // A closed audience window ends the show too, unless it was only reloading.
+  // A closed audience window stops presenting too, unless it was only reloading.
   let wasShowing = false;
   $effect(() => {
     if (showing) {
@@ -238,7 +238,7 @@
     outline = current.outline;
     chapters = current.manifest.chapters;
     title = config.manifest.title;
-    session = joinSession(config.deck, 'presenter', {
+    sync = joinWindows(config.deck, 'presenter', {
       current: () => refOf(position),
       // Esc in the audience.
       onEnd: goHome,
@@ -281,7 +281,7 @@
         chapters = current.manifest.chapters;
         title = current.manifest.title;
         // The players carried the place across the push, by scene: this window follows them, so
-        // the count, the list, the notes and where the phones are told the show is match the
+        // the count, the list, the notes and where the phones are told the presenter is match the
         // stage, and the next arrow steps from there.
         show(current.position ?? START, false);
       },
@@ -292,7 +292,7 @@
       window.clearTimeout(confirmTimer);
       stop();
       unlisten?.();
-      session.close();
+      sync.close();
       current.destroy();
       next.destroy();
     };
@@ -318,13 +318,13 @@
     {/if}
     <span class="spacer"></span>
     {#if answered && config.live && hasActivities}
-      <button class:confirming disabled={clearing} onclick={clearResponses}
+      <button class:confirming disabled={startingSession} onclick={newSession}
         >{confirming ? 'Click again to start it' : 'New session'}</button
       >
     {/if}
     {#if showing}
       <button onclick={end}>
-        <Square size={11} fill="currentColor" aria-hidden="true" />End show
+        <Square size={11} fill="currentColor" aria-hidden="true" />Stop presenting
       </button>
     {:else}
       <button class="primary" onclick={present}>

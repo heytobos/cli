@@ -612,7 +612,7 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
             severity: 'error',
           });
 
-  // Activity IDs name a deck's responses: unique across the deck.
+  // Poll IDs name a deck's answers: unique across the deck.
   const activityFiles = new Map<string, string>();
   for (const file of sceneFiles) {
     const found = graph.compiled.get(file)?.analysis.activity;
@@ -623,7 +623,7 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
         file,
         line: found.line,
         rule: 'activity',
-        message: `Activity "${found.activity.id}" is declared in ${other} too: activity IDs are unique across the deck.`,
+        message: `Poll "${found.activity.id}" is declared in ${other} too: poll IDs are unique across the deck.`,
         severity: 'error',
       });
     else activityFiles.set(found.activity.id, file);

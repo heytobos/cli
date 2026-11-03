@@ -6,7 +6,7 @@ import { action, actionIn, actionMessage, ownerOf, type Action } from './keys.ts
 import { follow } from './live.ts';
 import { Player } from './player.ts';
 import { settled } from './ready.ts';
-import { joinSession, type BeatRef } from './session.ts';
+import { joinWindows, type BeatRef } from './windows.ts';
 import { shareBar } from './share-bar.ts';
 import { onTap } from './taps.ts';
 
@@ -20,7 +20,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   const render = view === 'render';
   if (view === 'audience' || render) document.documentElement.classList.add('tobos-no-cursor');
 
-  let session: ReturnType<typeof joinSession> | null = null;
+  let sync: ReturnType<typeof joinWindows> | null = null;
   let currentRev = config.rev;
   const embedded = window.parent !== window;
   // On someone else's page (a deck's preview, a template's gallery) the stage has no black bars:
@@ -32,7 +32,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     onMove: (position) => {
       const hash = formatHash(player.outline, position);
       showHash(hash);
-      if (!applyingRemote) session?.publish(refOf());
+      if (!applyingRemote) sync?.publish(refOf());
       if (embedded)
         window.parent.postMessage({ type: 'tobos:position', hash, rev: currentRev }, '*');
     },
@@ -83,12 +83,12 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   /** A preview on the app's page, the deck's or a template's gallery, which takes its actions. */
   const inApp = view === 'deck' && embedded && !shared;
   if (!shared)
-    session = joinSession(config.deck, view, {
+    sync = joinWindows(config.deck, view, {
       current: () => (player.position ? refOf() : null),
       onState: (at) => {
         // go() reports the move synchronously, before the scene has loaded. Only that report is
         // the other window's: a click here while the scene still loads is this window's own.
-        // Of the windows that follow a show, only the audience is heard: the room has one sound.
+        // Of the windows that follow, only the audience is heard: the room has one sound.
         applyingRemote = true;
         try {
           void player.goHash(`#${at.scene}/${at.beat}`, undefined, view === 'audience');
@@ -107,10 +107,10 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   });
 
   // An iPhone has no fullscreen for a page: there, F does nothing. Refused, as the projector
-  // refuses F in the presenter's view outside Chromium, the presenter's view hears so (session.ts).
+  // refuses F in the presenter's view outside Chromium, the presenter's view hears so (windows.ts).
   const toggleFullscreen = () => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
-    else document.documentElement.requestFullscreen?.().catch(() => session?.refused());
+    else document.documentElement.requestFullscreen?.().catch(() => sync?.refused());
   };
 
   /** One of the slides' actions (keys.ts), from a key pressed here or handed on by its owner. */
@@ -143,13 +143,13 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     if (inApp) window.parent.postMessage(actionMessage(what), '*');
   });
   if (view === 'audience') {
-    // Esc ends the show. On release, so the same press doesn't also leave fullscreen elsewhere.
+    // Esc stops presenting. On release, so the same press doesn't also leave fullscreen elsewhere.
     (navigator as unknown as { keyboard?: { lock?: (keys: string[]) => Promise<void> } }).keyboard
       ?.lock?.(['Escape'])
       .catch(() => undefined);
     window.addEventListener('keyup', (event) => {
       if (event.key === 'Escape') {
-        session?.end();
+        sync?.end();
         window.close();
       }
     });

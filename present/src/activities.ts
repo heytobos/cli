@@ -10,11 +10,11 @@ export type PhoneActivity =
       fields: { id: string; label: string; multiline?: boolean; max: number }[];
     };
 
-/** Nothing live, or the show and its open activity, if any. */
+/** Nothing live, or the session and its open activity, if any. */
 export type PhoneState =
   { live: false } | { live: true; show: string; activity: PhoneActivity | null };
 
-/** What the projector hears: the show, and every activity answered in it. */
+/** What the projector hears: the session, and every activity answered in it. */
 export interface Results {
   show: string | null;
   joined: number;

@@ -50,7 +50,7 @@ export interface PlayerOptions {
 
 /** A deck on a stage: the position, and moving it. */
 export class Player {
-  /** The deck as this player shows it: in a show, without its hidden scenes. */
+  /** The deck as this player shows it: while presenting, without its hidden scenes. */
   manifest: SharedManifest;
   /** The deck with every scene, hidden or not: where a hidden scene's place is. */
   private all: SharedManifest;
@@ -109,7 +109,7 @@ export class Player {
   }
 
   /**
-   * Where `hash` is in this player's deck. A scene the show skips, as the deck's page may have
+   * Where `hash` is in this player's deck. A scene presenting skips, as the deck's page may have
    * been on when presenting began, or is on now, is at the start of the next scene that shows, or
    * at the end of the last one if none follows. Undefined if `hash` names nothing.
    */

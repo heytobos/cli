@@ -21,7 +21,7 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 /* The screen is what the script shows. At its foot, what happens to the answers: held on the first
-   screen, however long the question, until the person starts answering in this show (the
+   screen, however long the question, until the person starts answering in this session (the
    script's `answering`), and from then on below the question, so as not to hide its Send button. */
 body {
   min-height: 100dvh;

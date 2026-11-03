@@ -3,8 +3,8 @@ import type { View } from './config.ts';
 /**
  * Windows showing the same deck (presenter and audience) stay on the same beat.
  * Either can drive; a window that opens or reloads mid-talk adopts the current beat.
- * Every message names its window's view, so a presenter opened after the audience knows a show
- * is on.
+ * Every message names its window's view, so a presenter opened after the audience knows the deck
+ * is being presented.
  */
 export interface BeatRef {
   scene: string;
@@ -22,7 +22,7 @@ type Message = { from: string; view: View } & (
   | { kind: 'bye' }
 );
 
-export interface Session {
+export interface WindowSync {
   publish(at: BeatRef): void;
   end(): void;
   /** Fullscreen, asked for from another window, was refused here. */
@@ -30,7 +30,7 @@ export interface Session {
   close(): void;
 }
 
-export function joinSession(
+export function joinWindows(
   deck: string,
   view: View,
   handlers: {
@@ -42,7 +42,7 @@ export function joinSession(
     onRefused?: () => void;
     current: () => BeatRef | null;
   },
-): Session {
+): WindowSync {
   if (!('BroadcastChannel' in window)) return { publish() {}, end() {}, refused() {}, close() {} };
   const me = Math.random().toString(36).slice(2);
   const channel = new BroadcastChannel(`tobos:${deck}`);

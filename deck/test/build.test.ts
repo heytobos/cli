@@ -1505,35 +1505,37 @@ export const activity = {
 
   it('need an id of lowercase letters, digits and dashes, and a kind', async () => {
     expect(await messages(poll("kind: 'choice', prompt: 'Q?', options: ['a', 'b'],"))).toEqual([
-      'An activity needs an `id`: lowercase letters, digits and dashes.',
+      'A poll needs an `id`: lowercase letters, digits and dashes.',
     ]);
     expect(
       await messages(poll("id: 'Used API', kind: 'choice', prompt: 'Q?', options: ['a', 'b'],")),
-    ).toEqual(['Activity ID "Used API" must be lowercase letters, digits and dashes.']);
+    ).toEqual(['Poll ID "Used API" must be lowercase letters, digits and dashes.']);
     expect(await messages(poll("id: 'x', kind: 'quiz', prompt: 'Q?'"))).toEqual([
-      'An activity\'s `kind` is "choice" (a poll) or "text" (a form).',
+      'A poll\'s `kind` is "choice" (multiple choice) or "text" (open text).',
     ]);
     expect(
       await messages(
         poll("id: 'x', kind: 'choice', prompt: 'Q?', options: ['a', 'b'], reveal: 'result',"),
       ),
-    ).toEqual(['A poll has no `reveal`: it takes id, kind, prompt, options and reveals.']);
+    ).toEqual([
+      'A multiple-choice poll has no `reveal`: it takes id, kind, prompt, options and reveals.',
+    ]);
   });
 
   it('as a poll need a prompt and two to eight different options, each short', async () => {
     expect(await messages(poll("id: 'x', kind: 'choice', options: ['a', 'b'],"))).toEqual([
-      'A poll needs a `prompt`.',
+      'A multiple-choice poll needs a `prompt`.',
     ]);
     expect(
       await messages(poll("id: 'x', kind: 'choice', prompt: ' ', options: ['a', 'b'],")),
-    ).toEqual(['A poll needs a `prompt`.']);
+    ).toEqual(['A multiple-choice poll needs a `prompt`.']);
     expect(
       await messages(
         poll(`id: 'x', kind: 'choice', prompt: '${'q'.repeat(201)}', options: ['a', 'b'],`),
       ),
     ).toEqual(['The `prompt` is 201 characters; it may have 200.']);
     expect(await messages(poll("id: 'x', kind: 'choice', prompt: 'Q?', options: ['a'],"))).toEqual([
-      'A poll needs 2 to 8 `options`; this one has 1.',
+      'A multiple-choice poll needs 2 to 8 `options`; this one has 1.',
     ]);
     expect(
       await messages(
@@ -1541,7 +1543,7 @@ export const activity = {
           "id: 'x', kind: 'choice', prompt: 'Q?', options: ['1','2','3','4','5','6','7','8','9'],",
         ),
       ),
-    ).toEqual(['A poll needs 2 to 8 `options`; this one has 9.']);
+    ).toEqual(['A multiple-choice poll needs 2 to 8 `options`; this one has 9.']);
     expect(
       await messages(poll("id: 'x', kind: 'choice', prompt: 'Q?', options: ['a', 'a'],")),
     ).toEqual(['Option "a" is listed twice.']);
@@ -1576,12 +1578,12 @@ export const activity = {
     const form = (fields: string, extra = '') =>
       messages(poll(`id: 'x', kind: 'text', ${extra}fields: [${fields}],`));
     expect(await form("{ id: 'a', label: 'A?' }")).toEqual([]);
-    expect(await form('')).toEqual(['A form needs 1 to 5 `fields`; this one has 0.']);
+    expect(await form('')).toEqual(['An open-text poll needs 1 to 5 `fields`; this one has 0.']);
     expect(
       await form(Array.from({ length: 6 }, (_, i) => `{ id: 'f${i}', label: 'L' }`).join()),
-    ).toEqual(['A form needs 1 to 5 `fields`; this one has 6.']);
+    ).toEqual(['An open-text poll needs 1 to 5 `fields`; this one has 6.']);
     expect(await form("{ id: 'a', label: 'A?' }, { id: 'a', label: 'B?' }")).toEqual([
-      'Field "a" is declared twice in this form.',
+      'Field "a" is declared twice in this poll.',
     ]);
     expect(await form("{ id: 'a' }")).toEqual(['A field needs a `label`.']);
     expect(await form("{ label: 'A?' }")).toEqual([
@@ -1610,7 +1612,7 @@ export const activity = {
       await messages(
         poll("id: 'x', kind: 'text', fields: [{ id: 'a', label: 'A?' }], reveals: 'result',"),
       ),
-    ).toEqual(["A form can't `reveal`: a form's answers are only stored."]);
+    ).toEqual(["An open-text poll can't `reveal`: its answers are only stored."]);
   });
 
   it('have IDs unique across the deck', async () => {
@@ -1622,7 +1624,7 @@ export const activity = {
         file: 'scenes/question.svelte',
         line: 4,
         message:
-          'Activity "used-llm-api" is declared in scenes/title.svelte too: activity IDs are unique across the deck.',
+          'Poll "used-llm-api" is declared in scenes/title.svelte too: poll IDs are unique across the deck.',
       },
     ]);
   });

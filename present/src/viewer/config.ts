@@ -5,30 +5,30 @@ export type View = 'deck' | 'audience' | 'presenter' | 'print' | 'render' | 'she
 
 /** What the viewer page passes to start(). */
 export interface ViewerConfig {
-  /** The deck's id: names the presenting session. */
+  /** The deck's id: names the channel the deck's windows share while it is presented. */
   deck: string;
   rev: string;
   manifest: SharedManifest;
   /**
-   * The window's server-sent events (events.ts): pushes for live follow, and to a show's windows
-   * the room's results, to the presenter's view the speaker's notes too; absent in a static folder
-   * (the e2e suite's fixture).
+   * The window's server-sent events (events.ts): pushes for live follow, and to the presenting
+   * windows the room's results, to the presenter's view the speaker's notes too; absent in a
+   * static folder (the e2e suite's fixture).
    */
   events?: string;
   /** Where the latest manifest is, for live follow. */
   manifestUrl?: string;
-  /** The deck's page in the app, where the presenter goes back to when the show ends. */
+  /** The deck's page in the app, where the presenter goes back to when presenting stops. */
   home?: string;
-  /** The deck's join code, for `<JoinCode/>`: once the deck has an activity. */
+  /** The deck's join code, for `<JoinCode/>`: once the deck has a poll. */
   join?: JoinInfo;
   /**
-   * The room's answers come on `events`: a show's windows, the presenter's and the projector's,
-   * and the deck page's preview, which is a projector.
+   * The room's answers come on `events`: the windows of a deck presented, the presenter's and the
+   * projector's, and the deck page's preview, which is a projector.
    */
   answers?: true;
   /**
-   * Where the presenter reports the show: its position, its end, a new session. The presenter's
-   * view only, whose `events` carry the speaker's notes too.
+   * Where the presenter reports where they are, that presenting stopped, or a new session. The
+   * presenter's view only, whose `events` carry the speaker's notes too.
    */
   live?: string;
   /** The projector's link, which the presenter's view opens it with: its own, made with it. */

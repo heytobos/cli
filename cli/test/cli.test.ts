@@ -47,7 +47,7 @@ describe('tobos', () => {
     expect(JSON.parse(bad.stdout).error).toContain('tobos help');
   });
 
-  it("gives no presenter's link: a show starts on the deck's page alone", () => {
+  it("gives no presenter's link: presenting starts on the deck's page alone", () => {
     const asked = run(['open', '--presenter', '--json']);
     expect(asked.status).toBe(1);
     expect(JSON.parse(asked.stdout).error).toContain("Unknown option '--presenter'");

@@ -361,27 +361,33 @@ function readActivity(
   const idLiteral = props.get('id');
   const id = text(idLiteral);
   if (id === undefined)
-    at(idLiteral?.node ?? init, 'An activity needs an `id`: lowercase letters, digits and dashes.');
+    at(idLiteral?.node ?? init, 'A poll needs an `id`: lowercase letters, digits and dashes.');
   else if (!ACTIVITY_ID.test(id))
-    at(idLiteral!.node, `Activity ID "${id}" must be lowercase letters, digits and dashes.`);
+    at(idLiteral!.node, `Poll ID "${id}" must be lowercase letters, digits and dashes.`);
   const kind = text(props.get('kind'));
   const prompt = props.get('prompt');
 
   let activity: Activity | undefined;
   if (kind === 'choice') {
-    only(props, ['id', 'kind', 'prompt', 'options', 'reveals'], 'A poll');
+    only(props, ['id', 'kind', 'prompt', 'options', 'reveals'], 'A multiple-choice poll');
     const question = prompt ? short(prompt, 'prompt', PROMPT_MAX) : undefined;
-    if (!prompt) at(init, 'A poll needs a `prompt`.');
+    if (!prompt) at(init, 'A multiple-choice poll needs a `prompt`.');
     else if (question !== undefined && !question.trim())
-      at(prompt.node, 'A poll needs a `prompt`.');
+      at(prompt.node, 'A multiple-choice poll needs a `prompt`.');
     const optionsLiteral = props.get('options');
     const options: string[] = [];
     if (!Array.isArray(optionsLiteral?.value))
-      at(optionsLiteral?.node ?? init, 'A poll needs 2 to 8 `options`, as an array of strings.');
+      at(
+        optionsLiteral?.node ?? init,
+        'A multiple-choice poll needs 2 to 8 `options`, as an array of strings.',
+      );
     else {
       const items = optionsLiteral.value;
       if (items.length < 2 || items.length > 8)
-        at(optionsLiteral.node, `A poll needs 2 to 8 \`options\`; this one has ${items.length}.`);
+        at(
+          optionsLiteral.node,
+          `A multiple-choice poll needs 2 to 8 \`options\`; this one has ${items.length}.`,
+        );
       for (const item of items) {
         const option = text(item);
         if (option === undefined) at(item.node, 'Each option is a string.');
@@ -418,21 +424,30 @@ function readActivity(
       };
   } else if (kind === 'text') {
     if (props.has('reveals'))
-      at(props.get('reveals')!.node, "A form can't `reveal`: a form's answers are only stored.");
+      at(
+        props.get('reveals')!.node,
+        "An open-text poll can't `reveal`: its answers are only stored.",
+      );
     only(
       new Map([...props].filter(([key]) => key !== 'reveals')),
       ['id', 'kind', 'prompt', 'fields'],
-      'A form',
+      'An open-text poll',
     );
     const question = prompt ? short(prompt, 'prompt', PROMPT_MAX) : undefined;
     const fieldsLiteral = props.get('fields');
     const fields: TextField[] = [];
     if (!Array.isArray(fieldsLiteral?.value))
-      at(fieldsLiteral?.node ?? init, 'A form needs 1 to 5 `fields`, as an array of objects.');
+      at(
+        fieldsLiteral?.node ?? init,
+        'An open-text poll needs 1 to 5 `fields`, as an array of objects.',
+      );
     else {
       const items = fieldsLiteral.value;
       if (items.length < 1 || items.length > 5)
-        at(fieldsLiteral.node, `A form needs 1 to 5 \`fields\`; this one has ${items.length}.`);
+        at(
+          fieldsLiteral.node,
+          `An open-text poll needs 1 to 5 \`fields\`; this one has ${items.length}.`,
+        );
       const seen = new Set<string>();
       for (const item of items) {
         if (!(item.value instanceof Map)) {
@@ -454,7 +469,7 @@ function readActivity(
             `Field ID "${fieldId}" must be lowercase letters, digits and dashes.`,
           );
         else if (seen.has(fieldId))
-          at(fieldIdLiteral!.node, `Field "${fieldId}" is declared twice in this form.`);
+          at(fieldIdLiteral!.node, `Field "${fieldId}" is declared twice in this poll.`);
         else seen.add(fieldId);
         const labelLiteral = field.get('label');
         const label = labelLiteral ? short(labelLiteral, 'label', LABEL_MAX) : undefined;
@@ -490,7 +505,7 @@ function readActivity(
   } else
     at(
       props.get('kind')?.node ?? init,
-      'An activity\'s `kind` is "choice" (a poll) or "text" (a form).',
+      'A poll\'s `kind` is "choice" (multiple choice) or "text" (open text).',
     );
 
   if (problems.length || !activity) return { problems };

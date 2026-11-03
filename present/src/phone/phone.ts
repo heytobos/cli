@@ -1,7 +1,7 @@
 /**
  * The phone page, at `<content origin>/<code>`: whatever activity the presenter is on, to answer
  * once. Our code only, never a deck's. No account and no cookies: what the phone keeps in
- * localStorage is for one show only (Kept), and a phone that only looks keeps and sends nothing.
+ * localStorage is for one session only (Kept), and a phone that only looks keeps and sends nothing.
  */
 import type { PhoneActivity, PhoneState } from '../activities.ts';
 import { stream } from '../viewer/stream.ts';
@@ -48,11 +48,11 @@ function uuid(): string {
 }
 
 /**
- * What the phone keeps for the deck, under `tobos:phone:<code>`, for one show: its id in it,
+ * What the phone keeps for the deck, under `tobos:phone:<code>`, for one session: its id in it,
  * made when it sends its first answer, so that its answers stay together and each counts once;
  * what it has answered, so that a reload doesn't offer it again; and what it has typed but not
- * sent. All of it goes when the phone sees another show live, or 3 hours after the page was last
- * open (`until`, renewed while it is). The next show, or another deck, gets another id, so one
+ * sent. All of it goes when the phone sees another session live, or 3 hours after the page was last
+ * open (`until`, renewed while it is). The next session, or another deck, gets another id, so one
  * phone's answers can't be lined up across them.
  */
 interface Kept {
@@ -105,19 +105,19 @@ let picked: string | null = null;
 
 /**
  * The objection's mail, in the notice the server puts on the page: the join code goes in, and the
- * phone's id in this show, which only the phone knows, so that its answers can be found.
+ * phone's id in this session, which only the phone knows, so that its answers can be found.
  */
 const objection = document.querySelector<HTMLAnchorElement>('a[data-object]');
 const mailto = objection?.getAttribute('href') ?? '';
 
-/** The show in which the person started answering here, by picking or typing. */
+/** The session in which the person started answering here, by picking or typing. */
 let started: string | null = null;
 
 /** What follows from what the phone keeps, outside the screen the script draws. */
 function changed() {
-  // Answering in this show, here or before a reload: the notice, which was on the first screen,
-  // gives way to the question's Send button (phone.css). Another show, the next or a cleared one,
-  // isn't answered yet, and has it on the first screen again.
+  // Answering in this session, here or before a reload: the notice, which was on the first screen,
+  // gives way to the question's Send button (phone.css). Another session, the next one or a new one
+  // the presenter started, isn't answered yet, and has it on the first screen again.
   const show = state?.live ? state.show : null;
   document.body.classList.toggle(
     'answering',
@@ -149,7 +149,7 @@ function forget() {
 }
 
 /**
- * What the phone keeps, while it may still use it: before its time is up, and for the show that
+ * What the phone keeps, while it may still use it: before its time is up, and for the session that
  * is live, if one is. Otherwise it is forgotten.
  */
 function mine(): Kept | null {
@@ -169,7 +169,7 @@ function renew() {
 window.setInterval(renew, 60_000);
 
 // The page open twice, as after a second scan: what one keeps, the other uses, so that the phone
-// has one id in the show.
+// has one id in the session.
 window.addEventListener('storage', (event) => {
   if (event.key !== keptKey && event.key !== null) return;
   kept = parse(store.get(keptKey));
@@ -191,7 +191,7 @@ function apply(next: PhoneState) {
   }
   if (after) closed = false;
   state = next;
-  // Another show live: what the phone kept for the last one goes.
+  // Another session live: what the phone kept for the last one goes.
   mine();
   changed();
   if (next.live) follow();
@@ -253,7 +253,8 @@ const draft = (activity: PhoneActivity) => mine()?.drafts[activity.id] ?? {};
 async function send(activity: PhoneActivity, value: unknown) {
   if (sending || !state?.live) return;
   const show = state.show;
-  // The phone's id in this show: made with its first answer, and kept for the rest of the show.
+  // The phone's id in this session: made with its first answer, and kept for the rest of the
+  // session.
   const here = mine() ?? blank(show);
   const participant = here.participant ?? uuid();
   if (!here.participant) keep({ ...here, participant });
@@ -266,11 +267,11 @@ async function send(activity: PhoneActivity, value: unknown) {
     const response = await fetch(`/${code}/responses`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      // The show goes with the answer: the server takes it in that show only, as the id is.
+      // The session goes with the answer: the server takes it in that session only, as the id is.
       body: JSON.stringify({ id, participant, show, activity: activity.id, value }),
     });
     if (response.status === 202) {
-      // Unless another show went live meanwhile, which the answer is no part of.
+      // Unless another session went live meanwhile, which the answer is no part of.
       const now = mine();
       if (now?.show === show) {
         const drafts = { ...now.drafts };
@@ -279,15 +280,16 @@ async function send(activity: PhoneActivity, value: unknown) {
       }
       pending.delete(activity.id);
     } else if (response.status === 409) {
-      // Closed, or the show is over: the presenter cleared the responses as it went. What is open
-      // now says which. Open again in the next show, it may be sent again, with an id of that one.
+      // Closed, or the session is over: the presenter started a new one while it was on its way.
+      // What is open now says which. Open again in the next session, it may be sent again, with an
+      // id of that one.
       if (!(await look())) {
         closed = true;
         if (state?.live) state = { ...state, activity: null };
       } else if (open()?.id === activity.id)
         error =
           state?.live && state.show !== show
-            ? 'The session started over. Send again.'
+            ? 'A new session started. Send again.'
             : "That couldn't be sent.";
     } else if (response.status === 429) error = 'Too many tries. Wait a minute, then send again.';
     else error = "That couldn't be sent.";
@@ -373,14 +375,14 @@ function actions(onSend: () => void): HTMLElement {
   return el('div', { className: 'actions' }, sendButton, errorLine);
 }
 
-/** The person picks or types: they have started answering in this show. */
+/** The person picks or types: they have started answering in this session. */
 function start() {
   if (state?.live) started = state.show;
   changed();
 }
 
 function showChoice(activity: Extract<PhoneActivity, { kind: 'choice' }>) {
-  // Nothing picked yet on this screen: not what was picked before it was sent, or another show.
+  // Nothing picked yet on this screen: not what was picked before it was sent, or another session.
   picked = null;
   const buttons = activity.options.map((option) =>
     el(
