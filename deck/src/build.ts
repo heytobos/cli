@@ -508,17 +508,12 @@ const sizeText = (bytes: number) =>
   bytes < 1_000_000 ? `${Math.ceil(bytes / 1000)} KB` : `${+(bytes / 1_000_000).toFixed(1)} MB`;
 
 /**
- * How long the server keeps a file no slide shows (TOB-369): retention.ts's keptMediaDays, which
- * app/test/retention.test.ts holds this to.
- */
-export const KEPT_MEDIA_DAYS = 7;
-
-/**
  * The files media.json lists that no slide shows (mediaInUse): imported neither by a scene
- * deck.json lists, or by what it imports, nor by the master, nor linked by tokens.css. They don't
- * count toward the plan, and the server keeps each only for a while, so a later save that shows
- * one may find it gone. The master's own files, under media/master/, come and go with it, so are
- * in use.
+ * deck.json lists, or by what it imports, nor by the master, nor linked by tokens.css. One uploaded
+ * for the deck, or that a slide of an earlier version showed, the server keeps, and counts toward
+ * fair use, until the deck is deleted (TOB-406); any other it may not have, so a later save that
+ * shows one may need it again. The master's own files, under media/master/, come and go with it,
+ * so are in use.
  */
 function unusedMedia(
   manifest: Pick<Manifest, 'format' | 'chapters' | 'media' | 'uses'>,
@@ -534,7 +529,7 @@ function unusedMedia(
   return {
     file: 'media.json',
     rule: 'media',
-    message: `media.json lists ${one ? '1 file' : `${unused.length} files`} no slide shows (${sizeText(bytes)}): ${and(shown)}. ${one ? "It doesn't" : "They don't"} count toward the plan, and the server keeps ${one ? 'it' : 'them'} for ${KEPT_MEDIA_DAYS} days: to show ${one ? 'it' : 'one'} after that, drop it again, or push it from media/.`,
+    message: `media.json lists ${one ? '1 file' : `${unused.length} files`} no slide shows (${sizeText(bytes)}): ${and(shown)}. Each that the deck has had on a slide, or that was uploaded for it, counts toward fair use until the deck is deleted, shown or not: keep out of media/ what the deck won't show.`,
     severity: 'warning',
   };
 }

@@ -44,13 +44,13 @@ export function sharedManifest(manifest: Manifest): SharedManifest {
 }
 
 /**
- * The media a revision has in use, which alone counts toward its account's plan and must be on the
- * server for it to be saved (TOB-369): the files the scenes deck.json lists import, through all
- * they import, polls' too; those the master's modules import, and its own files under
- * media/master/, which come and go with it (masterOf), its fonts' licences among them; and those
- * tokens.css links. Media is imported by literal names and patterns, so this is exact. Every other
- * entry of media.json is on no slide: the server keeps its file for a while, and may have deleted
- * it.
+ * The media a revision has in use, which its deck keeps and its account counts toward fair use
+ * from then on, and which must be on the server for it to be saved (TOB-369): the files the scenes
+ * deck.json lists import, through all they import, polls' too; those the master's modules import,
+ * and its own files under media/master/, which come and go with it (masterOf), its fonts' licences
+ * among them; and those tokens.css links. Media is imported by literal names and patterns, so this
+ * is exact. Every other entry of media.json is on no slide: the server has its file only if it was
+ * uploaded for the deck, or another keeps it.
  */
 export function mediaInUse(
   manifest: Pick<Manifest, 'format' | 'chapters' | 'media' | 'uses'>,

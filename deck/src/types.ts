@@ -114,7 +114,7 @@ export interface Manifest {
   styles?: string[];
   /**
    * What the deck's code uses of the deck, so a share gets only what the scenes it shows reach,
-   * and only what is on a slide counts (share.ts). A manifest pushed before the build recorded it
+   * and only what is on a slide must be on the server (share.ts). A manifest pushed before the build recorded it
    * had it written in afterwards, as its build then would have (TOB-397).
    */
   uses: Uses;

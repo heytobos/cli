@@ -1,5 +1,5 @@
 export type * from './types.ts';
-export { buildDeck, createCache, KEPT_MEDIA_DAYS } from './build.ts';
+export { buildDeck, createCache } from './build.ts';
 export type { BuildCache, BuildOptions, BuildResult } from './build.ts';
 export type { Rules } from './analyze.ts';
 export { formatMediaJson, ID, parseDeckJson, parseMediaJson, setSceneHidden } from './deck-json.ts';

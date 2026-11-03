@@ -377,13 +377,13 @@ export async function writeCopy(
     if (data.error === 'media' && tries <= 3) {
       // Each by the file of the copy that has it: one this push sends, or one the server lost.
       const media = [...copyFiles(root)].filter(([path]) => path.startsWith('media/'));
-      // What the version shows at most, each file once, but what the account's other decks
-      // show already.
+      // What the version shows at most, each file once, but what the account keeps already.
       const sizes = new Map(
         media.map(([path, hash]) => [hash, statSync(join(root, ...path.split('/'))).size]),
       );
       const total = [...sizes.values()].reduce((sum, size) => sum + size, 0);
-      const shows = Math.max(0, total - (data.elsewhere ?? 0));
+      // Less what it has uploaded, which counts by then: the server counts each file once.
+      let shows = Math.max(0, total - (data.elsewhere ?? 0));
       for (const hash of data.hashes ?? []) {
         const path = media.find(([, h]) => h === hash)?.[0];
         if (!path)
@@ -402,6 +402,7 @@ export async function writeCopy(
         if (!put.ok)
           throw failure(put, await put.json().catch(() => ({})), `Uploading ${path} failed: `);
         uploaded.push(path);
+        shows = Math.max(0, shows - (sizes.get(hash) ?? 0));
       }
       continue;
     }

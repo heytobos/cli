@@ -901,7 +901,7 @@ describe('media', () => {
         file: 'media.json',
         rule: 'media',
         message:
-          "media.json lists 2 files no slide shows (2.5 MB): old/a.png and old/b.png. They don't count toward the plan, and the server keeps them for 7 days: to show one after that, drop it again, or push it from media/.",
+          "media.json lists 2 files no slide shows (2.5 MB): old/a.png and old/b.png. Each that the deck has had on a slide, or that was uploaded for it, counts toward fair use until the deck is deleted, shown or not: keep out of media/ what the deck won't show.",
         severity: 'warning',
       },
     ]);
