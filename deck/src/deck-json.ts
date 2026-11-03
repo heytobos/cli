@@ -10,9 +10,9 @@ const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 /** Packages the runtime provides: one copy, shared by the engine and the deck. */
 const PROVIDED = new Set(['svelte', 'gsap']);
 /** The most scenes a deck lists: a bound on what a push compiles and its shared PDF prints. */
-const SCENES_MAX = 500;
+export const SCENES_MAX = 500;
 /** The longest title, of the deck, a chapter or a scene: they show in lists, tabs and file names. */
-const TITLE_MAX = 200;
+export const TITLE_MAX = 200;
 
 /**
  * A map from names a deck chooses (media files, packages) with nothing inherited: `constructor`
@@ -197,11 +197,11 @@ export function parseMasterJson(text: string | undefined): { rules: Rules; probl
 }
 
 /** A JSON value's place in its text: where it starts and ends, and an object's keys in order. */
-type Located =
+export type Located =
   | { kind: 'object'; start: number; end: number; keys: Key[] }
   | { kind: 'array'; start: number; end: number; items: Located[] }
   | { kind: 'value'; start: number; end: number; value: unknown };
-interface Key {
+export interface Key {
   name: string;
   /** Where its name starts, quote and all. */
   start: number;
@@ -209,7 +209,7 @@ interface Key {
 }
 
 /** Valid JSON, read for where each value is in the text, or undefined if it isn't JSON. */
-function locate(text: string): Located | undefined {
+export function locate(text: string): Located | undefined {
   let at = 0;
   const space = () => {
     while (at < text.length && ' \t\n\r'.includes(text[at]!)) at++;
@@ -271,7 +271,8 @@ function locate(text: string): Located | undefined {
   }
 }
 
-const keyOf = (node: Located | undefined, name: string) =>
+/** An object's key `name`, if `node` is an object and has it. */
+export const keyOf = (node: Located | undefined, name: string) =>
   node?.kind === 'object' ? node.keys.find((key) => key.name === name) : undefined;
 
 /**

@@ -1,14 +1,15 @@
 /**
  * The one key map (TOB-404, D2): a key means the same wherever it lands, on the deck's page or in
  * its preview, and its action goes to whichever of the two owns it (ownerOf), in one message
- * (actionIn).
+ * (actionIn). H hides the scene on stage, or shows it again: the deck page's, so it works while
+ * the preview has the focus too.
  */
-const ACTIONS = ['next', 'prev', 'fullscreen', 'end', 'present', 'guides'] as const;
+const ACTIONS = ['next', 'prev', 'fullscreen', 'end', 'present', 'guides', 'hide'] as const;
 export type Action = (typeof ACTIONS)[number];
 
-/** Who carries an action out: the deck's page presents; the slides do the rest. */
+/** Who carries an action out: the deck's page presents and hides scenes; the slides do the rest. */
 export function ownerOf(what: Action): 'page' | 'slides' {
-  return what === 'present' ? 'page' : 'slides';
+  return what === 'present' || what === 'hide' ? 'page' : 'slides';
 }
 
 /** The message that hands an action to its owner, either way between the page and the slides. */
@@ -47,6 +48,9 @@ export function action(event: KeyboardEvent): Action | null {
     case 'l':
     case 'L':
       return 'guides';
+    case 'h':
+    case 'H':
+      return 'hide';
     default:
       return null;
   }
