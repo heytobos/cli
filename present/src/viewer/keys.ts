@@ -6,13 +6,9 @@
 const ACTIONS = ['next', 'prev', 'fullscreen', 'end', 'present', 'guides'] as const;
 export type Action = (typeof ACTIONS)[number];
 
-/**
- * Who carries an action out: the deck's page presents; the slides do the rest. Fullscreen too,
- * but for slides `inApp`, a preview on the app's page: that page makes its frame fullscreen, as
- * every browser lets a page by its own key press, and a frame by the page's only in Chromium.
- */
-export function ownerOf(what: Action, inApp = false): 'page' | 'slides' {
-  return what === 'present' || (what === 'fullscreen' && inApp) ? 'page' : 'slides';
+/** Who carries an action out: the deck's page presents; the slides do the rest. */
+export function ownerOf(what: Action): 'page' | 'slides' {
+  return what === 'present' ? 'page' : 'slides';
 }
 
 /** The message that hands an action to its owner, either way between the page and the slides. */
