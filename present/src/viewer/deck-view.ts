@@ -14,6 +14,7 @@ import {
 import { follow } from './live.ts';
 import { Player } from './player.ts';
 import { settled } from './ready.ts';
+import { introduceAudience } from './screens.ts';
 import { joinWindows, type BeatRef } from './windows.ts';
 import { shareBar } from './share-bar.ts';
 import { onTap } from './taps.ts';
@@ -102,7 +103,9 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
       onEnd: () => {
         if (view === 'audience') window.close();
       },
+      onPresenter: view === 'audience' ? introduceAudience : undefined,
     });
+  if (view === 'audience') introduceAudience();
 
   window.addEventListener('hashchange', () => {
     const position = parseHash(player.outline, location.hash);
@@ -174,10 +177,12 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
 
   if (view === 'audience') {
     // Opened by a key press elsewhere, the audience can't go fullscreen by itself: its first
-    // click does that, rather than step.
+    // click does that, rather than step. Shown again once out of fullscreen: outside Chromium, or
+    // without the lock above, the browser takes Esc to leave fullscreen, and only the next one
+    // reaches the page.
     const hint = document.createElement('div');
     hint.className = 'tobos-fullscreen-hint';
-    hint.textContent = 'Click or press F for fullscreen';
+    hint.textContent = 'Click or press F for fullscreen · Esc to end';
     root.append(hint);
   }
   // A browser lets a window make sound once it has had a click or key press. Until then, a

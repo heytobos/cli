@@ -38,3 +38,19 @@ export async function openAudience(url: string): Promise<Window | null> {
   const features = `left=${other.availLeft},top=${other.availTop},width=${other.availWidth},height=${other.availHeight}`;
   return window.open(url, name, features);
 }
+
+/**
+ * The audience makes itself known to the presenter's view, so F there makes it fullscreen and the
+ * keys stay there (Presenter.svelte). The deck's page opens the audience and then becomes the
+ * presenter's view: that view has no handle on the window, but is the audience's opener.
+ */
+export function introduceAudience() {
+  window.opener?.postMessage({ type: 'tobos:audience' }, location.origin);
+}
+
+/** The audience's window, if the message is its introduction. */
+export function audienceIn(event: MessageEvent): Window | null {
+  const { type } = (event.data ?? {}) as { type?: unknown };
+  if (type !== 'tobos:audience' || event.origin !== location.origin) return null;
+  return event.source as Window | null;
+}

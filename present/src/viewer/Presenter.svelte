@@ -22,7 +22,7 @@
   import { follow } from './live.ts';
   import { listen } from './events.ts';
   import { Player } from './player.ts';
-  import { openAudience } from './screens.ts';
+  import { audienceIn, openAudience } from './screens.ts';
   import { joinWindows, type BeatRef } from './windows.ts';
 
   let { config }: { config: ViewerConfig } = $props();
@@ -34,7 +34,7 @@
   let chapters = $state<ViewerConfig['manifest']['chapters']>([]);
   let title = $state('');
   let atEnd = $state(false);
-  /** The audience window, when this one opened it. */
+  /** The audience window, when this one opened it or the audience made itself known (screens.ts). */
   let audience = $state<Window | null>(null);
   /** Whether an audience window is open, whichever window opened it. */
   let audienceOpen = $state(false);
@@ -246,6 +246,11 @@
     outline = current.outline;
     chapters = current.manifest.chapters;
     title = config.manifest.title;
+    const onMessage = (event: MessageEvent) => {
+      const introduced = audienceIn(event);
+      if (introduced && !introduced.closed) audience = introduced;
+    };
+    window.addEventListener('message', onMessage);
     sync = joinWindows(config.deck, 'presenter', {
       current: () => refOf(position),
       // Esc in the audience.
@@ -299,6 +304,7 @@
     );
     return () => {
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('message', onMessage);
       window.clearInterval(closed);
       window.clearTimeout(confirmTimer);
       stop();

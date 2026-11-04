@@ -45,6 +45,8 @@ export function joinWindows(
     onAudience?: (open: boolean) => void;
     /** The audience refused fullscreen to a key press in this window. */
     onRefused?: () => void;
+    /** A presenter's view opened, or reloaded. */
+    onPresenter?: () => void;
     current: () => BeatRef | null;
   },
 ): WindowSync {
@@ -64,6 +66,7 @@ export function joinWindows(
       if (had !== audiences.size > 0) handlers.onAudience?.(audiences.size > 0);
     }
     if (message.kind === 'hello') {
+      if (message.view === 'presenter') handlers.onPresenter?.();
       const at = handlers.current();
       if (at) send({ kind: 'state', from: me, view, at, time: lastTime, answer: true });
       else send({ kind: 'here', from: me, view });
