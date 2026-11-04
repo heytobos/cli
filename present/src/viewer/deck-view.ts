@@ -35,7 +35,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   // the box around it is 16:9 already, and the sub-pixel it misses by would show as a black line.
   if (embedded) document.documentElement.classList.add('tobos-embedded');
   const player: Player = new Player(stage, config.manifest, {
-    skipHidden: view === 'audience',
+    presenting: view === 'audience',
     mountAhead: !render,
     onMove: (position) => {
       const hash = formatHash(player.outline, position);
@@ -53,7 +53,9 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     return { scene: scene.id, beat: scene.beats[p.beat]! };
   };
 
-  const ready = player.goHash(location.hash);
+  // The audience opens on the deck page's beat, maybe a hidden scene's: presenting begins at the
+  // next that shows. Reloaded mid-way, it hears the presenter's beat, hidden or not (windows.ts).
+  const ready = player.go(player.startOf(location.hash));
 
   if (render) {
     // The API `tobos render` drives through a headless browser. goto and sample say whether the
@@ -84,13 +86,15 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   if (!shared)
     sync = joinWindows(config.deck, view, {
       current: () => (player.position ? refOf() : null),
-      onState: (at) => {
+      onState: (at, start) => {
         // go() reports the move synchronously, before the scene has loaded. Only that report is
         // the other window's: a click here while the scene still loads is this window's own.
         // Of the windows that follow, only the audience is heard: the room has one sound.
         applyingRemote = true;
         try {
-          void player.goHash(`#${at.scene}/${at.beat}`, undefined, view === 'audience');
+          const hash = `#${at.scene}/${at.beat}`;
+          const to = start ? player.startOf(hash) : player.positionOf(hash);
+          void player.go(to, undefined, view === 'audience');
         } finally {
           applyingRemote = false;
         }

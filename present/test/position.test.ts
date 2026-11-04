@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { carry, cue, formatHash, ordinal, parseHash, step, type Outline } from '../src/position.ts';
+import {
+  carry,
+  cue,
+  firstShown,
+  formatHash,
+  ordinal,
+  parseHash,
+  shownCount,
+  shownFrom,
+  shownOrdinal,
+  step,
+  type Outline,
+} from '../src/position.ts';
 
 const outline: Outline = {
   scenes: [
@@ -74,5 +86,61 @@ describe('carrying a position into a changed deck', () => {
       scenes: [outline.scenes[0]!, { id: 'question', beats: ['scan'] }, outline.scenes[2]!],
     };
     expect(carry(outline, changed, { scene: 1, beat: 2 })).toEqual({ scene: 1, beat: 0 });
+  });
+});
+
+describe('presenting, with hidden scenes', () => {
+  const show: Outline = {
+    scenes: [
+      { id: 'backup', beats: ['x'], hidden: true },
+      { id: 'a', beats: ['x'] },
+      { id: 'b', beats: ['x', 'y'], hidden: true },
+      { id: 'c', beats: ['x'], hidden: true },
+      { id: 'd', beats: ['x', 'y'] },
+      { id: 'e', beats: ['x'], hidden: true },
+    ],
+  };
+
+  it('steps over them', () => {
+    expect(step(show, { scene: 1, beat: 0 }, 1)).toEqual({ scene: 4, beat: 0 });
+    expect(step(show, { scene: 4, beat: 0 }, -1)).toEqual({ scene: 1, beat: 0 });
+    expect(step(show, { scene: 4, beat: 1 }, 1)).toEqual({ scene: 4, beat: 1 });
+    expect(step(show, { scene: 1, beat: 0 }, -1)).toEqual({ scene: 1, beat: 0 });
+  });
+
+  it('steps through the beats of one gone to, then on to a scene that shows', () => {
+    expect(step(show, { scene: 2, beat: 0 }, 1)).toEqual({ scene: 2, beat: 1 });
+    expect(step(show, { scene: 2, beat: 1 }, 1)).toEqual({ scene: 4, beat: 0 });
+    expect(step(show, { scene: 2, beat: 0 }, -1)).toEqual({ scene: 1, beat: 0 });
+    expect(step(show, { scene: 5, beat: 0 }, -1)).toEqual({ scene: 4, beat: 1 });
+    expect(step(show, { scene: 5, beat: 0 }, 1)).toEqual({ scene: 5, beat: 0 });
+  });
+
+  it('animates the step over them', () => {
+    expect(cue(show, { scene: 1, beat: 0 }, { scene: 4, beat: 0 }).animate).toBe(true);
+    expect(cue(show, { scene: 1, beat: 0 }, { scene: 2, beat: 0 }).animate).toBe(false);
+    expect(cue(show, { scene: 4, beat: 1 }, { scene: 4, beat: 1 }).animate).toBe(false);
+  });
+
+  it('starts at the first scene that shows', () => {
+    expect(firstShown(show)).toEqual({ scene: 1, beat: 0 });
+    expect(firstShown(outline)).toEqual({ scene: 0, beat: 0 });
+  });
+
+  it('begins at the next scene that shows when started on a hidden one', () => {
+    expect(shownFrom(show, { scene: 2, beat: 1 })).toEqual({ scene: 4, beat: 0 });
+    expect(shownFrom(show, { scene: 3, beat: 0 })).toEqual({ scene: 4, beat: 0 });
+    expect(shownFrom(show, { scene: 4, beat: 1 })).toEqual({ scene: 4, beat: 1 });
+  });
+
+  it('begins at the end of the last scene that shows after the last hidden one', () => {
+    expect(shownFrom(show, { scene: 5, beat: 0 })).toEqual({ scene: 4, beat: 1 });
+  });
+
+  it('counts only the beats it steps through', () => {
+    expect(shownCount(show)).toBe(3);
+    expect(shownOrdinal(show, { scene: 1, beat: 0 })).toBe(0);
+    expect(shownOrdinal(show, { scene: 4, beat: 1 })).toBe(2);
+    expect(shownOrdinal(show, { scene: 2, beat: 1 })).toBeUndefined();
   });
 });

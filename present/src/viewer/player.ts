@@ -3,46 +3,67 @@ import type { DeckContext } from '../index.ts';
 import {
   carry,
   cue as cueFor,
+  firstShown,
   formatHash,
+  nextScene,
   parseHash,
   same,
-  START,
+  shownFrom,
   step,
   type Cue,
   type Outline,
   type Position,
 } from '../position.ts';
 import { Stage, type SceneModule } from '../stage.svelte.ts';
-import { hiddenPlace, shownOf } from './shown.ts';
+import { shownOf } from './shown.ts';
 
-export function outlineOf(manifest: SharedManifest): Outline {
+/** The deck's outline; `presenting`, its hidden scenes marked, for its steps to go over. */
+export function outlineOf(manifest: SharedManifest, presenting = false): Outline {
   return {
-    scenes: manifest.chapters.flatMap((c) => c.scenes.map((s) => ({ id: s.id, beats: s.beats }))),
+    scenes: manifest.chapters.flatMap((c) =>
+      c.scenes.map((s) => ({
+        id: s.id,
+        beats: s.beats,
+        ...(presenting && s.hidden ? { hidden: true } : {}),
+      })),
+    ),
   };
 }
 
-export function contextFor(manifest: SharedManifest, index: number): DeckContext {
+/**
+ * Where scene `index` sits in the deck. `presenting`, a scene that shows lists the chapters
+ * presenting shows, as an agenda does; a hidden one, gone to, is as on the deck's page.
+ */
+export function contextFor(
+  manifest: SharedManifest,
+  index: number,
+  presenting = false,
+): DeckContext {
   let n = 0;
   for (const chapter of manifest.chapters)
     for (const scene of chapter.scenes) {
-      if (n++ === index)
-        return {
-          title: manifest.title,
-          chapters: manifest.chapters.map((c) => ({
-            id: c.id,
-            title: c.title,
-            scenes: c.scenes.map((s) => ({ id: s.id, title: s.title })),
-          })),
-          chapter: { id: chapter.id, title: chapter.title },
-          scene: { id: scene.id, title: scene.title },
-        };
+      if (n++ !== index) continue;
+      const listed = presenting && !scene.hidden ? shownOf(manifest) : manifest;
+      return {
+        title: manifest.title,
+        chapters: listed.chapters.map((c) => ({
+          id: c.id,
+          title: c.title,
+          scenes: c.scenes.map((s) => ({ id: s.id, title: s.title })),
+        })),
+        chapter: { id: chapter.id, title: chapter.title },
+        scene: { id: scene.id, title: scene.title },
+      };
     }
   throw new Error(`No scene ${index}`);
 }
 
 export interface PlayerOptions {
-  /** A show's window, the audience's or the presenter's: it skips the hidden scenes (shownOf). */
-  skipHidden?: boolean;
+  /**
+   * The audience's window or the presenter's: its steps go over the hidden scenes, which are on
+   * screen only when gone to, and an agenda on the others leaves them out (contextFor).
+   */
+  presenting?: boolean;
   still?: boolean;
   mountAhead?: boolean;
   onMove?: (position: Position, cue: Cue) => void;
@@ -50,10 +71,7 @@ export interface PlayerOptions {
 
 /** A deck on a stage: the position, and moving it. */
 export class Player {
-  /** The deck as this player shows it: while presenting, without its hidden scenes. */
   manifest: SharedManifest;
-  /** The deck with every scene, hidden or not: where a hidden scene's place is. */
-  private all: SharedManifest;
   outline: Outline;
   position: Position | null = null;
   readonly stage: Stage;
@@ -64,13 +82,12 @@ export class Player {
 
   constructor(host: HTMLElement, manifest: SharedManifest, options: PlayerOptions = {}) {
     this.options = options;
-    this.all = manifest;
-    this.manifest = options.skipHidden ? shownOf(manifest) : manifest;
-    this.outline = outlineOf(this.manifest);
+    this.manifest = manifest;
+    this.outline = outlineOf(manifest, options.presenting);
     this.stage = new Stage(host, {
       load: (index) => this.load(index),
-      count: () => this.outline.scenes.length,
-      context: (index) => contextFor(this.manifest, index),
+      after: (index) => nextScene(this.outline, index, 1),
+      context: (index) => contextFor(this.manifest, index, options.presenting),
       mountAhead: options.mountAhead,
       still: options.still,
     });
@@ -108,18 +125,17 @@ export class Player {
     return this.go(this.positionOf(hash), animate, aloud);
   }
 
-  /**
-   * Where `hash` is in this player's deck. A scene presenting skips, as the deck's page may have
-   * been on when presenting began, or is on now, is at the start of the next scene that shows, or
-   * at the end of the last one if none follows. Undefined if `hash` names nothing.
-   */
-  placeOf(hash: string): Position | undefined {
-    return parseHash(this.outline, hash) ?? hiddenPlace(this.all, this.outline, hash);
+  /** Where `hash` is, hidden scene or not; a hash that names nothing is the first that shows. */
+  positionOf(hash: string): Position {
+    return parseHash(this.outline, hash) ?? firstShown(this.outline);
   }
 
-  /** Where `hash` is, placeOf; a hash that names nothing is the start. */
-  positionOf(hash: string): Position {
-    return this.placeOf(hash) ?? START;
+  /**
+   * Where presenting begins in a window opened on `hash`: as the deck's page may have been on a
+   * hidden scene, at the start of the next scene that shows (shownFrom).
+   */
+  startOf(hash: string): Position {
+    return shownFrom(this.outline, this.positionOf(hash));
   }
 
   step(delta: 1 | -1) {
@@ -127,7 +143,7 @@ export class Player {
       // A click during a beat finishes it at once and starts the next.
       this.stage.finish();
     }
-    return this.go(step(this.outline, this.position ?? START, delta));
+    return this.go(step(this.outline, this.position ?? firstShown(this.outline), delta));
   }
 
   /**
@@ -136,18 +152,16 @@ export class Player {
    * module looks up its `$media` imports' URLs once, when it first runs (deck/src/media-imports.ts),
    * and the browser runs a module it has once, so only a fresh page sees a file's new address.
    */
-  async update(all: SharedManifest, base: string): Promise<'same' | 'swapped' | 'reload'> {
+  async update(next: SharedManifest, base: string): Promise<'same' | 'swapped' | 'reload'> {
     const before = this.manifest;
-    const next = this.options.skipHidden ? shownOf(all) : all;
     const changed = Object.keys(next.imports).filter(
       (key) => before.imports[key] !== next.imports[key],
     );
     const removed = Object.keys(before.imports).filter((key) => !(key in next.imports));
     const scenesOf = (m: SharedManifest) =>
       new Set(m.chapters.flatMap((c) => c.scenes.map((s) => s.module)));
-    // Hidden scenes' modules too: one changed or gone is still a scene's, which a swap takes.
-    const sceneModules = scenesOf(all);
-    const beforeScenes = scenesOf(this.all);
+    const sceneModules = scenesOf(next);
+    const beforeScenes = scenesOf(before);
     const structure = (m: SharedManifest) => JSON.stringify(m.chapters);
     if (
       changed.length === 0 &&
@@ -158,7 +172,6 @@ export class Player {
     ) {
       // Nothing on stage changes, but what is said about the deck may: its title.
       this.manifest = next;
-      this.all = all;
       return 'same';
     }
     if (
@@ -171,17 +184,17 @@ export class Player {
       return 'reload';
 
     for (const key of changed) this.overrides.set(key, new URL(next.imports[key]!, base).href);
-    const outline = outlineOf(next);
-    // A show whose scene was just hidden goes on where it would have started on it: the next
-    // scene that shows. carry would put it by beat count, partway into another.
-    const current = this.position && this.outline.scenes[this.position.scene];
-    const hidden =
-      this.options.skipHidden && current ? hiddenPlace(all, outline, current.id) : undefined;
-    const position = this.position
-      ? (hidden ?? carry(this.outline, outline, this.position))
-      : START;
+    const outline = outlineOf(next, this.options.presenting);
+    // A scene just hidden while it's on stays on: the next step goes on from it. One gone is
+    // carried by beat count, which may land in a hidden scene: then at the next that shows.
+    const id = this.position && this.outline.scenes[this.position.scene]?.id;
+    const carried = this.position ? carry(this.outline, outline, this.position) : undefined;
+    const position = !carried
+      ? firstShown(outline)
+      : outline.scenes.some((s) => s.id === id)
+        ? carried
+        : shownFrom(outline, carried);
     this.manifest = next;
-    this.all = all;
     this.outline = outline;
     this.stage.reset();
     this.position = null;

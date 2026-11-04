@@ -15,7 +15,8 @@ type Message = { from: string; view: View } & (
   | { kind: 'hello' }
   /** The answer to a hello from a window that has no beat yet. */
   | { kind: 'here' }
-  | { kind: 'state'; at: BeatRef; time: number }
+  /** `answer`: to a hello, the beat a window that opens takes up. */
+  | { kind: 'state'; at: BeatRef; time: number; answer?: true }
   | { kind: 'end' }
   /** The audience refused fullscreen to a key press elsewhere: it needs a click of its own. */
   | { kind: 'refused' }
@@ -34,7 +35,11 @@ export function joinWindows(
   deck: string,
   view: View,
   handlers: {
-    onState: (at: BeatRef) => void;
+    /**
+     * Another window's beat. `start`: the deck's page's, to a window that opens, which presenting
+     * begins from; a hidden scene's beat is then the next scene that shows (Player.startOf).
+     */
+    onState: (at: BeatRef, start: boolean) => void;
     onEnd?: () => void;
     /** Whether an audience window is open, as it changes. */
     onAudience?: (open: boolean) => void;
@@ -60,12 +65,12 @@ export function joinWindows(
     }
     if (message.kind === 'hello') {
       const at = handlers.current();
-      if (at) send({ kind: 'state', from: me, view, at, time: lastTime });
+      if (at) send({ kind: 'state', from: me, view, at, time: lastTime, answer: true });
       else send({ kind: 'here', from: me, view });
     } else if (message.kind === 'state') {
       if (message.time < lastTime) return;
       lastTime = message.time;
-      handlers.onState(message.at);
+      handlers.onState(message.at, message.view === 'deck' && message.answer === true);
     } else if (message.kind === 'end') handlers.onEnd?.();
     else if (message.kind === 'refused' && message.view === 'audience') handlers.onRefused?.();
   };

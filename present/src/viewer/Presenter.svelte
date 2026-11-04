@@ -1,12 +1,16 @@
 <script lang="ts">
+  import EyeOff from '@lucide/svelte/icons/eye-off';
   import Play from '@lucide/svelte/icons/play';
   import Square from '@lucide/svelte/icons/square';
   import { onMount, untrack } from 'svelte';
   import { letterbox } from '../letterbox.ts';
   import {
-    count,
+    firstShown,
     formatHash,
-    ordinal,
+    parseHash,
+    same,
+    shownCount,
+    shownOrdinal,
     START,
     step,
     type Outline,
@@ -43,8 +47,13 @@
   let next: Player;
   let sync: ReturnType<typeof joinWindows>;
 
-  const total = $derived(outline.scenes.length ? count(outline) : 0);
-  const at = $derived(outline.scenes.length ? ordinal(outline, position) + 1 : 0);
+  /** The beats presenting steps through: a hidden scene's don't count, and on one, there's no number. */
+  const total = $derived(outline.scenes.length ? shownCount(outline) : 0);
+  const at = $derived.by(() => {
+    if (!outline.scenes.length) return 0;
+    const n = shownOrdinal(outline, position);
+    return n === undefined ? undefined : n + 1;
+  });
   const showing = $derived(audience !== null || audienceOpen);
   const elapsed = $derived(started === null ? null : Math.floor((now - started) / 1000));
   const results = liveResults();
@@ -87,8 +96,7 @@
     position = to;
     current.go(to, false);
     const after = step(current.outline, to, 1);
-    const last = ordinal(current.outline, after) === ordinal(current.outline, to);
-    atEnd = last;
+    atEnd = same(after, to);
     next.go(after, false);
     const hash = formatHash(current.outline, to);
     showHash(hash);
@@ -226,12 +234,12 @@
     const a = letterbox(currentBox);
     const b = letterbox(nextBox);
     current = new Player(a.stage, config.manifest, {
-      skipHidden: true,
+      presenting: true,
       still: true,
       mountAhead: false,
     });
     next = new Player(b.stage, config.manifest, {
-      skipHidden: true,
+      presenting: true,
       still: true,
       mountAhead: true,
     });
@@ -247,13 +255,16 @@
         if (open) started ??= Date.now();
       },
       onRefused: () => (fullscreenRefused = true),
-      onState: (ref) => {
-        // The deck's page shows hidden scenes too: one it moves to is where the audience goes.
-        const to = current.placeOf(`#${ref.scene}/${ref.beat}`);
-        if (to) show(to, false);
+      onState: (ref, start) => {
+        // A hidden scene too: the deck's page, or the audience, went to it.
+        const hash = `#${ref.scene}/${ref.beat}`;
+        const to = parseHash(current.outline, hash);
+        if (to) show(start ? current.startOf(hash) : to, false);
       },
     });
-    show(current.positionOf(location.hash), false);
+    // From the deck's page, which may be on a hidden scene: presenting begins at the next one that
+    // shows. A window reloaded mid-way hears where the other one is (windows.ts).
+    show(current.startOf(location.hash), false);
 
     const onKey = (event: KeyboardEvent) => {
       const what = action(event);
@@ -283,7 +294,7 @@
         // The players carried the place across the push, by scene: this window follows them, so
         // the count, the list, the notes and where the phones are told the presenter is match the
         // stage, and the next arrow steps from there.
-        show(current.position ?? START, false);
+        show(current.position ?? firstShown(current.outline), false);
       },
     );
     return () => {
@@ -311,7 +322,10 @@
 <div class="presenter">
   <header>
     <strong>{title}</strong>
-    <span class="mono">{at} / {total}</span>
+    <span class="mono">{at ?? '–'} / {total}</span>
+    {#if at === undefined}
+      <span class="mono hidden-here"><EyeOff size={13} aria-hidden="true" />Hidden scene</span>
+    {/if}
     {#if elapsed !== null}<span class="mono">{clock(elapsed)}</span>{/if}
     {#if (showing || answered) && config.live && hasActivities}
       <span class="mono room">{room}</span>
@@ -352,13 +366,23 @@
           <ol>
             {#each chapter.scenes as scene, s (scene.id)}
               {@const index = sceneIndex(c, s)}
+              <!-- A hidden scene is listed, dimmed: presenting steps over it, a click shows it. -->
               <li
                 class:current={index === position.scene}
+                class:hidden={scene.hidden}
                 aria-current={index === position.scene ? 'step' : undefined}
               >
-                <button class="scene" onclick={() => jump(index, 0)}
-                  ><span class="number" style:min-width="{digits}ch">{index + 1}</span
-                  >{scene.title}</button
+                <button
+                  class="scene"
+                  title={scene.hidden ? `${scene.title} (hidden)` : undefined}
+                  onclick={() => jump(index, 0)}
+                  ><span class="number" style:min-width="{digits}ch">{index + 1}</span><span
+                    class="title">{scene.title}</span
+                  >{#if scene.hidden}<EyeOff
+                      size={12}
+                      class="eye"
+                      aria-label="hidden"
+                    />{/if}</button
                 >
                 <span class="beats">
                   {#each scene.beats as beat, b (beat)}
@@ -558,11 +582,29 @@
   .scene {
     all: unset;
     flex: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
     cursor: pointer;
+  }
+  .hidden .title {
+    color: var(--grey);
+  }
+  .scene :global(.eye),
+  .hidden-here :global(svg) {
+    flex: none;
+    align-self: center;
+    color: var(--grey);
+  }
+  .hidden-here {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
   .number {
     display: inline-block;
-    margin-right: 8px;
+    margin-right: 2px;
     text-align: right;
     font-family: 'Tobos Mono', ui-monospace, monospace;
     font-size: 12px;

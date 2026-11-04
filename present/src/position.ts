@@ -1,6 +1,9 @@
-/** The structure the engine navigates: scenes in order, each with its beat IDs. */
+/**
+ * The structure the engine navigates: scenes in order, each with its beat IDs. A hidden scene is
+ * one presenting steps over: it shows only when gone to.
+ */
 export interface Outline {
-  scenes: { id: string; beats: string[] }[];
+  scenes: { id: string; beats: string[]; hidden?: boolean }[];
 }
 
 /** A beat, by indices into the outline. */
@@ -42,9 +45,71 @@ export function fromOrdinal(outline: Outline, n: number): Position {
   return START;
 }
 
-/** Move by `delta` beats, stopping at either end. */
+/**
+ * Move by `delta` beats, stopping at either end. Hidden scenes are stepped over: only the beats
+ * of the one a step starts on, gone to, are stepped through.
+ */
 export function step(outline: Outline, from: Position, delta: number): Position {
-  return fromOrdinal(outline, ordinal(outline, from) + delta);
+  const by = Math.sign(delta);
+  let at = from;
+  for (let n = 0; n < Math.abs(delta); n++) {
+    const beat = at.beat + by;
+    if (beat >= 0 && beat < outline.scenes[at.scene]!.beats.length) {
+      at = { scene: at.scene, beat };
+      continue;
+    }
+    const scene = nextScene(outline, at.scene, by);
+    if (scene === undefined) break;
+    at = { scene, beat: by > 0 ? 0 : outline.scenes[scene]!.beats.length - 1 };
+  }
+  return at;
+}
+
+/** The scene a step out of scene `index` goes to, forward or back: undefined at either end. */
+export function nextScene(outline: Outline, index: number, by: number): number | undefined {
+  for (let s = index + Math.sign(by); s >= 0 && s < outline.scenes.length; s += Math.sign(by))
+    if (!outline.scenes[s]!.hidden) return s;
+  return undefined;
+}
+
+/** Where presenting starts: the first beat that isn't in a hidden scene (deck.json has one). */
+export function firstShown(outline: Outline): Position {
+  return {
+    scene: Math.max(
+      0,
+      outline.scenes.findIndex((s) => !s.hidden),
+    ),
+    beat: 0,
+  };
+}
+
+/**
+ * Where presenting that starts on `position` begins: there, or, if its scene is hidden, at the
+ * start of the next scene that shows, or at the end of the last one if none follows.
+ */
+export function shownFrom(outline: Outline, position: Position): Position {
+  if (!outline.scenes[position.scene]?.hidden) return position;
+  const after = nextScene(outline, position.scene, 1);
+  if (after !== undefined) return { scene: after, beat: 0 };
+  const before = nextScene(outline, position.scene, -1);
+  if (before === undefined) return position;
+  return { scene: before, beat: outline.scenes[before]!.beats.length - 1 };
+}
+
+/**
+ * The position's number among the beats presenting steps through, from 0, and how many there
+ * are: a hidden scene's beats aren't counted. Undefined for a beat of a hidden scene.
+ */
+export function shownOrdinal(outline: Outline, position: Position): number | undefined {
+  if (outline.scenes[position.scene]?.hidden) return undefined;
+  let n = 0;
+  for (let s = 0; s < position.scene; s++)
+    if (!outline.scenes[s]!.hidden) n += outline.scenes[s]!.beats.length;
+  return n + position.beat;
+}
+
+export function shownCount(outline: Outline): number {
+  return outline.scenes.reduce((n, scene) => n + (scene.hidden ? 0 : scene.beats.length), 0);
 }
 
 /**
@@ -52,7 +117,10 @@ export function step(outline: Outline, from: Position, delta: number): Position 
  * anything else (back, jumps, reloads) lands on the end state.
  */
 export function cue(outline: Outline, from: Position | null, to: Position): Cue {
-  const animate = from !== null && ordinal(outline, to) === ordinal(outline, from) + 1;
+  const animate =
+    from !== null &&
+    ordinal(outline, to) > ordinal(outline, from) &&
+    same(step(outline, from, 1), to);
   return { ...to, animate };
 }
 

@@ -14,8 +14,8 @@ export interface SceneModule {
 export interface StageOptions {
   /** Load scene `index`'s module. */
   load: (index: number) => Promise<SceneModule>;
-  /** How many scenes there are. */
-  count: () => number;
+  /** The scene a step forward from scene `index` goes to: undefined after the last. */
+  after: (index: number) => number | undefined;
   /** The deck context for scene `index`. */
   context: (index: number) => DeckContext;
   /** Mount the next scene ahead, out of sight. Off for render and the presenter's current view. */
@@ -89,10 +89,11 @@ export class Stage {
     layer.timeline.show(cue.beat, animate, cue.aloud !== false);
 
     this.prune(cue.scene);
-    if (this.options.mountAhead !== false && cue.scene + 1 < this.options.count()) {
+    const after = this.options.after(cue.scene);
+    if (this.options.mountAhead !== false && after !== undefined) {
       // Mount the next scene once this one's entrance has had time to finish.
       const wait = animate ? Math.min(1500, layer.timeline.duration(cue.beat) * 1000 + 100) : 100;
-      this.aheadTimer = window.setTimeout(() => idle(() => this.ahead(cue.scene + 1, seq)), wait);
+      this.aheadTimer = window.setTimeout(() => idle(() => this.ahead(after, seq)), wait);
     }
   }
 
@@ -197,18 +198,15 @@ export class Stage {
    * goes with its elements), unless it is one of those two again by then.
    */
   private prune(scene: number) {
+    const kept = (index: number, now: number) => index === now || index === this.options.after(now);
     for (const layer of [...this.layers.values()]) {
-      if (layer.index === scene || layer.index === scene + 1) continue;
+      if (kept(layer.index, scene)) continue;
       const fading = layer.timeline.fading;
       if (!fading) this.unmountLayer(layer);
       else
         void fading.then(() => {
           const now = this.current?.index ?? -1;
-          if (
-            this.layers.get(layer.index) === layer &&
-            layer.index !== now &&
-            layer.index !== now + 1
-          )
+          if (this.layers.get(layer.index) === layer && !kept(layer.index, now))
             this.unmountLayer(layer);
         });
     }
