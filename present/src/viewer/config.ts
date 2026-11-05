@@ -8,6 +8,8 @@ export interface ViewerConfig {
   /** The deck's id: names the channel the deck's windows share while it is presented. */
   deck: string;
   rev: string;
+  /** The version of the deck's outline joined into the manifest, which changes with no new `rev`. */
+  outline?: number;
   manifest: SharedManifest;
   /**
    * The window's server-sent events (events.ts): pushes for live follow, and to the presenting

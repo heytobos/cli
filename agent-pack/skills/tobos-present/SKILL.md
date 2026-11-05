@@ -14,6 +14,7 @@ Tobos hosts presentations written as code: a deck is a folder of files, one Svel
 - `tobos ls` lists the decks the person can work on, by id. `tobos pull <id>` gets one; `tobos new "Title"` starts one and pulls it.
 - A new deck starts from Tobos standard's design. The person's own house styles are decks in `tobos ls`: start from one with `--from <id>`, which copies its master, and ask which when there are several.
 - Then read the deck's `AGENTS.md`: it points to the loop, the format and the deck's slide master.
+- The deck's outline, its chapters and scenes in order, their titles and which are hidden, isn't a file: Tobos holds it, and `tobos outline` shows and changes it, live at once. A new scene's file shows nowhere until `tobos outline place <scene>` puts it in. deck.json lists only the npm packages.
 - The person's decks are in folders, which `tobos --help` lists the commands for.
 
 Exit code 3 means this machine isn't connected to the person's account. Run `tobos login`: it prints an address, which the person opens on any device, logs in at (a first login signs them up, and accepts https://tobos.ai/terms) and approves this machine. Give it to them in one line, then, once they did, run `tobos login` again. In CI or a sandbox with no one to ask, `TOBOS_TOKEN` and `TOBOS_SERVER` stand in for the login.

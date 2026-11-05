@@ -23,7 +23,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { parseMediaJson } from '@tobos/deck/deck-json';
 import { mediaTypeOf } from '@tobos/deck/media-type';
 import type { MediaJson } from '@tobos/deck/types';
-import { mergeFile } from '@tobos/deck/merge';
+import { mergeText } from '@tobos/deck/merge';
 import { unpackTar } from '@tobos/deck/tar';
 import { api, request, failure } from './api.ts';
 import { CliError, EXIT } from './out.ts';
@@ -36,6 +36,11 @@ export interface Base {
   rev: string | null;
   /** Each file's SHA-256 at that version, media's included, by path. */
   files: Record<string, string>;
+  /**
+   * The version of the deck's outline, which Tobos holds apart from its files (ADR 0006), that
+   * the copy last heard of: what changed in it since, a pull says.
+   */
+  outline?: number;
 }
 
 /** A working copy: its folder, and its base. */
@@ -79,7 +84,7 @@ export function requireCopy(start?: string): Copy {
   return found as Copy;
 }
 
-function writeBase(root: string, base: Base) {
+export function writeBase(root: string, base: Base) {
   mkdirSync(join(root, '.tobos'), { recursive: true });
   writeFileSync(join(root, BASE), `${JSON.stringify(base, null, 2)}\n`);
 }
@@ -162,8 +167,8 @@ export interface Pulled {
 
 /**
  * Bring the copy at `root` into step with the deck's latest version: a file the copy didn't
- * change since its base is the server's; one both changed is merged, three ways (mergeFile:
- * deck.json scene by scene, any other line by line), and a conflict is left in it between git's
+ * change since its base is the server's; one both changed is merged, three ways, line by line,
+ * and a conflict is left in it between git's
  * markers; one only the copy changed stays. Where there is nothing to mark, a file deleted here
  * but changed there, or bytes both changed, the server's is taken, and the copy's own kept in
  * `.tobos/conflicts/`. Then the copy's base is that version. A copy made now has no base: every
@@ -232,7 +237,7 @@ export async function pullInto(
     const theirs = s === undefined ? undefined : await bytesOf(path, s);
     const older = b === undefined ? new Uint8Array() : await fileAt(deck, server, base!.rev, path);
     const texts = [older, ours, theirs].every((bytes) => bytes && isUtf8(bytes));
-    const merged = texts ? mergeFile(path, textOf(older), textOf(ours), textOf(theirs)) : undefined;
+    const merged = texts ? mergeText(textOf(older), textOf(ours), textOf(theirs)) : undefined;
     if (merged !== undefined) write(file, Buffer.from(merged));
     else if (texts) {
       write(file, Buffer.from(marked(textOf(ours), textOf(theirs))));
@@ -255,7 +260,13 @@ export async function pullInto(
     }
     changed.push(path);
   }
-  writeBase(root, { deck, server, rev: now.rev, files: Object.fromEntries(next) });
+  writeBase(root, {
+    deck,
+    server,
+    rev: now.rev,
+    files: Object.fromEntries(next),
+    ...(base?.outline === undefined ? {} : { outline: base.outline }),
+  });
   return { rev: now.rev, changed, conflicts };
 }
 

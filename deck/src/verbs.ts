@@ -29,6 +29,12 @@ const REV = { type: 'string', description: 'A version of the deck; its latest if
 const CHANGESET_SCHEMA = {
   type: 'object',
   properties: {
+    outline: {
+      type: 'array',
+      description:
+        'Changes to the deck’s outline (its chapters and scenes in order, their titles, which are hidden), which Tobos holds, not a file, made with the files or alone (`files` empty): at once, no version. Each one of: `{"op": "place", "scene": id, "title"?, "hidden"?, "to"}`, a scene file into the outline, as a new one shows nowhere until placed; `{"op": "move", "scenes": [ids], "to"}`; `{"op": "hide", "scenes": [ids], "hidden": true|false}`; `{"op": "rename", "scene": id, "title"}`; `{"op": "remove", "scenes": [ids]}`, out of the outline, its file kept; `{"op": "title", "title"}`, the deck’s; `{"op": "addChapter", "chapter": id, "title", "before"?}`, `renameChapter`, `moveChapter` (`"before"`: a chapter, or null for last), `removeChapter` (an empty one). `to` is `{"after": id}`, `{"before": id}` or `{"chapter": id, "at": "start"|"end"}`. One that names what is gone is refused as a conflict, with the outline as it is.',
+      items: { type: 'object', properties: { op: { type: 'string' } }, required: ['op'] },
+    },
     base: {
       type: ['string', 'null'],
       description:
@@ -92,14 +98,13 @@ export const VERBS = {
     ],
   },
   read: {
-    does: 'A deck’s files at a version, its latest unless another is named, with that version, `rev`, to write on.',
+    does: 'A deck’s files at a version, its latest unless another is named, with that version, `rev`, to write on; and its outline as it is now, its chapters and scenes in order, which Tobos holds, not a file, with the scene files it doesn’t place.',
     input: {
       properties: {
         paths: {
           type: 'array',
           items: { type: 'string' },
-          description:
-            'The files to read, such as `deck.json` and `scenes/intro.svelte`, or `master/`.',
+          description: 'The files to read, such as `scenes/intro.svelte`, or `master/`.',
         },
         rev: REV,
         since: {
@@ -115,11 +120,15 @@ export const VERBS = {
         usage: 'tobos pull',
         does: 'the latest version into the copy, merged with your changes; a conflict is left between <<<<<<< and >>>>>>> to resolve',
       },
+      {
+        usage: 'tobos outline',
+        does: 'the deck’s outline: its chapters and scenes in order, and the scene files it doesn’t place',
+      },
     ],
     chat: 'Without `paths`, lists its files with their sizes; with them, gives each file’s text, many in one call (a path ending in `/` reads every file under it). Reading media/ (`paths: ["media/"]`) shows its pictures, video and sound instead: each file’s name, type and size, when it was added and by whom, and contact sheets to see what they show, with the address of the deck’s page where the person drops files. With `since`, only the files added since that version. Paths of files in media/ show just those, one alone as large as the sheet. A picture the person gave you in the chat reaches you, not Tobos: give them the address of the deck’s page that reading media/ gives, where they drop it.',
   },
   write: {
-    does: 'Changes a deck’s files as one version, live at once, made on the version they were read at: Tobos merges what changed since, checks the deck as it would be, and saves nothing, saying why, if the check refuses it or someone changed the same lines. Dry, it only checks.',
+    does: 'Changes a deck’s files as one version, live at once, made on the version they were read at: Tobos merges what changed since, checks the deck as it would be, and saves nothing, saying why, if the check refuses it or someone changed the same lines. Dry, it only checks. With `outline`, it changes the deck’s outline too, or alone.',
     input: {
       properties: { ...CHANGESET_SCHEMA.properties },
       required: CHANGESET_SCHEMA.required,
@@ -133,8 +142,12 @@ export const VERBS = {
         usage: 'tobos check [--types]',
         does: 'the same, dry: the server’s check, nothing saved; --types adds TypeScript’s view, here',
       },
+      {
+        usage: 'tobos outline <op> …',
+        does: 'the outline changed at once, no push: place, move, hide, show, rename, remove, title, chapter (tobos help says each)',
+      },
     ],
-    chat: 'Each file’s text in full, a patch of part of it, a file on the web for media/, or null to delete it. All or nothing, so put everything a step needs into one call.',
+    chat: 'Each file’s text in full, a patch of part of it, a file on the web for media/, or null to delete it. All or nothing, so put everything a step needs into one call: a new scene’s file and the `outline` change that places it.',
   },
   new: {
     does: 'Makes a deck in the person’s account, with its first version, `rev`: one title scene, and the design of the deck it starts from, its master, the master’s media and the packages it imports. Tobos standard unless another deck is named, such as the person’s own house style (ask which when they have several). To use another deck’s scenes too, read them and write them like any file.',

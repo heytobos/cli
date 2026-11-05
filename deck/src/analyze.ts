@@ -1066,6 +1066,24 @@ function readExports(program: Node | null | undefined, exports: Exports) {
   }
 }
 
+/**
+ * Whether a .svelte file exports `beats` from its module script: a top-level file of scenes/ that
+ * does is a scene, placed in the outline or not (ADR 0006). One that can't be read is taken by what
+ * it says, so the compiler's error is a scene's.
+ */
+export function exportsBeats(source: string): boolean {
+  if (!/\bbeats\b/.test(source)) return false;
+  let ast: ReturnType<typeof parseSvelte>;
+  try {
+    ast = parseSvelte(source, { modern: true });
+  } catch {
+    return /<script[^>]*\bmodule\b[^>]*>[\s\S]*\bexport\b[\s\S]*\bbeats\b/.test(source);
+  }
+  const exports: Exports = { names: [], from: [], all: [] };
+  readExports(ast.module?.content as unknown as Node | undefined, exports);
+  return exports.names.includes('beats');
+}
+
 /** Read what Tobos needs from a .svelte file without running it. */
 export function analyzeSvelte(
   file: string,

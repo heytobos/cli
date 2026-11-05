@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { buildDeck } from '@tobos/deck';
+import { buildDeck, parseOutline } from '@tobos/deck';
 import { directoryTree } from '@tobos/deck/node';
 import { describe, expect, it } from 'vitest';
 
@@ -10,11 +10,13 @@ describe('Tobos standard', () => {
   it('builds as a deck, its scenes showing off its master, under its own rules', async () => {
     const build = await buildDeck(directoryTree(root));
     expect(build.problems).toEqual([]);
-    expect(build.manifest!.chapters.map((c) => c.title)).toEqual([
-      'Layouts',
-      'Components',
-      'Foundations',
-    ]);
+    // Its outline, which the server holds as it is here (start-from.ts), places every scene.
+    const { outline, problems } = parseOutline(readFileSync(`${root}/outline.json`, 'utf8'));
+    expect(problems).toEqual([]);
+    expect(outline!.chapters.map((c) => c.title)).toEqual(['Layouts', 'Components', 'Foundations']);
+    expect(outline!.chapters.flatMap((c) => c.scenes.map((s) => s.id)).sort()).toEqual(
+      Object.keys(build.manifest!.scenes).sort(),
+    );
     expect(build.manifest!.styles).toHaveLength(1);
     expect(JSON.parse(readFileSync(`${root}/master/master.json`, 'utf8'))).toEqual({
       rules: { minFontSize: 28, layoutRoot: true },

@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDeck,
   createCache,
+  joinOutline,
   masterOf,
   memoryTree,
+  parseOutline,
   sharedManifest,
+  type Build,
   type DeckTree,
-  type Manifest,
+  type Outline,
   type Problem,
 } from '../src/index.ts';
 import { globMatcher, mediaMatches } from '../src/media-pattern.ts';
@@ -48,6 +51,12 @@ function variant(changes: Record<string, string | null>): DeckTree {
 
 const errors = (problems: Problem[]) => problems.filter((p) => p.severity === 'error');
 
+/** The sample deck's outline, which Tobos holds: its outline.json. */
+const sampleOutline = parseOutline(text(sampleDir.read('outline.json'))).outline!;
+
+/** A build with an outline joined in, the sample's unless another is given, as a viewer reads it. */
+const outlined = (build: Build, outline: Outline = sampleOutline) => joinOutline(build, outline);
+
 function scene(module: string, body = '<p>hi</p>', instance = '') {
   return `<script module lang="ts">\n${module}\n</script>\n${instance ? `<script lang="ts">\n${instance}\n</script>\n` : ''}${body}\n`;
 }
@@ -57,17 +66,29 @@ describe('the sample deck', () => {
     expect(await checkDeck(variant({ 'master/master.json': RULES }))).toEqual([]);
   });
 
-  it('builds a manifest with every scene and its beats', async () => {
+  it('builds a manifest with every scene and its beats, by id', async () => {
     const { manifest } = await buildDeck(sample);
-    expect(manifest!.chapters.map((c) => c.scenes.map((s) => [s.id, s.beats]))).toEqual([
+    expect(Object.entries(manifest!.scenes).map(([id, s]) => [id, s.beats])).toEqual([
+      ['clip', ['start', 'half', 'rest']],
+      ['question', ['scan', 'ask']],
+      ['sound', ['quiet', 'listen', 'more', 'bed', 'over', 'after']],
+      ['title', ['title']],
+      ['tokens', ['text', 'ids']],
+    ]);
+    expect(manifest!).not.toHaveProperty('chapters');
+    expect(manifest!).not.toHaveProperty('title');
+    // The outline joined in, as it is read: its order and titles, the build's beats.
+    expect(
+      outlined(manifest!).chapters.map((c) => c.scenes.map((s) => [s.id, s.title, s.beats])),
+    ).toEqual([
       [
-        ['title', ['title']],
-        ['question', ['scan', 'ask']],
+        ['title', 'Title', ['title']],
+        ['question', 'The question', ['scan', 'ask']],
       ],
-      [['tokens', ['text', 'ids']]],
+      [['tokens', 'Text becomes numbers', ['text', 'ids']]],
       [
-        ['clip', ['start', 'half', 'rest']],
-        ['sound', ['quiet', 'listen', 'more', 'bed', 'over', 'after']],
+        ['clip', 'A clip', ['start', 'half', 'rest']],
+        ['sound', 'A sound', ['quiet', 'listen', 'more', 'bed', 'over', 'after']],
       ],
     ]);
     expect(Object.keys(manifest!.imports).filter((k) => !k.startsWith('@deck/master/'))).toEqual([
@@ -149,44 +170,20 @@ describe('deck.json', () => {
     expect(await checkDeck(variant({ 'deck.json': '{' }))).toMatchObject([{ rule: 'deck-json' }]);
   });
 
-  it('keeps titles to 200 characters, and passes on only what Tobos reads', async () => {
-    const deck = JSON.parse(text(sample.read('deck.json')));
-    deck.chapters[0].title = 'x'.repeat(201);
-    expect(
-      (await checkDeck(variant({ 'deck.json': JSON.stringify(deck) }))).map((p) => p.message),
-    ).toEqual(['chapters[0].title is 201 characters; at most 200.']);
-    deck.chapters[0].title = 'Opening';
-    deck.notes = 'ours';
-    deck.chapters[0].colour = 'red';
-    deck.chapters[0].scenes[0].draft = true;
-    const built = await buildDeck(variant({ 'deck.json': JSON.stringify(deck) }));
-    expect(built.problems).toEqual([]);
-    expect(Object.keys(built.deck!)).toEqual(['title', 'chapters']);
-    expect(Object.keys(built.deck!.chapters[0]!)).toEqual(['id', 'title', 'scenes']);
-    expect(Object.keys(built.deck!.chapters[0]!.scenes[0]!)).toEqual(['id', 'title']);
-  });
-
-  it('rejects a scene listed twice and bad IDs', async () => {
-    const deck = {
-      title: 'x',
-      chapters: [
-        {
-          id: 'A',
-          title: 'A',
-          scenes: [
-            { id: 'title', title: 'T' },
-            { id: 'title', title: 'T' },
-          ],
-        },
-      ],
-    };
-    const messages = (await checkDeck(variant({ 'deck.json': JSON.stringify(deck) }))).map(
-      (p) => p.message,
-    );
-    expect(messages).toEqual([
-      'chapters[0].id must be lowercase letters, digits and dashes.',
-      'Scene "title" is listed twice.',
+  it('passes on only its dependencies, and warns of an outline still in it, which nothing reads', async () => {
+    const legacy = { ...JSON.parse(text(sampleDir.read('outline.json'))), notes: 'ours' };
+    legacy.chapters[0].title = 'x'.repeat(201);
+    const built = await buildDeck(variant({ 'deck.json': JSON.stringify(legacy) }));
+    expect(built.problems).toEqual([
+      {
+        file: 'deck.json',
+        rule: 'deck-json',
+        message: expect.stringContaining('the outline moved to Tobos. `tobos outline` shows'),
+        severity: 'warning',
+      },
     ]);
+    expect(built.deck).toEqual({});
+    expect(built.manifest!.scenes).toEqual((await buildDeck(sample)).manifest!.scenes);
   });
 
   it('needs exact versions for dependencies', async () => {
@@ -207,46 +204,114 @@ describe('deck.json', () => {
       '"gsap" comes with Tobos: import it without listing it in "dependencies".',
     ]);
   });
+});
 
-  it('lists at most 500 scenes, and stops there, before compiling any', async () => {
-    const listing = (count: number) => ({
-      title: 'x',
-      chapters: [0, 1].map((c) => ({
-        id: `c${c}`,
-        title: 'C',
-        scenes: Array.from({ length: c ? count - 250 : 250 }, (_, s) => ({
-          id: `s${c}-${s}`,
-          title: 'S',
-        })),
-      })),
-    });
-    expect(await checkDeck(variant({ 'deck.json': JSON.stringify(listing(501)) }))).toEqual([
-      {
-        file: 'deck.json',
-        rule: 'scenes',
-        message: 'deck.json lists 501 scenes; a deck may have 500. Split it into several decks.',
-        severity: 'error',
-      },
+describe('scenes', () => {
+  it('are the top-level files of scenes/ that export beats, by their names, placed or not', async () => {
+    const { manifest, problems } = await buildDeck(
+      variant({
+        'scenes/extra.svelte': scene("export const beats = [{ id: 'a' }];"),
+        'scenes/parts/Row.svelte': scene("export const beats = [{ id: 'a' }];"),
+      }),
+    );
+    expect(problems).toEqual([]);
+    expect(Object.keys(manifest!.scenes)).toEqual([
+      'clip',
+      'extra',
+      'question',
+      'sound',
+      'title',
+      'tokens',
     ]);
-    const atLimit = await checkDeck(variant({ 'deck.json': JSON.stringify(listing(500)) }));
-    expect(atLimit.filter((p) => p.message.includes('may have'))).toEqual([]);
+    expect(manifest!.scenes.extra).toEqual({ beats: ['a'], module: '@deck/scenes/extra.svelte' });
+    // One the outline doesn't place isn't in what a viewer reads.
+    const ids = outlined(manifest!).chapters.flatMap((c) => c.scenes.map((s) => s.id));
+    expect(ids).not.toContain('extra');
   });
 
-  it('reports a scene without a file', async () => {
-    expect(await checkDeck(variant({ 'scenes/title.svelte': null }))).toMatchObject([
+  it('take a file that exports no beats as a component, with a warning to move it to lib/', async () => {
+    const { manifest, problems } = await buildDeck(
+      variant({ 'scenes/Card.svelte': '<p>a card</p>\n' }),
+    );
+    expect(problems).toEqual([
       {
-        file: 'deck.json',
+        file: 'scenes/Card.svelte',
         rule: 'scenes',
-        message: expect.stringContaining('scenes/title.svelte is missing'),
+        message:
+          'scenes/Card.svelte exports no beats, so it is a component, not a scene: move it to lib/.',
+        severity: 'warning',
       },
     ]);
+    expect(manifest!.scenes).not.toHaveProperty('Card');
+  });
+
+  it('are named by their ids: one that exports beats under another name is warned of, and no scene', async () => {
+    const { manifest, problems } = await buildDeck(
+      variant({ 'scenes/My Scene.svelte': scene("export const beats = [{ id: 'a' }];") }),
+    );
+    expect(problems).toMatchObject([
+      { file: 'scenes/My Scene.svelte', rule: 'scenes', severity: 'warning' },
+    ]);
+    expect(Object.keys(manifest!.scenes)).not.toContain('My Scene');
+  });
+
+  it('are checked as scenes, so one placed later needs no build', async () => {
+    const problems = await checkDeck(
+      variant({ 'scenes/extra.svelte': scene('export const beats = [];') }),
+    );
+    expect(errors(problems)).toMatchObject([
+      { file: 'scenes/extra.svelte', rule: 'beats', message: 'A scene needs at least one beat.' },
+    ]);
+  });
+
+  it('that deck.json, still listing scenes, never listed: warned of, not refused, until Tobos took the list out', async () => {
+    const legacy = text(sampleDir.read('outline.json'));
+    const draft = {
+      'scenes/draft.svelte': scene('export const beats = [];'),
+      'scenes/copy.svelte': scene(
+        "export const beats = [{ id: 'a' }];\nexport const activity = { id: 'used-llm-api', kind: 'choice', prompt: 'Again?', options: ['A', 'B'] };",
+      ),
+      'scenes/title.svelte': scene(
+        "export const beats = [{ id: 'a' }];\nexport const activity = { id: 'used-llm-api', kind: 'choice', prompt: 'Which?', options: ['A', 'B'] };",
+      ),
+    };
+    const before = await buildDeck(variant({ ...draft, 'deck.json': legacy }));
+    expect(errors(before.problems)).toEqual([]);
+    expect(before.problems.filter((p) => p.file.startsWith('scenes/'))).toMatchObject([
+      {
+        file: 'scenes/draft.svelte',
+        severity: 'warning',
+        message:
+          'A scene needs at least one beat. Fix it before the scene is placed: until then it is no scene.',
+      },
+      {
+        file: 'scenes/copy.svelte',
+        severity: 'warning',
+        message: expect.stringContaining(
+          'Poll "used-llm-api" is declared in scenes/title.svelte too',
+        ),
+      },
+    ]);
+    expect(Object.keys(before.manifest!.scenes)).not.toContain('draft');
+    expect(Object.keys(before.manifest!.scenes)).not.toContain('copy');
+    const after = await checkDeck(variant(draft));
+    expect(
+      errors(after)
+        .map((p) => p.file)
+        .sort(),
+    ).toEqual(['scenes/draft.svelte', 'scenes/title.svelte']);
   });
 });
 
 describe('beats', () => {
-  it('must be exported from the module script', async () => {
-    const problems = await checkDeck(variant({ 'scenes/title.svelte': '<h1>Hi</h1>' }));
-    expect(problems).toMatchObject([{ file: 'scenes/title.svelte', rule: 'beats' }]);
+  it('must be exported from the module script, or the file is no scene', async () => {
+    const instance =
+      '<script lang="ts">\n  export const beats = [{ id: \'a\' }];\n</script>\n<h1>Hi</h1>\n';
+    for (const file of ['<h1>Hi</h1>', instance]) {
+      const { problems, manifest } = await buildDeck(variant({ 'scenes/title.svelte': file }));
+      expect(problems).toMatchObject([{ file: 'scenes/title.svelte', rule: 'scenes' }]);
+      expect(manifest!.scenes).not.toHaveProperty('title');
+    }
   });
 
   it('must be an array literal', async () => {
@@ -450,15 +515,6 @@ describe('compiling', () => {
   it('reports invalid JSON data', async () => {
     const problems = await checkDeck(variant({ 'data/tokens.json': '[1,' }));
     expect(problems).toMatchObject([{ file: 'data/tokens.json', rule: 'compile' }]);
-  });
-
-  it('warns about a scene file that deck.json does not list', async () => {
-    const problems = await checkDeck(
-      variant({ 'scenes/extra.svelte': scene("export const beats = [{ id: 'a' }];") }),
-    );
-    expect(problems).toMatchObject([
-      { file: 'scenes/extra.svelte', rule: 'scenes', severity: 'warning' },
-    ]);
   });
 });
 
@@ -911,10 +967,9 @@ describe('media', () => {
 
 describe('what a share gets', () => {
   const entry = (hash: string) => ({ hash: hash.repeat(64), size: 1000, type: 'image/png' });
-  const deck = JSON.parse(text(sample.read('deck.json')));
-  deck.chapters[0].scenes.push({ id: 'quiz', title: 'Quiz' });
+  const outline = structuredClone(sampleOutline);
+  outline.chapters[0]!.scenes.push({ id: 'quiz', title: 'Quiz' });
   const tree = variant({
-    'deck.json': JSON.stringify(deck),
     'media.json': JSON.stringify({
       ...JSON.parse(text(sample.read('media.json'))),
       'frames/a.png': entry('a'),
@@ -969,7 +1024,7 @@ describe('what a share gets', () => {
 
   it('is what the scenes it shows reach, and no more', async () => {
     const { manifest } = await buildDeck(tree);
-    const shared = sharedManifest(manifest!);
+    const shared = sharedManifest(outlined(manifest!, outline));
     const imports = Object.keys(shared.imports);
     for (const kept of [
       '@deck/scenes/title.svelte',
@@ -996,14 +1051,13 @@ describe('what a share gets', () => {
 
   it('leaves out what nothing uses, which the check warns about with what no slide shows', async () => {
     const { problems } = await buildDeck(tree);
-    // A scene deck.json doesn't list shows nothing, so its file is on no slide either.
+    // A scene the outline doesn't place may be placed at any time, without a build: its files are
+    // in use, as a placed scene's are.
     expect(problems.filter((p) => p.file === 'media.json')).toMatchObject([
       {
         rule: 'media',
         severity: 'warning',
-        message: expect.stringContaining(
-          'lists 2 files no slide shows (2 KB): draft.png and old/deleted.png.',
-        ),
+        message: expect.stringContaining('lists 1 file no slide shows (1 KB): old/deleted.png.'),
       },
     ]);
   });
@@ -1039,14 +1093,14 @@ describe('what a share gets', () => {
       expect(errors(problems)).toEqual([]);
       return manifest!;
     };
-    const size = (manifest: Manifest) => JSON.stringify(manifest).length;
+    const size = (manifest: Build) => JSON.stringify(manifest).length;
     const small = await build(50, 1000);
     const large = await build(100, 2000);
     // Twice the modules and twice the files make about twice the manifest, not four times.
     expect(size(large)).toBeLessThan(2.2 * size(small));
     expect(large.uses!.modules['@deck/lib/parts/99.ts']).toEqual({ patterns: ['parts/*.png'] });
     // A share still gets every file the pattern matches.
-    const shared = Object.keys(sharedManifest(large).media);
+    const shared = Object.keys(sharedManifest(outlined(large)).media);
     expect(shared.filter((name) => name.startsWith('parts/'))).toHaveLength(2000);
   });
 });
@@ -1187,14 +1241,6 @@ describe('the master', () => {
     expect(master.dependencies).toEqual({ katex: '0.16.11', shiki: '1.22.0' });
     expect(Object.keys(master.files)).toContain('master/components/Formula.svelte');
     expect((await masterOf(sample)).dependencies).toEqual({});
-  });
-
-  it('builds a deck.json that still gives a scene a note, and leaves the note out', async () => {
-    const deck = JSON.parse(text(sample.read('deck.json')));
-    deck.chapters[0].scenes[0].note = 'The opening.';
-    const { manifest } = await buildDeck(variant({ 'deck.json': JSON.stringify(deck) }));
-    expect(manifest!.chapters[0]!.scenes[0]).toMatchObject({ id: 'title' });
-    expect(manifest!.chapters[0]!.scenes[0]).not.toHaveProperty('note');
   });
 });
 
@@ -1450,7 +1496,7 @@ export const activity = {
       variant({ 'scenes/title.svelte': scene(POLL), 'scenes/question.svelte': scene(FORM) }),
     );
     expect(errors(problems)).toEqual([]);
-    const [title, question] = manifest!.chapters[0]!.scenes;
+    const { title, question } = manifest!.scenes;
     expect(title!.activity).toEqual({
       id: 'used-llm-api',
       kind: 'choice',
@@ -1467,7 +1513,7 @@ export const activity = {
         { id: 'worry', label: 'What worries you about it?', multiline: true, max: 1000 },
       ],
     });
-    expect(manifest!.chapters[1]!.scenes[0]).not.toHaveProperty('activity');
+    expect(manifest!.scenes.tokens).not.toHaveProperty('activity');
   });
 
   it('may be typed, as beats are', async () => {
@@ -1619,12 +1665,13 @@ export const activity = {
     const problems = await checkDeck(
       variant({ 'scenes/title.svelte': scene(POLL), 'scenes/question.svelte': scene(POLL) }),
     );
+    // Placed or not, in the files' order.
     expect(problems.filter((p) => p.rule === 'activity')).toMatchObject([
       {
-        file: 'scenes/question.svelte',
+        file: 'scenes/title.svelte',
         line: 4,
         message:
-          'Poll "used-llm-api" is declared in scenes/title.svelte too: poll IDs are unique across the deck.',
+          'Poll "used-llm-api" is declared in scenes/question.svelte too: poll IDs are unique across the deck.',
       },
     ]);
   });

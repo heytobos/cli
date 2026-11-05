@@ -1,9 +1,9 @@
 # The Tobos Present deck format
 
-A deck is a folder of files. Tobos keeps every version, checks every change, compiles it, and shows it in a browser. Nothing in a deck runs at build time: there is no build configuration, and no step you could add one to. Everything a deck does, it does in the viewer's browser.
+A deck is a folder of files, its code, and an outline, which Tobos holds. Tobos keeps every version of the files, checks every change, compiles it, and shows it in a browser. Nothing in a deck runs at build time: there is no build configuration, and no step you could add one to. Everything a deck does, it does in the viewer's browser.
 
 ```
-deck.json          the deck's structure: title, chapters and scenes
+deck.json          the npm packages the deck's code imports
 scenes/<id>.svelte one file per scene
 master/            the deck's slide master: layouts, components, tokens.css, master.json, GUIDE.md
 data/              precomputed data (JSON), computed before, never by Tobos
@@ -17,31 +17,28 @@ AGENTS.md          points the agent that builds the deck to this file and the ma
 
 Besides `media/`, a deck's files may take 100 MB together and number at most 10,000, each at most 20 MB. Tobos refuses a version that goes over.
 
+## The outline
+
+The deck's title, its chapters, and its scenes in order, with their titles and whether they show, are its **outline**. Tobos holds it, not a file: no file of the deck has it, and changing it makes no version and needs no check. It is live at once, everywhere the deck is open. `read` gives it, with the scene files it doesn't place, and `write`'s `outline` changes it, with files or alone.
+
+- **A scene is a file**, `scenes/<id>.svelte`, its id its name, that exports `beats` (see below). A file there that doesn't is a component, with a warning to move it to `lib/`. Tobos checks and compiles every scene, placed in the outline or not.
+- **A new scene shows nowhere until it is placed**: `{ "op": "place", "scene": "<id>", "title": "…", "to": { "after": "<id>" } }`, or `"to": { "before": "<id>" }`, or `{ "chapter": "<id>", "at": "start" }` (or `"end"`). Place it in the same `write` that adds its file, or once that has landed.
+- **Each change is one operation**, made relative to its neighbours: `move` (`"scenes"` and `"to"`), `hide` (`"scenes"`, `"hidden": true` or `false`), `rename` (`"scene"`, `"title"`), `remove` (out of the outline; its file stays), `title` (the deck's), and for chapters `addChapter`, `renameChapter`, `moveChapter` (`"before"` a chapter, or `null` for last) and `removeChapter` (an empty one). Changes made at once from elsewhere seldom collide; one that names what is gone is refused as a conflict, with the outline as it is: read it again, then change it.
+- **Deleting a scene's file** takes it out of the outline in the same version.
+- **Hidden** keeps a scene in the deck and on its page, while the share link and its PDF leave it out and presenting steps over it: a backup slide for questions, or one for another audience. The presenter's view lists it, dimmed, and shows it when clicked there or gone to on the deck's page; the steps go through its beats, then on to the next scene that shows. At least one scene shows.
+- **People arrange it too**, on the deck's page: they hide, rename and move scenes, take them out, and drag those not placed in. A title changed there is the outline's: change the slide's own heading to match.
+
+IDs are lowercase letters, digits and dashes, starting with a letter: `same-problem`, `q2`. Chapter IDs are unique across the chapters. Titles, of the deck, a chapter or a scene, are at most 200 characters. A deck places at most 500 scenes; a longer one is several decks.
+
 ## deck.json
 
 ```json
-{
-  "title": "Data Visualisation, lecture 1",
-  "chapters": [
-    {
-      "id": "opening",
-      "title": "Opening",
-      "scenes": [
-        { "id": "title", "title": "Title" },
-        { "id": "same-problem", "title": "Same problem" }
-      ]
-    }
-  ],
-  "dependencies": { "d3": "7.9.0" }
-}
+{ "dependencies": { "d3": "7.9.0" } }
 ```
 
-- `title`: the deck's title.
-- `chapters`: at least one. Each has an `id` and a `title`, and at least one scene. A deck has at most 500 scenes in all; a longer one is several decks.
-- `scenes[]`: an `id` and a `title`. The scene's code is in `scenes/<id>.svelte`. `"hidden": true` (optional) keeps a scene in the deck and on its page, while the share link and its PDF leave it out and presenting steps over it: a backup slide for questions, or one for another audience. The presenter's view lists it, dimmed, and shows it when clicked there or gone to on the deck's page; the steps go through its beats, then on to the next scene that shows. At least one scene shows. People arrange the scenes on the deck's page too: they hide and unhide them, move them within and between chapters, rename them, and take them out of deck.json (the file stays in `scenes/`, a draft). Each change is a new version of deck.json, edited where it must and otherwise as you wrote it, so pull before you change the file. A title changed there is the outline's: change the slide's own heading to match. A chapter left without scenes goes.
 - `dependencies` (optional): npm packages the scenes import, with exact versions. Svelte and GSAP come with Tobos and aren't listed.
 
-IDs are lowercase letters, digits and dashes, starting with a letter: `same-problem`, `q2`. Scene IDs are unique across the whole deck, chapter IDs across the chapters. Titles, of the deck, a chapter or a scene, are at most 200 characters. Tobos reads these keys and no others; any others stay in the file.
+deck.json has no outline. One from before that still has a `title` or `chapters` draws the check's warning, until Tobos takes them out; a version that adds or changes them is refused.
 
 ## Scenes and beats
 
@@ -92,7 +89,7 @@ A scene receives two props, if it wants them: `beat` (the current beat's ID) and
 
 ### Where the scene is: `useDeck()`
 
-`useDeck()` from `@tobos/present`, called in a component's script, returns the deck's `title`, its `chapters` (each with `id`, `title` and `scenes`, each with `id` and `title`), and the current `chapter` and `scene` (`id` and `title`). Layouts use it for wayfinders and agendas; a scene may too:
+`useDeck()` from `@tobos/present`, called in a component's script, returns the deck's `title`, its `chapters` (each with `id`, `title` and `scenes`, each with `id` and `title`), as the outline has them now, and the current `chapter` and `scene` (`id` and `title`). Layouts use it for wayfinders and agendas; a scene may too:
 
 ```svelte
 <script lang="ts">
@@ -191,7 +188,7 @@ Put files in `media/`: Tobos stores each by its content, and records them in `me
 
 - **Tobos checks each**: an import names a file `media.json` lists, and a pattern matches at least one. A file is imported with an import statement, by its default export, so Tobos sees which files each scene shows, and a share link gets only those (see [the share link](#the-share-link)); `import()` can't load one. To TypeScript, an import is a `string`, a glob a `Record<string, string>`.
 - **Size media for the stage**: a 4000-pixel scan shown at 800 pixels costs memory on every phone that opens the deck. Tobos notes files over 25 MB.
-- **What is on a slide** is the files the scenes `deck.json` lists import, with everything they import, the master's, and the fonts `tokens.css` links. The master's own files, under `media/master/`, count as on a slide. Only those must be on the server, and a share link gets only those.
+- **What is on a slide** is the files the scenes import, placed in the outline or not, with everything they import, the master's, and the fonts `tokens.css` links. The master's own files, under `media/master/`, count as on a slide. Only those must be on the server, and a share link gets only those.
 - **The deck keeps its media** while it lives: every file a slide of any of its versions shows, so older versions still show, and every file uploaded for it, a drop or a push from `media/`, on a slide or not. Each counts toward its account's fair use, once however many decks keep it, until the last deck that keeps it is deleted.
 - **A file no slide shows** draws the check's warning: keep out of `media/` what the deck won't show. A scene that names a file the server doesn't have is refused until it is uploaded, by a push from `media/` or a drop on the deck's page.
 - **Decks from before called `media('cow.jpg')`** from `@tobos/present`. A version pushed then shows as it did; the check refuses each call now, with the line that replaces it.
@@ -317,7 +314,7 @@ export const activity: Activity = {
 ```
 
 - **When it is open.** While the deck is presented (its audience window is open) and the presenter is on the poll's scene, up to, not including, its `reveals` beat. Nothing else opens or closes one: no buttons, no timers. Moving to another scene closes it, and every phone moves on to the next scene's poll or waits. Stopping presenting closes everything.
-- **`activity`** is `export const`, an object literal of string, number and boolean literals and arrays of them, read without running the scene, as beats are. Its `id` is lowercase letters, digits and dashes, unique across the deck: it names the poll's answers, so keep it when you reword the prompt.
+- **`activity`** is `export const`, an object literal of string, number and boolean literals and arrays of them, read without running the scene, as beats are. Its `id` is lowercase letters, digits and dashes, unique across the deck's scenes, placed or not: it names the poll's answers, so keep it when you reword the prompt.
 - **Multiple-choice poll**, `kind: 'choice'`: a `prompt` (up to 200 characters), 2 to 8 different `options` (up to 80 characters each), and optionally `reveals`, a later beat of its scene, which closes the poll and is where the scene shows the result.
 - **Open-text poll**, `kind: 'text'`: an optional `prompt` (up to 200 characters) and 1 to 5 `fields`, each with an `id` unique in the poll, a `label` (up to 200 characters), optionally `multiline: true`, and `max`, the characters it takes (500 unless set, at most 2000). Its answers are stored and never shown on stage, so it has no `reveals`.
 - **On a phone** there is no account, name or cookie. A phone answers each poll once per session; a draft of an open-text answer survives a reload. A phone makes an id for the session when it first answers, and forgets it, with its drafts, when the next session starts or 3 hours after the page was last open.
@@ -333,11 +330,11 @@ A share gets only what the scenes it shows use, and so does a member who may onl
 
 ## Checks
 
-Tobos checks every version before it lands, and refuses one that fails. It checks `deck.json`, that every scene compiles, the beats, the imports (each file a deck imports of its own is there, and exports every name imported from it), the media references, and the master's rules (`master/master.json`). Each problem is `{ file, line, column, rule, message, severity }`. Errors refuse the version; warnings don't, but each one is a reason the deck may misbehave on stage. Tobos stops a check that takes more than a minute or a gigabyte of memory, and refuses the version with the rule `check`; any real deck checks in seconds.
+Tobos checks every version before it lands, and refuses one that fails. It checks `deck.json`, that every scene, placed or not, compiles, the beats, the imports (each file a deck imports of its own is there, and exports every name imported from it), the media references, and the master's rules (`master/master.json`). Each problem is `{ file, line, column, rule, message, severity }`. Errors refuse the version; warnings don't, but each one is a reason the deck may misbehave on stage. Tobos stops a check that takes more than a minute or a gigabyte of memory, and refuses the version with the rule `check`; any real deck checks in seconds.
 
 | Rule                                                           | Severity         | What it catches                                                                                                                                                              |
 | -------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deck-json`, `scenes`, `beats`, `activity`, `imports`, `media` | error            | the structure above                                                                                                                                                          |
+| `deck-json`, `scenes`, `beats`, `activity`, `imports`, `media` | error            | the structure above; a component in `scenes/` is a `scenes` warning                                                                                                          |
 | `svelte/…`                                                     | error or warning | the Svelte compiler's own errors and warnings                                                                                                                                |
 | `master/min-font-size`                                         | error            | type below the master's floor, in `font-size`, the `font` shorthand, `style:font-size`, `rem` and GSAP's `fontSize` (`em` and `calc()` depend on context and aren't checked) |
 | `master/layout-root`                                           | warning          | a scene whose root isn't one layout from the master                                                                                                                          |

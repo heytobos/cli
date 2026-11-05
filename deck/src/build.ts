@@ -1,22 +1,20 @@
 import { init as initLexer, parse as lexImports } from 'es-module-lexer';
 import { compile as compileSvelte, VERSION as SVELTE_VERSION } from 'svelte/compiler';
-import { analyzeScript, analyzeSvelte, type Analysis, type Rules } from './analyze.ts';
-import { parseDeckJson, parseMasterJson, parseMediaJson } from './deck-json.ts';
+import {
+  analyzeScript,
+  analyzeSvelte,
+  exportsBeats,
+  type Analysis,
+  type Rules,
+} from './analyze.ts';
+import { ID, parseDeckJson, parseMasterJson, parseMediaJson } from './deck-json.ts';
 import { sha256 } from './hash.ts';
 import { compileMedia, MEDIA } from './media-imports.ts';
 import { globMatcher } from './media-pattern.ts';
 import { mediaInUse } from './share.ts';
 import { stripTypes } from './strip-types.ts';
 import { position, readText, resolvePath } from './tree.ts';
-import type {
-  DeckJson,
-  DeckTree,
-  Manifest,
-  ManifestChapter,
-  MediaJson,
-  Problem,
-  Uses,
-} from './types.ts';
+import type { Build, BuildScene, DeckJson, DeckTree, Problem, Uses } from './types.ts';
 
 const DECK_PREFIX = '@deck/';
 const SOURCE = /\.(svelte|ts|js|mjs|json)$/;
@@ -29,8 +27,8 @@ export interface BuildOptions {
 
 export interface BuildResult {
   problems: Problem[];
-  /** Present when there are no errors. */
-  manifest?: Manifest;
+  /** Present when there are no errors: every scene file by its id, and what the viewer loads. */
+  manifest?: Build;
   /** Compiled modules by path relative to the viewer (`m/<hash>.js`). */
   modules: Map<string, string>;
   deck?: DeckJson;
@@ -508,15 +506,15 @@ const sizeText = (bytes: number) =>
   bytes < 1_000_000 ? `${Math.ceil(bytes / 1000)} KB` : `${+(bytes / 1_000_000).toFixed(1)} MB`;
 
 /**
- * The files media.json lists that no slide shows (mediaInUse): imported neither by a scene
- * deck.json lists, or by what it imports, nor by the master, nor linked by tokens.css. One uploaded
+ * The files media.json lists that no slide shows (mediaInUse): imported neither by a scene, placed
+ * or not, or by what it imports, nor by the master, nor linked by tokens.css. One uploaded
  * for the deck, or that a slide of an earlier version showed, the server keeps, and counts toward
  * fair use, until the deck is deleted (TOB-406); any other it may not have, so a later save that
  * shows one may need it again. The master's own files, under media/master/, come and go with it,
  * so are in use.
  */
 function unusedMedia(
-  manifest: Pick<Manifest, 'format' | 'chapters' | 'media' | 'uses'>,
+  manifest: Pick<Build, 'format' | 'scenes' | 'media' | 'uses'>,
 ): Problem | undefined {
   const { media } = manifest;
   const used = mediaInUse(manifest);
@@ -542,7 +540,7 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
   const problems: Problem[] = [];
   const modules = new Map<string, string>();
 
-  const { deck, problems: deckProblems } = parseDeckJson(readText(tree, 'deck.json'));
+  const { deck, problems: deckProblems, listed } = parseDeckJson(readText(tree, 'deck.json'));
   problems.push(...deckProblems);
   const { media, problems: mediaProblems } = parseMediaJson(readText(tree, 'media.json'));
   problems.push(...mediaProblems);
@@ -551,20 +549,31 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
   problems.push(...masterProblems);
   if (!deck) return { problems, modules };
 
+  // A top-level file of scenes/ that exports beats is a scene, its id its name (ADR 0006): the
+  // outline places it, or it waits on the deck's page to be placed. One that doesn't is a
+  // component, which belongs in lib/.
   const files = new Set(tree.files());
   const sceneFiles = new Set<string>();
-  for (const chapter of deck.chapters)
-    for (const scene of chapter.scenes) {
-      const file = `scenes/${scene.id}.svelte`;
-      sceneFiles.add(file);
-      if (!files.has(file))
-        problems.push({
-          file: 'deck.json',
-          rule: 'scenes',
-          message: `Scene "${scene.id}" has no file: ${file} is missing.`,
-          severity: 'error',
-        });
-    }
+  for (const file of files) {
+    const name = /^scenes\/([^/]+)\.svelte$/.exec(file)?.[1];
+    if (name === undefined) continue;
+    const source = readText(tree, file) ?? '';
+    if (!exportsBeats(source))
+      problems.push({
+        file,
+        rule: 'scenes',
+        message: `${file} exports no beats, so it is a component, not a scene: move it to lib/.`,
+        severity: 'warning',
+      });
+    else if (!ID.test(name))
+      problems.push({
+        file,
+        rule: 'scenes',
+        message: `${file} exports beats, but a scene's file is named by its id, lowercase letters, digits and dashes from a letter, so it isn't one: rename it.`,
+        severity: 'warning',
+      });
+    else sceneFiles.add(file);
+  }
 
   // Compile every scene and every source file in master/ and lib/, then whatever they import.
   const dependencies = deck.dependencies ?? {};
@@ -575,19 +584,27 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
     dependencies,
   });
   problems.push(...graph.problems);
-  for (const path of graph.compiled.keys())
-    if (
-      path.startsWith('scenes/') &&
-      !sceneFiles.has(path) &&
-      path.endsWith('.svelte') &&
-      !path.slice(7).includes('/')
-    )
-      problems.push({
-        file: path,
-        rule: 'scenes',
-        message: `${path} is not listed in deck.json, so it is never shown.`,
-        severity: 'warning',
+
+  // A scene deck.json's chapters didn't list was compiled as a component until the outline left
+  // deck.json (ADR 0006): while they are still there, what only a scene is refused for is said as
+  // a warning, and the file is no scene until it is fixed. Once Tobos took them out, it is refused.
+  if (listed)
+    for (const file of sceneFiles) {
+      const id = file.slice('scenes/'.length, -'.svelte'.length);
+      const own = (p: Problem) =>
+        p.file === file && p.severity === 'error' && (p.rule === 'beats' || p.rule === 'activity');
+      if (listed.has(id) || !graph.problems.some(own)) continue;
+      sceneFiles.delete(file);
+      // Copies: the compiled file's own problems are the cache's.
+      problems.forEach((p, i) => {
+        if (own(p))
+          problems[i] = {
+            ...p,
+            severity: 'warning',
+            message: `${p.message} Fix it before the scene is placed: until then it is no scene.`,
+          };
       });
+    }
 
   // Media: every file a module imports must be in media.json, and every glob match one (unless
   // media.json itself is broken). A pattern is matched once, however many modules write it.
@@ -612,13 +629,27 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
             severity: 'error',
           });
 
-  // Poll IDs name a deck's answers: unique across the deck.
+  // Poll IDs name a deck's answers: unique across the deck's scenes, placed or not. While deck.json
+  // still lists its scenes, those it lists go first, and one it doesn't that takes a listed one's
+  // ID is said as a warning, and is no scene, as above.
   const activityFiles = new Map<string, string>();
-  for (const file of sceneFiles) {
+  const unlisted = (file: string) =>
+    listed !== undefined && !listed.has(file.slice('scenes/'.length, -'.svelte'.length));
+  for (const file of [...sceneFiles].sort((a, b) => +unlisted(a) - +unlisted(b))) {
     const found = graph.compiled.get(file)?.analysis.activity;
     if (!found) continue;
     const other = activityFiles.get(found.activity.id);
-    if (other)
+    if (!other) activityFiles.set(found.activity.id, file);
+    else if (unlisted(file)) {
+      sceneFiles.delete(file);
+      problems.push({
+        file,
+        line: found.line,
+        rule: 'activity',
+        message: `Poll "${found.activity.id}" is declared in ${other} too: poll IDs are unique across the deck. Fix it before the scene is placed: until then it is no scene.`,
+        severity: 'warning',
+      });
+    } else
       problems.push({
         file,
         line: found.line,
@@ -626,7 +657,6 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
         message: `Poll "${found.activity.id}" is declared in ${other} too: poll IDs are unique across the deck.`,
         severity: 'error',
       });
-    else activityFiles.set(found.activity.id, file);
   }
 
   // Unless media.json itself is broken, as for the imports above.
@@ -639,24 +669,17 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
     modules: modulesUses(graph.compiled),
     styles: stylesheet?.media ?? [],
   };
-  const chapters: ManifestChapter[] = deck.chapters.map((chapter) => ({
-    id: chapter.id,
-    title: chapter.title,
-    scenes: chapter.scenes.map((scene) => {
-      const file = `scenes/${scene.id}.svelte`;
-      const analysis = graph.compiled.get(file)?.analysis;
-      return {
-        id: scene.id,
-        title: scene.title,
-        ...(scene.hidden ? { hidden: true as const } : {}),
-        beats: (analysis?.beats ?? []).map((b) => b.id),
-        module: DECK_PREFIX + file,
-        ...(analysis?.activity ? { activity: analysis.activity.activity } : {}),
-      };
-    }),
-  }));
+  const scenes: Record<string, BuildScene> = {};
+  for (const file of [...sceneFiles].sort()) {
+    const analysis = graph.compiled.get(file)?.analysis;
+    scenes[file.slice('scenes/'.length, -'.svelte'.length)] = {
+      beats: (analysis?.beats ?? []).map((b) => b.id),
+      module: DECK_PREFIX + file,
+      ...(analysis?.activity ? { activity: analysis.activity.activity } : {}),
+    };
+  }
 
-  const unused = unusedMedia({ format: 2, chapters, media, uses });
+  const unused = unusedMedia({ format: 2, scenes, media, uses });
   if (unused) problems.push(unused);
 
   // Passed: what it compiled is worth keeping.
@@ -667,8 +690,7 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
     modules: emitted.modules,
     manifest: {
       format: 2,
-      title: deck.title,
-      chapters,
+      scenes,
       imports: emitted.imports,
       media,
       dependencies,

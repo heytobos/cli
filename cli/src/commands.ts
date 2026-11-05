@@ -13,7 +13,9 @@ import {
   parseId,
   pullInto,
   requireCopy,
+  writeBase,
   writeCopy,
+  type Base,
   type Copy,
 } from './copy.ts';
 import { sizeNote } from './media.ts';
@@ -41,6 +43,21 @@ interface DeckInfo {
   rev: string | null;
   url: string;
   scenes: { id: string; beats: string[] }[];
+  /** Its outline, which Tobos holds apart from its files (ADR 0006). */
+  outline?: Outline;
+}
+
+/** A deck's outline, as the server gives it: `tobos outline` prints and changes it. */
+interface Outline {
+  version: number;
+  title: string;
+  chapters: {
+    id: string;
+    title: string;
+    scenes: { id: string; title: string; hidden?: true }[];
+  }[];
+  /** The scene files it doesn't place. */
+  unplaced: string[];
 }
 
 // ─── Account ────────────────────────────────────────────────────────────────
@@ -284,10 +301,7 @@ export async function pull(out: Output, args: Args) {
     clone: !found.base,
   });
   await writeFormatGuide(found.root, base.server);
-  const page =
-    pulled.rev === base.rev
-      ? []
-      : await pageChanges(out, base.deck, base.server, base.rev, pulled.rev);
+  const page = await pageChanges(out, found.root, base, pulled.rev);
   out.result({ id: base.deck, ...pulled, page }, () =>
     [
       `In step with the server (${pulled.rev?.slice(0, 7) ?? 'no version yet'}): ${plural(pulled.changed.length, 'file')} changed.`,
@@ -302,33 +316,55 @@ export async function pull(out: Output, args: Args) {
   if (pulled.conflicts.length) process.exitCode = EXIT.conflict;
 }
 
-/** What someone changed on the deck's page: a version's message, and who made it. */
+/**
+ * What changed that the copy didn't make: a change to the outline, on the deck's page or by
+ * another agent, or a version by the deck's page or by Tobos itself. Its message, and who made it.
+ */
 interface PageChange {
   message: string;
   author: string | null;
 }
 
 /**
- * What people changed on the deck's page after version `since`, up to `until` (the version the
- * copy took), oldest first: each version made there, so the agent knows what moved, was hidden or renamed. If the server can't say now, a
- * warning that names the version to ask about later, and none: the files are what count.
+ * What changed after the copy's base that it didn't make, up to `until` (the version the copy
+ * took), oldest first: the versions made on the deck's page or by Tobos, and the changes to the
+ * outline through other doors than this one's, since the outline's version the copy last heard
+ * of, so the agent knows what moved, was hidden or renamed. That version is the copy's now. If the
+ * server can't say now, a warning that names the version to ask about later, and none: the files
+ * are what count.
  */
 async function pageChanges(
   out: Output,
-  deck: string,
-  server: string,
-  since: string | null,
+  root: string,
+  base: Pick<Base, 'deck' | 'server' | 'rev' | 'outline'>,
   until: string | null = null,
-) {
+): Promise<PageChange[]> {
+  const { deck, server, rev: since } = base;
   if (!since) return [];
-  const range = `since=${encodeURIComponent(since)}${until ? `&until=${encodeURIComponent(until)}` : ''}`;
+  const range = new URLSearchParams({
+    since,
+    ...(until ? { until } : {}),
+    ...(base.outline === undefined ? {} : { outline: String(base.outline) }),
+  });
   try {
-    const { pushes } = await api<{
-      pushes: { message: string | null; author: string | null; door: string | null }[];
-    }>(`/api/decks/${deck}?${range}`, { server });
-    return pushes
-      .filter((p) => p.door === 'browser')
-      .map((p): PageChange => ({ message: p.message ?? 'Changed', author: p.author }));
+    const answer = await api<
+      DeckInfo & {
+        pushes: { message: string | null; author: string | null; door: string | null }[];
+        /** Missing from a server from before ADR 0006. */
+        outlineChanges?: { message: string; author: string | null; door: string | null }[];
+      }
+    >(`/api/decks/${deck}?${range}`, { server });
+    // The outline's version the copy has heard of now.
+    if (answer.outline) keepOutlineVersion(root, answer.outline.version);
+    return [
+      ...answer.pushes
+        .filter((p) => p.door === 'browser' || p.door === 'tobos')
+        .map((p) => ({ message: p.message ?? 'Changed', author: p.author ?? p.door })),
+      ...(answer.outlineChanges ?? []).map((c) => ({
+        message: c.message,
+        author: c.author ?? c.door,
+      })),
+    ];
   } catch (error) {
     out.note(
       `Couldn't ask what changed on the deck's page since ${since.slice(0, 7)}: its versions say. (${(error as Error).message})`,
@@ -338,13 +374,19 @@ async function pageChanges(
   }
 }
 
+/** The outline's version a copy last heard of, into its base: what a later pull asks since. */
+function keepOutlineVersion(root: string, version: number) {
+  const found = findCopy(root);
+  if (found?.base && found.root === root) writeBase(root, { ...found.base, outline: version });
+}
+
 /** Those changes, said: a scene renamed there keeps its slide's heading, the agent's to change. */
 const saidPage = (changes: PageChange[]) =>
   changes.length
     ? [
-        "Changed on the deck's page meanwhile:",
+        'Changed meanwhile, on the deck’s page or by Tobos (`tobos outline` shows the outline):',
         ...changes.map((c) => `  ${c.message}${c.author ? ` (${c.author})` : ''}`),
-        // As the page's messages say it (arrangedMessage): “Renamed “…” to …”, or after a “; ”.
+        // As the history says it (arrangedMessage): “Renamed “…” to …”, or after a “; ”.
         changes.some((c) => /(^|; )renamed “/i.test(c.message))
           ? "A scene renamed there keeps its slide's own heading: change that to match."
           : '',
@@ -358,6 +400,7 @@ async function pullCopy(out: Output, info: DeckInfo, dir: string) {
   const { server } = settings();
   out.note(`pulling ${info.title} into ${dir}`);
   await pullInto(dir, info.id, server, undefined, { note: (m) => out.note(m) });
+  if (info.outline) keepOutlineVersion(dir, info.outline.version);
   await writeFormatGuide(dir, server);
 }
 
@@ -493,8 +536,8 @@ async function pushCopy(out: Output, copy: Copy, message?: string) {
     rev: written.rev,
     uploaded: written.uploaded,
     problems: written.problems,
-    // What the page changed that this push merged in, which the copy has now.
-    page: await pageChanges(out, copy.base.deck, copy.base.server, copy.base.rev, written.rev),
+    // What changed that the copy didn't make, on the page or by Tobos, since its version.
+    page: await pageChanges(out, copy.root, copy.base, written.rev),
   };
 }
 
@@ -504,14 +547,14 @@ export async function push(out: Output, args: Args) {
   // Nothing to push, the page may still have changed since the copy's version: pull takes it.
   const result = pushed.pushed
     ? pushed
-    : { ...pushed, page: await pageChanges(out, copy.base.deck, copy.base.server, copy.base.rev) };
+    : { ...pushed, page: await pageChanges(out, copy.root, copy.base) };
   const url = `${copy.base.server}/${copy.base.deck}`;
   out.result({ ...result, url }, () =>
     [
       result.pushed
         ? `✓ Pushed ${result.rev?.slice(0, 7)}${result.uploaded.length ? ` with ${plural(result.uploaded.length, 'media file')}` : ''}. Live at ${url}`
         : result.page.length
-          ? `Nothing to push, but the deck's page changed since this copy's version: run \`tobos pull\`. Live at ${url}`
+          ? `Nothing to push, but the deck changed since this copy's version: run \`tobos pull\`. Live at ${url}`
           : `Nothing to push: the copy has no changes of its own. Live at ${url}`,
       saidPage(result.page),
     ]
@@ -529,6 +572,148 @@ async function pushIfChanged(out: Output, id: string, message?: string) {
   if (!found?.base || found.base.deck !== id) return { pushed: false, uploaded: [] as string[] };
   const { pushed, uploaded } = await pushCopy(out, found as Copy, message);
   return { pushed, uploaded };
+}
+
+// ─── The outline ────────────────────────────────────────────────────────────
+
+/** An operation on the outline, as `write` takes it (ADR 0006). */
+type Op = Record<string, unknown> & { op: string };
+
+/** The outline as the person would read it: chapters, numbered scenes, and those not placed. */
+function saidOutline(outline: Outline): string {
+  let n = 0;
+  const width = Math.max(0, ...outline.chapters.flatMap((c) => c.scenes.map((s) => s.id.length)));
+  return [
+    `${outline.title}  (outline version ${outline.version})`,
+    ...outline.chapters.flatMap((c) => [
+      `  ${c.title}  [${c.id}]`,
+      ...(c.scenes.length ? [] : ['    (no scenes)']),
+      ...c.scenes.map(
+        (s) =>
+          `    ${String(++n).padStart(3)}  ${s.id.padEnd(width)}  ${s.title}${s.hidden ? '  (hidden)' : ''}`,
+      ),
+    ]),
+    outline.unplaced.length
+      ? `Not placed, so not shown (\`tobos outline place <scene>\`): ${outline.unplaced.join(', ')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/** Where `--after`, `--before`, `--chapter` (with `--start`) say scenes go, if they say. */
+function placeFrom(args: Args): Record<string, unknown> | undefined {
+  const { after, before, chapter, start } = args.values;
+  const given = [after, before, chapter].filter((v) => typeof v === 'string');
+  if (given.length > 1)
+    throw new CliError('Say where with one of --after <scene>, --before <scene>, --chapter <id>.');
+  if (typeof after === 'string') return { after };
+  if (typeof before === 'string') return { before };
+  if (typeof chapter === 'string') return { chapter, at: start ? 'start' : 'end' };
+  return undefined;
+}
+
+/**
+ * The operations `tobos outline <op> …` stands for. A scene placed or moved with nowhere said goes
+ * at the end of the last chapter, as the outline is now.
+ */
+function opsFrom(args: Args): Op[] {
+  const [what, ...rest] = args.positionals;
+  const need = (count: number, usage: string) => {
+    if (rest.length < count) throw new CliError(`\`tobos outline ${usage}\`.`);
+  };
+  const title = typeof args.values.title === 'string' ? args.values.title : undefined;
+  switch (what) {
+    case 'place':
+      need(
+        1,
+        'place <scene> [--after s | --before s | --chapter c [--start]] [--title "T"] [--hidden]',
+      );
+      // Several, each after the one before, from where the first goes.
+      return rest.map((scene, i) => ({
+        op: 'place',
+        scene,
+        ...(title && rest.length === 1 ? { title } : {}),
+        ...(args.values.hidden ? { hidden: true } : {}),
+        to: i === 0 ? placeFrom(args) : { after: rest[i - 1] },
+      }));
+    case 'move':
+      need(1, 'move <scene>… (--after s | --before s | --chapter c [--start])');
+      return [{ op: 'move', scenes: rest, to: placeFrom(args) }];
+    case 'hide':
+    case 'show':
+      need(1, `${what} <scene>…`);
+      return [{ op: 'hide', scenes: rest, hidden: what === 'hide' }];
+    case 'rename':
+      need(2, 'rename <scene> "Title"');
+      return [{ op: 'rename', scene: rest[0], title: rest.slice(1).join(' ') }];
+    case 'remove':
+      need(1, 'remove <scene>…');
+      return [{ op: 'remove', scenes: rest }];
+    case 'title':
+      need(1, 'title "The deck\'s title"');
+      return [{ op: 'title', title: rest.join(' ') }];
+    case 'chapter': {
+      const [verb, id, ...words] = rest;
+      const before = typeof args.values.before === 'string' ? args.values.before : null;
+      if (verb === 'add' && id && words.length)
+        return [{ op: 'addChapter', chapter: id, title: words.join(' '), before }];
+      if (verb === 'rename' && id && words.length)
+        return [{ op: 'renameChapter', chapter: id, title: words.join(' ') }];
+      if (verb === 'move' && id) return [{ op: 'moveChapter', chapter: id, before }];
+      if (verb === 'remove' && id) return [{ op: 'removeChapter', chapter: id }];
+      throw new CliError(
+        '`tobos outline chapter add <id> "Title" [--before c]`, `chapter rename <id> "Title"`, `chapter move <id> [--before c]` (last without), or `chapter remove <id>` (an empty one).',
+      );
+    }
+    default:
+      throw new CliError(
+        `No \`tobos outline ${what}\`: place, move, hide, show, rename, remove, title or chapter. \`tobos help\` shows each.`,
+      );
+  }
+}
+
+/**
+ * `tobos outline`: the deck's outline, which Tobos holds, not a file of the copy (ADR 0006): its
+ * chapters and scenes in order, and the scene files it doesn't place. With an operation, it is
+ * changed first, at once, with no build: `write` with `outline`, as every door changes it.
+ */
+export async function outline(out: Output, args: Args) {
+  const id = await deckId(args);
+  const server = findCopy()?.base?.server ?? settings().server;
+  let read: Outline | undefined;
+  const now = async () => (read ??= await api<Outline>(`/api/decks/${id}/outline`, { server }));
+  if (args.positionals.length === 0) {
+    const shown = await now();
+    out.result({ ...shown }, () => saidOutline(shown));
+    return;
+  }
+  const ops = opsFrom(args);
+  for (const op of ops) {
+    if (!('to' in op) || op.to !== undefined) continue;
+    const last = (await now()).chapters.at(-1);
+    if (!last)
+      throw new CliError(
+        'The outline has no chapter: `tobos outline chapter add <id> "Title"` makes one.',
+      );
+    op.to = { chapter: last.id, at: 'end' };
+  }
+  const written = await api<{ outline: Omit<Outline, 'unplaced'> }>(`/api/decks/${id}/files`, {
+    server,
+    body: { outline: ops },
+  }).catch((error: unknown) => {
+    // What it names is gone, the outline having changed meanwhile: a conflict, to read again.
+    if (error instanceof CliError && error.extra.status === 409)
+      throw new CliError(error.message, EXIT.conflict, error.extra);
+    throw error;
+  });
+  const after = await api<Outline>(`/api/decks/${id}/outline`, { server });
+  // Its own change isn't news to the copy's next pull: the version it made is heard of, if it
+  // followed the one the copy had heard of last, so no other change comes between unsaid.
+  const copy = findCopy();
+  if (copy?.base?.deck === id && copy.base.outline === written.outline.version - 1)
+    keepOutlineVersion(copy.root, written.outline.version);
+  out.result({ ...after }, () => saidOutline(after));
 }
 
 // ─── Viewing ────────────────────────────────────────────────────────────────
@@ -600,7 +785,10 @@ export async function render(out: Output, args: Args) {
   for (const ref of wanted) {
     const [sceneId, beat] = ref.split('/');
     const scene = scenes.find((s) => s.id === sceneId);
-    if (!scene) throw new CliError(`No scene "${sceneId}" in deck.json.`);
+    if (!scene)
+      throw new CliError(
+        `No scene "${sceneId}" in the outline: \`tobos outline\` shows it, and places a scene.`,
+      );
     if (beat) {
       const id = /^\d+$/.test(beat) ? scene.beats[Number(beat)] : beat;
       if (!id || !scene.beats.includes(id))

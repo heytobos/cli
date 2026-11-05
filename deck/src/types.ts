@@ -10,23 +10,32 @@ export interface Problem {
   severity: Severity;
 }
 
-export interface DeckScene {
+/** A scene's place in the outline: its id, which is its file's name, its title and whether it shows. */
+export interface OutlineScene {
   id: string;
   title: string;
   /** Left out of presenting, the share link and its PDF; still on the deck's page. */
   hidden?: true;
 }
 
-export interface DeckChapter {
+export interface OutlineChapter {
   id: string;
   title: string;
-  scenes: DeckScene[];
+  scenes: OutlineScene[];
 }
 
-/** deck.json */
-export interface DeckJson {
+/**
+ * A deck's outline: its title, and its chapters and their scenes in order (ADR 0006). Data, held
+ * by Tobos, never a file of the deck; Tobos's own decks keep theirs in `outline.json` in the
+ * codebase, in this shape.
+ */
+export interface Outline {
   title: string;
-  chapters: DeckChapter[];
+  chapters: OutlineChapter[];
+}
+
+/** deck.json: what the deck's code needs, its packages. The outline isn't in it (ADR 0006). */
+export interface DeckJson {
   dependencies?: Record<string, string>;
 }
 
@@ -71,15 +80,19 @@ export interface TextActivity {
  */
 export type Activity = ChoiceActivity | TextActivity;
 
-export interface ManifestScene {
-  id: string;
-  title: string;
-  /** Left out of presenting, the share link and its PDF (deck.json's `hidden`). */
-  hidden?: true;
+/** A scene as the build has it: what its file is, whether or not the outline places it. */
+export interface BuildScene {
   beats: string[];
   /** The scene's specifier in the import map. */
   module: string;
   activity?: Activity;
+}
+
+export interface ManifestScene extends BuildScene {
+  id: string;
+  title: string;
+  /** Left out of presenting, the share link and its PDF (the outline's `hidden`). */
+  hidden?: true;
 }
 
 export interface ManifestChapter {
@@ -89,14 +102,16 @@ export interface ManifestChapter {
 }
 
 /**
- * What the viewer needs to show one revision of a deck. Format 1's modules call the engine's
- * media(); a later one's import media (`import cow from '$media/cow.jpg'`), compiled into lookups
- * of the same media map. A revision keeps the format it was pushed with.
+ * What a build makes of one revision of a deck, which the server stores with it: every scene file
+ * by its id, placed or not, and what the viewer loads. The outline isn't part of it: it is joined
+ * in when a manifest is read (joinOutline). Format 1's modules call the engine's media(); a later
+ * one's import media (`import cow from '$media/cow.jpg'`), compiled into lookups of the same media
+ * map. A revision keeps the format it was pushed with.
  */
-export interface Manifest {
+export interface Build {
   format: 1 | 2;
-  title: string;
-  chapters: ManifestChapter[];
+  /** Each top-level `scenes/<id>.svelte` that exports beats, by its id. */
+  scenes: Record<string, BuildScene>;
   /**
    * Deck specifiers (`@deck/scenes/a.svelte`) → module paths relative to the viewer (`m/<hash>.js`).
    * The server adds the package specifiers once it has bundled them (`d3` → `p/<bundle>/d3.js`).
@@ -119,6 +134,22 @@ export interface Manifest {
    */
   uses: Uses;
 }
+
+/**
+ * A build stored before the outline left deck.json (ADR 0006): the scenes deck.json listed, in
+ * its chapters, and its title, instead of `scenes`. Read as a build (buildScenes), its outline
+ * being the deck's now.
+ */
+export type LegacyBuild = Omit<Build, 'scenes'> & { title: string; chapters: ManifestChapter[] };
+
+/** A build as the server may have stored it: from now on, or from before ADR 0006. */
+export type StoredBuild = Build | LegacyBuild;
+
+/**
+ * What the viewer needs to show one revision of a deck: its build, with the deck's outline as it
+ * is now joined in (joinOutline). Only the scenes both have are in it.
+ */
+export type Manifest = Omit<Build, 'scenes'> & { title: string; chapters: ManifestChapter[] };
 
 /** A manifest as a share link has it: what its modules use isn't part of it (share.ts). */
 export type SharedManifest = Omit<Manifest, 'uses'>;

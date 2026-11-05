@@ -36,6 +36,20 @@ The five verbs (a deck by its id, or its title to mv it; a folder by its path; i
 with no git: the server keeps the versions)
 ${VERB_ROWS}
 
+The outline's operations (its chapters and scenes in order, their titles and whether they show:
+Tobos holds it, no file of the copy; each change is live at once, with no push; a scene by its
+file's name, scenes/<scene>.svelte, which shows nowhere until it is placed)
+  tobos outline place <scene>…                into the outline: --after <scene>, --before <scene>,
+         [--title "T"] [--hidden]             --chapter <id> [--start], or at the end
+  tobos outline move <scene>… (where)         where as for place
+  tobos outline hide | show <scene>…          left out of presenting, the link and the PDF, or not
+  tobos outline rename <scene> "Title"        the title the deck's page and Agenda show
+  tobos outline remove <scene>…               out of the outline; its file stays
+  tobos outline title "Title"                 the deck's title
+  tobos outline chapter add <id> "Title"      a chapter, [--before <id>], or last
+  tobos outline chapter rename|move|remove    a chapter's title; its place [--before <id>]; an
+                                              empty one, out
+
 Looking at it (from the working copy, render and open push what changed first; with --deck <id>,
 from anywhere)
   tobos render scene/beat | scene | --all     PNGs of beats, for you to look at
@@ -80,6 +94,18 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
   },
   mv: { run: commands.mv },
   pull: { run: commands.pull },
+  outline: {
+    run: commands.outline,
+    options: {
+      deck: { type: 'string' },
+      after: { type: 'string' },
+      before: { type: 'string' },
+      chapter: { type: 'string' },
+      start: { type: 'boolean' },
+      title: { type: 'string' },
+      hidden: { type: 'boolean' },
+    },
+  },
   check: { run: commands.check, options: { types: { type: 'boolean' } } },
   push: { run: commands.push, options: { message: { type: 'string', short: 'm' } } },
   open: {

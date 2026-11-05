@@ -1,7 +1,7 @@
 import type { Rules } from './analyze.ts';
-import type { DeckJson, MediaJson, Problem } from './types.ts';
+import type { DeckJson, MediaJson, Outline, Problem } from './types.ts';
 
-/** An ID in deck.json, or of a beat: lowercase letters, digits and dashes, from a letter. */
+/** An ID of a scene, a chapter or a beat: lowercase letters, digits and dashes, from a letter. */
 export const ID = /^[a-z][a-z0-9-]*$/;
 
 const FILE = 'deck.json';
@@ -9,7 +9,7 @@ const PACKAGE = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 /** Packages the runtime provides: one copy, shared by the engine and the deck. */
 const PROVIDED = new Set(['svelte', 'gsap']);
-/** The most scenes a deck lists: a bound on what a push compiles and its shared PDF prints. */
+/** The most scenes a deck's outline places: a bound on what its shared PDF prints. */
 export const SCENES_MAX = 500;
 /** The longest title, of the deck, a chapter or a scene: they show in lists, tabs and file names. */
 export const TITLE_MAX = 200;
@@ -29,8 +29,13 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Parse and validate deck.json. Returns the deck only if it is valid. */
-export function parseDeckJson(text: string | undefined): { deck?: DeckJson; problems: Problem[] } {
+/** Parse and validate deck.json: the deck's packages. Returns the deck only if it is valid. */
+export function parseDeckJson(text: string | undefined): {
+  deck?: DeckJson;
+  problems: Problem[];
+  /** The scenes deck.json's chapters list, while it has them (outlineInDeckJson). */
+  listed?: Set<string>;
+} {
   if (text === undefined) return { problems: [problem('deck.json is missing.')] };
   let raw: unknown;
   try {
@@ -40,62 +45,6 @@ export function parseDeckJson(text: string | undefined): { deck?: DeckJson; prob
   }
   const problems: Problem[] = [];
   if (!isObject(raw)) return { problems: [problem('deck.json must be an object.')] };
-
-  const titled = (title: unknown, where: string, empty = true) => {
-    if (typeof title !== 'string' || (!empty && title.trim() === ''))
-      problems.push(problem(`${where} must be a${empty ? '' : ' non-empty'} string.`));
-    else if (title.length > TITLE_MAX)
-      problems.push(problem(`${where} is ${title.length} characters; at most ${TITLE_MAX}.`));
-  };
-  titled(raw.title, '"title"', false);
-
-  const chapterIds = new Set<string>();
-  const sceneIds = new Set<string>();
-  /** The scenes not hidden: presenting needs one. */
-  let shown = 0;
-  if (!Array.isArray(raw.chapters) || raw.chapters.length === 0) {
-    problems.push(problem('"chapters" must be a list with at least one chapter.'));
-  } else {
-    raw.chapters.forEach((chapter: unknown, c) => {
-      const where = `chapters[${c}]`;
-      if (!isObject(chapter)) return problems.push(problem(`${where} must be an object.`));
-      if (typeof chapter.id !== 'string' || !ID.test(chapter.id))
-        problems.push(problem(`${where}.id must be lowercase letters, digits and dashes.`));
-      else if (chapterIds.has(chapter.id))
-        problems.push(problem(`Chapter "${chapter.id}" is listed twice.`));
-      else chapterIds.add(chapter.id);
-      titled(chapter.title, `${where}.title`);
-      if (!Array.isArray(chapter.scenes) || chapter.scenes.length === 0)
-        return problems.push(problem(`${where}.scenes must be a list with at least one scene.`));
-      chapter.scenes.forEach((scene: unknown, s) => {
-        const at = `${where}.scenes[${s}]`;
-        if (!isObject(scene)) return problems.push(problem(`${at} must be an object.`));
-        if (typeof scene.id !== 'string' || !ID.test(scene.id))
-          problems.push(problem(`${at}.id must be lowercase letters, digits and dashes.`));
-        else if (sceneIds.has(scene.id))
-          problems.push(problem(`Scene "${scene.id}" is listed twice.`));
-        else sceneIds.add(scene.id);
-        titled(scene.title, `${at}.title`);
-        if (scene.hidden !== undefined && typeof scene.hidden !== 'boolean')
-          problems.push(problem(`${at}.hidden is true or false.`));
-        if (scene.hidden !== true) shown++;
-      });
-    });
-    if (shown === 0 && sceneIds.size > 0)
-      problems.push(problem('Every scene is hidden: at least one has to show.'));
-    const count = raw.chapters.reduce(
-      (sum: number, chapter: unknown) =>
-        sum + (isObject(chapter) && Array.isArray(chapter.scenes) ? chapter.scenes.length : 0),
-      0,
-    );
-    if (count > SCENES_MAX)
-      problems.push(
-        problem(
-          `deck.json lists ${count} scenes; a deck may have ${SCENES_MAX}. Split it into several decks.`,
-          'scenes',
-        ),
-      );
-  }
 
   if (raw.dependencies !== undefined) {
     if (!isObject(raw.dependencies)) problems.push(problem('"dependencies" must be an object.'));
@@ -113,26 +62,133 @@ export function parseDeckJson(text: string | undefined): { deck?: DeckJson; prob
   }
 
   if (problems.length > 0) return { problems };
+  // The outline, from before it moved to Tobos (ADR 0006): read by nothing, and taken out by Tobos.
+  let listed: Set<string> | undefined;
+  if (raw.title !== undefined || raw.chapters !== undefined) {
+    problems.push({ ...problem(OUTLINE_MOVED), severity: 'warning' });
+    listed = new Set(
+      (Array.isArray(raw.chapters) ? raw.chapters : []).flatMap((chapter: unknown) =>
+        isObject(chapter) && Array.isArray(chapter.scenes)
+          ? chapter.scenes.flatMap((scene: unknown) =>
+              isObject(scene) && typeof scene.id === 'string' ? [scene.id] : [],
+            )
+          : [],
+      ),
+    );
+  }
   // What Tobos reads, and nothing else: keys it doesn't know stay in the file.
+  const deck: DeckJson = {};
+  if (raw.dependencies !== undefined)
+    deck.dependencies = own(Object.entries(raw.dependencies as Record<string, string>));
+  return { deck, problems, ...(listed ? { listed } : {}) };
+}
+
+/** What a deck.json with an outline in it is told, by the check and by a write that changes it. */
+export const OUTLINE_MOVED =
+  'deck.json\'s "title" and "chapters" are read by nothing now: the outline moved to Tobos. `tobos outline` shows and changes it, and .tobos/FORMAT.md explains it. Tobos takes them out of deck.json.';
+
+/** Why a version that adds an outline to deck.json, or changes the one there, is refused. */
+export const OUTLINE_IN_DECK_JSON =
+  'deck.json has no outline any more: it moved to Tobos, and a "title" or "chapters" there would be read by nothing. `tobos outline` shows and changes it (`write`’s `outline` in a chat), and .tobos/FORMAT.md explains it.';
+
+/** Whether deck.json's text has an outline in it, as it had before ADR 0006, and what it is. */
+export function outlineInDeckJson(text: string | undefined): string | undefined {
+  try {
+    const raw: unknown = JSON.parse(text ?? '');
+    if (!isObject(raw) || (raw.title === undefined && raw.chapters === undefined)) return undefined;
+    return JSON.stringify([raw.title ?? null, raw.chapters ?? null]);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * An outline as Tobos's own decks keep it in the codebase, `outline.json` (ADR 0006): its title,
+ * its chapters and their scenes, by the rules every change to an outline keeps. Returns it only
+ * if it is valid.
+ */
+export function parseOutline(
+  text: string | undefined,
+  file = 'outline.json',
+): { outline?: Outline; problems: Problem[] } {
+  const bad = (message: string): Problem => ({ file, rule: 'outline', message, severity: 'error' });
+  if (text === undefined) return { problems: [bad(`${file} is missing.`)] };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch (error) {
+    return { problems: [bad(`${file} is not valid JSON: ${(error as Error).message}`)] };
+  }
+  if (!isObject(raw)) return { problems: [bad(`${file} must be an object.`)] };
+  const problems: Problem[] = [];
+  const titled = (title: unknown, where: string) => {
+    const refused = titleRefusal(title, where);
+    if (refused) problems.push(bad(refused));
+  };
+  titled(raw.title, '"title"');
+  const chapterIds = new Set<string>();
+  const sceneIds = new Set<string>();
+  let shown = 0;
+  if (!Array.isArray(raw.chapters)) problems.push(bad('"chapters" must be a list.'));
+  else
+    raw.chapters.forEach((chapter: unknown, c) => {
+      const where = `chapters[${c}]`;
+      if (!isObject(chapter)) return problems.push(bad(`${where} must be an object.`));
+      if (typeof chapter.id !== 'string' || !ID.test(chapter.id))
+        problems.push(bad(`${where}.id must be lowercase letters, digits and dashes.`));
+      else if (chapterIds.has(chapter.id))
+        problems.push(bad(`Chapter "${chapter.id}" is listed twice.`));
+      else chapterIds.add(chapter.id);
+      titled(chapter.title, `${where}.title`);
+      if (!Array.isArray(chapter.scenes))
+        return problems.push(bad(`${where}.scenes must be a list.`));
+      chapter.scenes.forEach((scene: unknown, s) => {
+        const at = `${where}.scenes[${s}]`;
+        if (!isObject(scene)) return problems.push(bad(`${at} must be an object.`));
+        if (typeof scene.id !== 'string' || !ID.test(scene.id))
+          problems.push(bad(`${at}.id must be lowercase letters, digits and dashes.`));
+        else if (sceneIds.has(scene.id)) problems.push(bad(`Scene "${scene.id}" is listed twice.`));
+        else sceneIds.add(scene.id);
+        titled(scene.title, `${at}.title`);
+        if (scene.hidden !== undefined && typeof scene.hidden !== 'boolean')
+          problems.push(bad(`${at}.hidden is true or false.`));
+        if (scene.hidden !== true) shown++;
+      });
+    });
+  if (sceneIds.size > SCENES_MAX)
+    problems.push(bad(`${sceneIds.size} scenes; a deck may have ${SCENES_MAX}.`));
+  if (shown === 0) problems.push(bad(AT_LEAST_ONE_SHOWN));
+  if (problems.length > 0) return { problems };
   type Raw = { id: string; title: string };
-  const deck: DeckJson = {
-    title: raw.title as string,
+  const outline: Outline = {
+    title: (raw.title as string).trim(),
     chapters: (raw.chapters as (Raw & { scenes: (Raw & { hidden?: boolean })[] })[]).map(
       (chapter) => ({
         id: chapter.id,
-        title: chapter.title,
+        title: chapter.title.trim(),
         scenes: chapter.scenes.map((scene) => ({
           id: scene.id,
-          title: scene.title,
+          title: scene.title.trim(),
           ...(scene.hidden ? { hidden: true as const } : {}),
         })),
       }),
     ),
   };
-  if (raw.dependencies !== undefined)
-    deck.dependencies = own(Object.entries(raw.dependencies as Record<string, string>));
-  return { deck, problems };
+  return { outline, problems };
 }
+
+/** Why a title of the deck, a chapter or a scene can't be one, if it can't. */
+export function titleRefusal(title: unknown, where = 'A title'): string | undefined {
+  if (typeof title !== 'string' || title.trim() === '')
+    return `${where} must be a non-empty string.`;
+  if (title.trim().length > TITLE_MAX)
+    return `${where} is ${title.trim().length} characters; at most ${TITLE_MAX}.`;
+  return undefined;
+}
+
+/** Why an outline in which no scene shows is refused: presenting needs one. */
+export const AT_LEAST_ONE_SHOWN =
+  'At least one scene has to show: one that shows can’t be hidden or taken out while it is the last.';
 
 /** Parse media.json. A missing file means no media. */
 export function parseMediaJson(text: string | undefined): {
@@ -194,123 +250,4 @@ export function parseMasterJson(text: string | undefined): { rules: Rules; probl
   if (rules.layoutRoot !== undefined && typeof rules.layoutRoot !== 'boolean')
     return bad('"layoutRoot" is true or false.');
   return { rules: rules as Rules, problems: [] };
-}
-
-/** A JSON value's place in its text: where it starts and ends, and an object's keys in order. */
-export type Located =
-  | { kind: 'object'; start: number; end: number; keys: Key[] }
-  | { kind: 'array'; start: number; end: number; items: Located[] }
-  | { kind: 'value'; start: number; end: number; value: unknown };
-export interface Key {
-  name: string;
-  /** Where its name starts, quote and all. */
-  start: number;
-  value: Located;
-}
-
-/** Valid JSON, read for where each value is in the text, or undefined if it isn't JSON. */
-export function locate(text: string): Located | undefined {
-  let at = 0;
-  const space = () => {
-    while (at < text.length && ' \t\n\r'.includes(text[at]!)) at++;
-  };
-  const string = (): number => {
-    const start = at++;
-    while (text[at] !== '"') {
-      if (at >= text.length) throw new SyntaxError();
-      at += text[at] === '\\' ? 2 : 1;
-    }
-    at++;
-    return start;
-  };
-  const value = (): Located => {
-    space();
-    const start = at;
-    if (text[at] === '{') {
-      at++;
-      const keys: Key[] = [];
-      space();
-      if (text[at] === '}') return { kind: 'object', start, end: ++at, keys };
-      for (;;) {
-        space();
-        if (text[at] !== '"') throw new SyntaxError();
-        const from = string();
-        const name = JSON.parse(text.slice(from, at)) as string;
-        space();
-        if (text[at++] !== ':') throw new SyntaxError();
-        keys.push({ name, start: from, value: value() });
-        space();
-        if (text[at] === ',') at++;
-        else if (text[at] === '}') return { kind: 'object', start, end: ++at, keys };
-        else throw new SyntaxError();
-      }
-    }
-    if (text[at] === '[') {
-      at++;
-      const items: Located[] = [];
-      space();
-      if (text[at] === ']') return { kind: 'array', start, end: ++at, items };
-      for (;;) {
-        items.push(value());
-        space();
-        if (text[at] === ',') at++;
-        else if (text[at] === ']') return { kind: 'array', start, end: ++at, items };
-        else throw new SyntaxError();
-      }
-    }
-    if (text[at] === '"') string();
-    else while (at < text.length && !',]} \t\n\r'.includes(text[at]!)) at++;
-    if (at === start) throw new SyntaxError();
-    return { kind: 'value', start, end: at, value: JSON.parse(text.slice(start, at)) };
-  };
-  try {
-    JSON.parse(text);
-    return value();
-  } catch {
-    return undefined;
-  }
-}
-
-/** An object's key `name`, if `node` is an object and has it. */
-export const keyOf = (node: Located | undefined, name: string) =>
-  node?.kind === 'object' ? node.keys.find((key) => key.name === name) : undefined;
-
-/**
- * deck.json's text with one scene hidden, or shown again: `"hidden": true` added to the scene, or
- * taken out. The rest of the file stays as it was written, so an agent's working copy merges it
- * line by line. Undefined if the text isn't JSON or lists no scene `id`.
- */
-export function setSceneHidden(text: string, id: string, hidden: boolean): string | undefined {
-  const root = locate(text);
-  const chapters = keyOf(root, 'chapters')?.value;
-  if (chapters?.kind !== 'array') return undefined;
-  const scene = chapters.items
-    .flatMap((chapter) => {
-      const scenes = keyOf(chapter, 'scenes')?.value;
-      return scenes?.kind === 'array' ? scenes.items : [];
-    })
-    .find((node) => {
-      const key = keyOf(node, 'id')?.value;
-      return key?.kind === 'value' && key.value === id;
-    });
-  if (scene?.kind !== 'object') return undefined;
-  const at = scene.keys.findIndex((key) => key.name === 'hidden');
-  const was = scene.keys[at];
-  if (hidden) {
-    if (was) return text.slice(0, was.value.start) + 'true' + text.slice(was.value.end);
-    const last = scene.keys.at(-1);
-    if (!last) return text.slice(0, scene.start + 1) + '"hidden": true' + text.slice(scene.end - 1);
-    // On a line of its own, indented as the key before it, if the scene's keys are; else after it.
-    const before = text.slice(scene.start, last.start);
-    const lineAt = before.lastIndexOf('\n');
-    const between = lineAt === -1 ? ', ' : `,\n${before.slice(lineAt + 1).match(/^[ \t]*/)![0]}`;
-    return text.slice(0, last.value.end) + between + '"hidden": true' + text.slice(last.value.end);
-  }
-  if (!was) return text;
-  // Out with the comma that joins it to the key before it, or to the one after if it's the first.
-  const previous = scene.keys[at - 1];
-  const next = scene.keys[at + 1];
-  if (previous) return text.slice(0, previous.value.end) + text.slice(was.value.end);
-  if (next) return text.slice(0, was.start) + text.slice(next.start);
-  return text.slice(0, scene.start + 1) + text.slice(scene.end - 1);
 }

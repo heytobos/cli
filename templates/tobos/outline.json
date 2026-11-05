@@ -1,0 +1,79 @@
+{
+  "title": "Tobos standard",
+  "chapters": [
+    {
+      "id": "layouts",
+      "title": "Layouts",
+      "scenes": [
+        {
+          "id": "title",
+          "title": "Title"
+        },
+        {
+          "id": "title-regions",
+          "title": "Title · regions"
+        },
+        {
+          "id": "section",
+          "title": "Section"
+        },
+        {
+          "id": "section-regions",
+          "title": "Section · regions"
+        },
+        {
+          "id": "content",
+          "title": "Content"
+        },
+        {
+          "id": "content-regions",
+          "title": "Content · regions"
+        },
+        {
+          "id": "agenda",
+          "title": "Agenda"
+        },
+        {
+          "id": "blank-regions",
+          "title": "Blank · regions"
+        }
+      ]
+    },
+    {
+      "id": "components",
+      "title": "Components",
+      "scenes": [
+        {
+          "id": "quote",
+          "title": "Quote"
+        },
+        {
+          "id": "stat",
+          "title": "Stat"
+        },
+        {
+          "id": "chip",
+          "title": "Chip"
+        },
+        {
+          "id": "code",
+          "title": "Code"
+        }
+      ]
+    },
+    {
+      "id": "foundations",
+      "title": "Foundations",
+      "scenes": [
+        {
+          "id": "type-scale",
+          "title": "Type scale"
+        },
+        {
+          "id": "colour",
+          "title": "Colour"
+        }
+      ]
+    }
+  ]
+}

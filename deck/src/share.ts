@@ -1,18 +1,27 @@
 import { mediaMatching } from './media-pattern.ts';
-import type { Manifest, MediaJson, SharedManifest, Uses } from './types.ts';
+import { buildScenes } from './outline.ts';
+import type {
+  Build,
+  BuildScene,
+  Manifest,
+  ManifestChapter,
+  MediaJson,
+  SharedManifest,
+  Uses,
+} from './types.ts';
 
 const DECK_PREFIX = '@deck/';
 const MASTER_PREFIX = `${DECK_PREFIX}master/`;
 
 /**
  * A revision as a share link shows it to people outside the deck's account: without the scenes
- * that have an activity, since a share never opens a room, nor those deck.json hides from the
+ * that have an activity, since a share never opens a room, nor those the outline hides from the
  * audience. A chapter left with no scene goes too.
  *
  * What the scenes it leaves out are made of goes with them: a share gets the deck's modules and
  * media the scenes it shows reach (their own code, what it imports, the master's, and the files
  * it imports of media/), and the files tokens.css links. So neither a poll's helpers nor a
- * draft scene deck.json doesn't list, nor a file in media.json that nothing shows, reaches it. A
+ * scene the outline doesn't place, nor a file in media.json that nothing shows, reaches it. A
  * file the build didn't see a scene use isn't there: it shows as missing, never as more than the
  * scenes.
  */
@@ -45,19 +54,21 @@ export function sharedManifest(manifest: Manifest): SharedManifest {
 
 /**
  * The media a revision has in use, which its deck keeps and its account counts toward fair use
- * from then on, and which must be on the server for it to be saved (TOB-369): the files the scenes
- * deck.json lists import, through all they import, polls' too; those the master's modules import,
+ * from then on, and which must be on the server for it to be saved (TOB-369): the files its scenes
+ * import, placed in the outline or not, through all they import, polls' too; those the master's modules import,
  * and its own files under media/master/, which come and go with it (masterOf), its fonts' licences
  * among them; and those tokens.css links. Media is imported by literal names and patterns, so this
  * is exact. Every other entry of media.json is on no slide: the server has its file only if it was
- * uploaded for the deck, or another keeps it.
+ * uploaded for the deck, or another keeps it. A property of the build: the outline changing changes
+ * nothing in it. A build stored before ADR 0006 has the scenes deck.json listed.
  */
 export function mediaInUse(
-  manifest: Pick<Manifest, 'format' | 'chapters' | 'media' | 'uses'>,
+  manifest: Pick<Build, 'format' | 'media' | 'uses'> &
+    ({ scenes: Record<string, BuildScene> } | { chapters: ManifestChapter[] }),
 ): MediaJson {
   const { uses } = manifest;
   const roots = [
-    ...manifest.chapters.flatMap((c) => c.scenes.map((s) => s.module)),
+    ...Object.values(buildScenes(manifest)).map((s) => s.module),
     ...Object.keys(uses.modules).filter((specifier) => specifier.startsWith(MASTER_PREFIX)),
   ];
   const { media } = walk(manifest, uses, roots);
