@@ -17,7 +17,7 @@ import { settled } from './ready.ts';
 import { introduceAudience } from './screens.ts';
 import { joinWindows, type BeatRef } from './windows.ts';
 import { shareBar } from './share-bar.ts';
-import { onTap } from './taps.ts';
+import { onSwipe, onTap } from './taps.ts';
 
 /**
  * The deck on one stage: the plain view, the audience window, and the view render uses. A share
@@ -200,6 +200,9 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
       toggleFullscreen();
     else player.step(delta);
   });
+  // A swipe only steps: the browser may not count the end of a moving finger as the tap that
+  // fullscreen, or sound, wants.
+  onSwipe(root, (delta) => player.step(delta));
   if (config.shared)
     shareBar(root, config.shared, (on) => player.stage.animate(on), toggleFullscreen);
   follow(
