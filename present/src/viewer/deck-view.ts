@@ -7,6 +7,7 @@ import {
   actionIn,
   actionMessage,
   ARRANGING,
+  moveOf,
   ownerOf,
   PRESSED,
   type Action,
@@ -125,7 +126,9 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
 
   /** One of the slides' actions (keys.ts), from a key pressed here or handed on by its owner. */
   const run = (what: Action) => {
-    if (what === 'next' || what === 'prev') player.step(what === 'next' ? 1 : -1);
+    const move = moveOf(what);
+    if (move?.by === 'beat') player.step(move.delta);
+    else if (move) player.stepScene(move.delta);
     else if (what === 'fullscreen') toggleFullscreen();
     else if (what === 'guides') document.documentElement.classList.toggle('tobos-guides');
   };
@@ -149,7 +152,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   window.addEventListener('keydown', (event) => {
     const what = action(event);
     if (!what) return;
-    if (what === 'next' || what === 'prev') event.preventDefault();
+    if (moveOf(what)) event.preventDefault();
     if (ownerOf(what) === 'slides') return run(what);
     // Presenting and arranging are the deck page's (TOB-404, D1): in its preview, the key press is
     // the page's too, so it may open the projector. A viewer on its own presents nothing. Enter on

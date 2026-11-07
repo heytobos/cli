@@ -8,6 +8,7 @@ import {
   nextScene,
   parseHash,
   same,
+  sceneStep,
   shownFrom,
   step,
   type Cue,
@@ -144,6 +145,11 @@ export class Player {
       this.stage.finish();
     }
     return this.go(step(this.outline, this.position ?? firstShown(this.outline), delta));
+  }
+
+  /** To the start of the next scene or the previous one (sceneStep). */
+  stepScene(delta: 1 | -1) {
+    return this.go(sceneStep(this.outline, this.position ?? firstShown(this.outline), delta));
   }
 
   /**

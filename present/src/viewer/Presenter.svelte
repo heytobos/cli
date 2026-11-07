@@ -9,6 +9,7 @@
     formatHash,
     parseHash,
     same,
+    sceneStep,
     shownCount,
     shownOrdinal,
     START,
@@ -18,7 +19,7 @@
   } from '../position.ts';
   import { liveResults } from '../responses.svelte.ts';
   import { projectorUrl, showHash, type ViewerConfig } from './config.ts';
-  import { action, actionMessage } from './keys.ts';
+  import { action, actionMessage, moveOf, type Move } from './keys.ts';
   import { follow } from './live.ts';
   import { listen } from './events.ts';
   import { Player } from './player.ts';
@@ -182,8 +183,8 @@
       .finally(() => (startingSession = false));
   }
 
-  function move(delta: 1 | -1) {
-    show(step(current.outline, position, delta), true);
+  function move({ by, delta }: Move) {
+    show((by === 'beat' ? step : sceneStep)(current.outline, position, delta), true);
   }
 
   function jump(scene: number, beat: number) {
@@ -273,9 +274,10 @@
 
     const onKey = (event: KeyboardEvent) => {
       const what = action(event);
-      if (what === 'next' || what === 'prev') {
+      const how = what && moveOf(what);
+      if (how) {
         event.preventDefault();
-        move(what === 'next' ? 1 : -1);
+        move(how);
       } else if (what === 'present') present();
       else if (what === 'end') end();
       else if (what === 'fullscreen') fullscreen();
@@ -411,7 +413,7 @@
     </aside>
   </main>
   <footer>
-    → / Space next · ← back · {#if audience && !fullscreenRefused}F fullscreen · Esc end{:else if showing}click
+    → / Space next · ← back · ↓ ↑ scene · {#if audience && !fullscreenRefused}F fullscreen · Esc end{:else if showing}click
       the audience for fullscreen · Esc end{:else}⌘/Ctrl-Enter present{/if}
   </footer>
 </div>

@@ -65,6 +65,15 @@ export function step(outline: Outline, from: Position, delta: number): Position 
   return at;
 }
 
+/**
+ * Move to the start of the next scene, or the previous one, from anywhere in this one: ↓ and ↑.
+ * Hidden scenes are stepped over, as by step(). At either end it stays where it is.
+ */
+export function sceneStep(outline: Outline, from: Position, delta: 1 | -1): Position {
+  const scene = nextScene(outline, from.scene, delta);
+  return scene === undefined ? from : { scene, beat: 0 };
+}
+
 /** The scene a step out of scene `index` goes to, forward or back: undefined at either end. */
 export function nextScene(outline: Outline, index: number, by: number): number | undefined {
   for (let s = index + Math.sign(by); s >= 0 && s < outline.scenes.length; s += Math.sign(by))

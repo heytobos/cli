@@ -6,6 +6,7 @@ import {
   formatHash,
   ordinal,
   parseHash,
+  sceneStep,
   shownCount,
   shownFrom,
   shownOrdinal,
@@ -31,6 +32,20 @@ describe('stepping', () => {
   it('stops at both ends', () => {
     expect(step(outline, { scene: 0, beat: 0 }, -1)).toEqual({ scene: 0, beat: 0 });
     expect(step(outline, { scene: 2, beat: 1 }, 1)).toEqual({ scene: 2, beat: 1 });
+  });
+});
+
+describe('stepping by scene', () => {
+  it('goes to the start of the next scene or the previous one, from anywhere in this one', () => {
+    expect(sceneStep(outline, { scene: 1, beat: 0 }, 1)).toEqual({ scene: 2, beat: 0 });
+    expect(sceneStep(outline, { scene: 1, beat: 2 }, 1)).toEqual({ scene: 2, beat: 0 });
+    expect(sceneStep(outline, { scene: 1, beat: 2 }, -1)).toEqual({ scene: 0, beat: 0 });
+    expect(sceneStep(outline, { scene: 2, beat: 1 }, -1)).toEqual({ scene: 1, beat: 0 });
+  });
+
+  it('stays where it is at either end, rather than go back to the start of its scene', () => {
+    expect(sceneStep(outline, { scene: 0, beat: 0 }, -1)).toEqual({ scene: 0, beat: 0 });
+    expect(sceneStep(outline, { scene: 2, beat: 1 }, 1)).toEqual({ scene: 2, beat: 1 });
   });
 });
 
@@ -106,6 +121,14 @@ describe('presenting, with hidden scenes', () => {
     expect(step(show, { scene: 4, beat: 0 }, -1)).toEqual({ scene: 1, beat: 0 });
     expect(step(show, { scene: 4, beat: 1 }, 1)).toEqual({ scene: 4, beat: 1 });
     expect(step(show, { scene: 1, beat: 0 }, -1)).toEqual({ scene: 1, beat: 0 });
+  });
+
+  it('steps over them by scene too, from a scene that shows or one gone to', () => {
+    expect(sceneStep(show, { scene: 1, beat: 0 }, 1)).toEqual({ scene: 4, beat: 0 });
+    expect(sceneStep(show, { scene: 4, beat: 1 }, -1)).toEqual({ scene: 1, beat: 0 });
+    expect(sceneStep(show, { scene: 3, beat: 0 }, 1)).toEqual({ scene: 4, beat: 0 });
+    expect(sceneStep(show, { scene: 2, beat: 1 }, -1)).toEqual({ scene: 1, beat: 0 });
+    expect(sceneStep(show, { scene: 4, beat: 0 }, 1)).toEqual({ scene: 4, beat: 0 });
   });
 
   it('steps through the beats of one gone to, then on to a scene that shows', () => {

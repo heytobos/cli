@@ -21,9 +21,37 @@ const ARRANGE = [
   'rename',
   'menu',
 ] as const;
-const ACTIONS = ['next', 'prev', 'fullscreen', 'end', 'present', 'guides', ...ARRANGE] as const;
+const ACTIONS = [
+  'next',
+  'prev',
+  'next-scene',
+  'prev-scene',
+  'fullscreen',
+  'end',
+  'present',
+  'guides',
+  ...ARRANGE,
+] as const;
 export type Action = (typeof ACTIONS)[number];
 export const ARRANGING: ReadonlySet<Action> = new Set(ARRANGE);
+
+/** A move of the stage: a beat, or to the start of a scene, either way. */
+export interface Move {
+  by: 'beat' | 'scene';
+  delta: 1 | -1;
+}
+
+const MOVES: Partial<Record<Action, Move>> = {
+  next: { by: 'beat', delta: 1 },
+  prev: { by: 'beat', delta: -1 },
+  'next-scene': { by: 'scene', delta: 1 },
+  'prev-scene': { by: 'scene', delta: -1 },
+};
+
+/** How the action moves the stage, if it does. */
+export function moveOf(what: Action): Move | null {
+  return MOVES[what] ?? null;
+}
 
 /** What Enter presses where it has the focus, rather than rename a scene. */
 export const PRESSED = 'button, a[href], summary, [role=button], [role=tab]';
@@ -60,15 +88,19 @@ export function action(event: KeyboardEvent): Action | null {
   if (event.shiftKey && event.key === 'F10') return 'menu';
   if (command || event.altKey) return null;
   switch (event.key) {
+    // ← → step a beat, ↓ ↑ a scene, as the outline lists them; a clicker's PageDown and PageUp
+    // step beats, so a presenter's goes through every one.
     case 'ArrowRight':
-    case 'ArrowDown':
     case 'PageDown':
     case ' ':
       return 'next';
     case 'ArrowLeft':
-    case 'ArrowUp':
     case 'PageUp':
       return 'prev';
+    case 'ArrowDown':
+      return 'next-scene';
+    case 'ArrowUp':
+      return 'prev-scene';
     case 'f':
     case 'F':
       return 'fullscreen';

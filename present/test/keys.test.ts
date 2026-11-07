@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { action, actionIn, ownerOf, type Action } from '../src/viewer/keys.ts';
+import { action, actionIn, moveOf, ownerOf, type Action } from '../src/viewer/keys.ts';
 
 /** A key press as action() reads it, on the page's body unless told where. */
 const press = (key: string, more: Partial<KeyboardEvent> = {}) =>
@@ -7,12 +7,15 @@ const press = (key: string, more: Partial<KeyboardEvent> = {}) =>
 
 describe('the one key map', () => {
   it('reads each key the same, wherever it lands', () => {
-    expect(['ArrowRight', 'ArrowDown', 'PageDown', ' '].map((k) => action(press(k)))).toEqual(
-      Array(4).fill('next'),
+    // ← → and a clicker's keys step a beat, ↓ ↑ a scene.
+    expect(['ArrowRight', 'PageDown', ' '].map((k) => action(press(k)))).toEqual(
+      Array(3).fill('next'),
     );
-    expect(['ArrowLeft', 'ArrowUp', 'PageUp'].map((k) => action(press(k)))).toEqual(
-      Array(3).fill('prev'),
-    );
+    expect(['ArrowLeft', 'PageUp'].map((k) => action(press(k)))).toEqual(Array(2).fill('prev'));
+    expect([action(press('ArrowDown')), action(press('ArrowUp'))]).toEqual([
+      'next-scene',
+      'prev-scene',
+    ]);
     expect([action(press('f')), action(press('L')), action(press('Escape'))]).toEqual([
       'fullscreen',
       'guides',
@@ -50,7 +53,7 @@ describe('the one key map', () => {
       'menu',
       'menu',
     ]);
-    expect(action(press('ArrowDown', { shiftKey: true }))).toBe('next');
+    expect(action(press('ArrowDown', { shiftKey: true }))).toBe('next-scene');
     expect(action(press('Enter', { metaKey: true }))).toBe('present');
     expect(action(press('Enter', { ctrlKey: true }))).toBe('present');
     // Other keys with a modifier are the browser's.
@@ -77,12 +80,34 @@ describe('the one key map', () => {
       'menu',
     ] as Action[])
       expect(ownerOf(what), what).toBe('page');
-    for (const what of ['next', 'prev', 'fullscreen', 'guides', 'end'] as Action[])
+    for (const what of [
+      'next',
+      'prev',
+      'next-scene',
+      'prev-scene',
+      'fullscreen',
+      'guides',
+      'end',
+    ] as Action[])
       expect(ownerOf(what), what).toBe('slides');
+  });
+
+  it('moves the stage by a beat or a scene, either way, and does nothing else', () => {
+    expect(
+      (['next', 'prev', 'next-scene', 'prev-scene'] as Action[]).map((what) => moveOf(what)),
+    ).toEqual([
+      { by: 'beat', delta: 1 },
+      { by: 'beat', delta: -1 },
+      { by: 'scene', delta: 1 },
+      { by: 'scene', delta: -1 },
+    ]);
+    for (const what of ['fullscreen', 'end', 'present', 'up', 'down'] as Action[])
+      expect(moveOf(what), what).toBeNull();
   });
 
   it('reads an action from its one message, and nothing else', () => {
     expect(actionIn({ type: 'tobos:action', action: 'next' })).toBe('next');
+    expect(actionIn({ type: 'tobos:action', action: 'prev-scene' })).toBe('prev-scene');
     expect(actionIn({ type: 'tobos:action', action: 'present' })).toBe('present');
     expect(actionIn({ type: 'tobos:action', action: 'hide' })).toBe('hide');
     for (const data of [
