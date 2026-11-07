@@ -107,8 +107,8 @@
 
   /**
    * The server hears where the presenter is, so the room's phones follow: every move while
-   * presenting, and a heartbeat. Presenting never waits for it: a failed report is ignored, and
-   * the next one puts it right.
+   * presenting, a heartbeat, and as the window's stream comes back. Presenting never waits for it:
+   * a failed report is ignored, and the next one puts it right.
    */
   let reported = false;
   let lastReport: Promise<unknown> = Promise.resolve();
@@ -287,9 +287,19 @@
       if (audience?.closed) audience = null;
       now = Date.now();
     }, 500);
+    // Back from a lost connection, as after a release restarted the server, which forgot where the
+    // presenter is: it hears at once, rather than at the next heartbeat, so the phones' poll opens
+    // again within seconds.
     const unlisten =
       config.live && config.events
-        ? listen(config.events, 'notes', (data) => (notes = JSON.parse(data)))
+        ? listen(
+            config.events,
+            'notes',
+            (data) => (notes = JSON.parse(data)),
+            () => {
+              if (showing) report(refOf(position));
+            },
+          )
         : undefined;
     const stop = follow(
       config,

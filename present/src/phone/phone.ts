@@ -11,6 +11,12 @@ const root = document.getElementById('tobos-phone')!;
 
 /** How often a phone looks whether the deck went live, while it isn't. */
 const POLL_MS = 30_000;
+/**
+ * How often it looks instead, and for how long, once the server is back from a restart before the
+ * presenter's window is: the presenter's next report opens the poll again within seconds.
+ */
+const SOON_MS = 2_000;
+const SOON_FOR_MS = 60_000;
 /** How long what the phone keeps lasts after the page was last open. */
 const KEEP_MS = 3 * 60 * 60_000;
 
@@ -102,6 +108,15 @@ let error = '';
 const pending = new Map<string, string>();
 /** The option picked in the open poll. */
 let picked: string | null = null;
+/**
+ * An answer the server didn't take because it was away or the deck wasn't live, as while a release
+ * restarts it: sent again once the same poll is open again in the same session.
+ */
+type Unsent = { show: string; activity: string; value: unknown };
+let unsent: Unsent | null = null;
+/** Until when the phone looks every few seconds rather than every 30 (SOON_MS). */
+let soonUntil = 0;
+const lookSoon = () => (soonUntil = Date.now() + SOON_FOR_MS);
 
 /**
  * The objection's mail, in the notice the server puts on the page: the join code goes in, and the
@@ -197,6 +212,13 @@ function apply(next: PhoneState) {
   if (next.live) follow();
   else stopFollowing();
   render();
+  // The answer the server didn't take, once its poll is back: sent again, or, with another poll
+  // or session live, forgotten.
+  if (!unsent || !next.live || sending) return;
+  const held = unsent;
+  unsent = null;
+  if (after && next.show === held.show && after.id === held.activity && !sent(after))
+    void send(after, held.value);
 }
 
 /** What is open now, from the server: whether it could be asked. */
@@ -216,10 +238,11 @@ async function look(): Promise<boolean> {
 // server answers with the state: a phone asleep, as iOS puts one, kept no connection, though its
 // stream may look open or still wait a minute to reconnect.
 let timer = 0;
+const nextLook = () => (Date.now() < soonUntil ? SOON_MS : POLL_MS);
 async function poll() {
   window.clearTimeout(timer);
   await look();
-  if (!events) timer = window.setTimeout(poll, POLL_MS);
+  if (!events) timer = window.setTimeout(poll, nextLook());
 }
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
@@ -232,20 +255,32 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // While live: the server's stream of the same state, which reconnects by itself (stream.ts). The
-// server sends the state as each connection opens, so a reconnect needs no look of its own.
+// server sends the state as each connection opens, so a reconnect needs no look of its own. A
+// reconnect that finds the deck not live found the server restarted, which forgot where the
+// presenter is until the presenter's window reports again: the phone looks every few seconds.
 let events: (() => void) | null = null;
 function follow() {
   if (events) return;
   window.clearTimeout(timer);
-  events = stream(`/${code}/events`, {
-    state: (data) => apply(JSON.parse(data) as PhoneState),
-  });
+  let reopened = false;
+  events = stream(
+    `/${code}/events`,
+    {
+      state: (data) => {
+        const next = JSON.parse(data) as PhoneState;
+        if (reopened && !next.live) lookSoon();
+        reopened = false;
+        apply(next);
+      },
+    },
+    (again) => (reopened = again),
+  );
 }
 function stopFollowing() {
   if (!events) return;
   events();
   events = null;
-  timer = window.setTimeout(poll, POLL_MS);
+  timer = window.setTimeout(poll, nextLook());
 }
 
 const draft = (activity: PhoneActivity) => mine()?.drafts[activity.id] ?? {};
@@ -282,8 +317,12 @@ async function send(activity: PhoneActivity, value: unknown) {
     } else if (response.status === 409) {
       // Closed, or the session is over: the presenter started a new one while it was on its way.
       // What is open now says which. Open again in the next session, it may be sent again, with an
-      // id of that one.
-      if (!(await look())) {
+      // id of that one. Nothing live, as just after a restart: it goes again if the poll comes back.
+      // Soon, before the look, which sets the next one going.
+      lookSoon();
+      const asked = await look();
+      if (!asked || !state?.live) unsent = { show, activity: activity.id, value };
+      if (!asked) {
         closed = true;
         if (state?.live) state = { ...state, activity: null };
       } else if (open()?.id === activity.id)
@@ -292,12 +331,23 @@ async function send(activity: PhoneActivity, value: unknown) {
             ? 'A new session started. Send again.'
             : "That couldn't be sent.";
     } else if (response.status === 429) error = 'Too many tries. Wait a minute, then send again.';
-    else error = "That couldn't be sent.";
+    else {
+      // The server away, as while a release restarts it (the proxy's 502).
+      if (response.status >= 500) away({ show, activity: activity.id, value });
+      error = "That couldn't be sent.";
+    }
   } catch {
+    away({ show, activity: activity.id, value });
     error = "Couldn't reach the server. Send again.";
   }
   sending = false;
   render();
+}
+
+/** The server didn't take the answer for being away or not live: it goes when the poll is back. */
+function away(answer: Unsent) {
+  unsent = answer;
+  lookSoon();
 }
 
 // Rendering. The page is rebuilt only when what it shows changes, so typing keeps its focus.

@@ -26,31 +26,43 @@ const live = (show: string, activity: PhoneActivity | null = poll('drink')): Pho
 
 /**
  * The server: what it is asked, the state it tells, and the answers sent to it, which it takes
- * (202) in the show that is live, and refuses (409) in any other.
+ * (202) in the show that is live, and refuses (409) in any other. While it is `down`, as a release
+ * restarts it, the proxy answers 502.
  */
 let asked: string[] = [];
 let state: PhoneState = { live: false };
-let answers: { participant: string; show: string; activity: string }[] = [];
+let answers: { id: string; participant: string; show: string; activity: string }[] = [];
 let streams: FakeEventSource[] = [];
+let down = false;
 
 /** The server's stream of states, which the test tells. */
 class FakeEventSource {
   static CLOSED = 2;
   readyState = 1;
-  private listener?: (event: MessageEvent<string>) => void;
+  private listeners = new Map<string, (event: MessageEvent<string>) => void>();
   constructor(url: string) {
     asked.push(`GET ${url}`);
     streams.push(this);
   }
   addEventListener(type: string, listener: (event: MessageEvent<string>) => void) {
-    if (type === 'state') this.listener = listener;
+    this.listeners.set(type, listener);
   }
   close() {
     this.readyState = FakeEventSource.CLOSED;
   }
   tell(next: PhoneState) {
     state = next;
-    this.listener?.({ data: JSON.stringify(next) } as MessageEvent<string>);
+    this.listeners.get('state')?.({ data: JSON.stringify(next) } as MessageEvent<string>);
+  }
+  /** The server went away: the reconnect was refused, which ends an EventSource for good. */
+  drop() {
+    this.readyState = FakeEventSource.CLOSED;
+    this.listeners.get('error')?.({} as MessageEvent<string>);
+  }
+  /** Connected, and told the state, as the server does on each connection. */
+  connect(next: PhoneState) {
+    this.listeners.get('open')?.({} as MessageEvent<string>);
+    this.tell(next);
   }
 }
 
@@ -94,10 +106,11 @@ beforeEach(() => {
   });
   history.replaceState(null, '', `/${CODE}`);
   localStorage.clear();
-  [asked, answers, streams, state] = [[], [], [], { live: false }];
+  [asked, answers, streams, state, down] = [[], [], [], { live: false }, false];
   vi.stubGlobal('EventSource', FakeEventSource);
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
     asked.push(`${init?.method ?? 'GET'} ${url}`);
+    if (down) return new Response('Bad gateway', { status: 502 });
     if (init?.method !== 'POST') return Response.json(state);
     const answer = JSON.parse(String(init.body));
     answers.push(answer);
@@ -288,6 +301,74 @@ describe('the phone page', () => {
       `&body=Bitte löschen Sie meine Antworten.\r\n\r\nCode: ${CODE}\r\n` +
         `Zufallszahl dieses Handys: ${id}`,
     );
+  });
+
+  it('back from a restart before the presenter, it looks every few seconds, and has the poll again within them', async () => {
+    state = live('show-1');
+    await open();
+    streams.at(-1)!.connect(state);
+    expect(screen()).toContain('Tea or coffee?');
+    // The release restarts the server, which forgets where the presenter is.
+    streams.at(-1)!.drop();
+    await vi.advanceTimersByTimeAsync(1000);
+    streams.at(-1)!.connect({ live: false });
+    expect(screen()).toBe('This poll has closed.');
+    // The presenter's window reports again: the phone's next look, two seconds on, finds it.
+    state = live('show-1');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(screen()).toContain('Tea or coffee?');
+  });
+
+  it('sends again, once its poll is back, an answer refused while the server restarted', async () => {
+    state = live('show-1');
+    await open();
+    streams.at(-1)!.connect(state);
+    down = true;
+    await answer('Tea');
+    expect(answers).toEqual([]);
+    expect(screen()).toContain("That couldn't be sent.");
+
+    // Back, before the presenter: the phone sees nothing live, and looks again soon.
+    down = false;
+    streams.at(-1)!.drop();
+    await vi.advanceTimersByTimeAsync(1000);
+    streams.at(-1)!.connect({ live: false });
+    expect(screen()).toBe('This poll has closed.');
+    state = live('show-1');
+    await vi.advanceTimersByTimeAsync(2000);
+    await settle();
+    // Sent by itself, with the id of the try the server never took, so it counts once.
+    expect(answers).toEqual([expect.objectContaining({ show: 'show-1', activity: 'drink' })]);
+    expect(screen()).toBe('Sent ✓');
+
+    // Refused by the server back before the presenter (409): sent again the same way.
+    streams.at(-1)!.tell(live('show-1', poll('food')));
+    state = { live: false };
+    await answer('Coffee');
+    expect(screen()).toBe('This poll has closed.');
+    state = live('show-1', poll('food'));
+    await vi.advanceTimersByTimeAsync(2000);
+    await settle();
+    expect(answers.slice(1)).toEqual([
+      expect.objectContaining({ activity: 'food' }),
+      expect.objectContaining({ activity: 'food', id: answers[1]!.id }),
+    ]);
+    expect(screen()).toBe('Sent ✓');
+  });
+
+  it('forgets an answer the restart refused when another session is live once it is back', async () => {
+    state = live('show-1');
+    await open();
+    streams.at(-1)!.connect(state);
+    down = true;
+    await answer('Tea');
+    down = false;
+    streams.at(-1)!.drop();
+    await vi.advanceTimersByTimeAsync(1000);
+    streams.at(-1)!.connect(live('show-2'));
+    await settle();
+    expect(answers).toEqual([]);
+    expect(screen()).toContain('Tea or coffee?');
   });
 
   it('woken while live, it follows afresh: asleep, its stream heard nothing', async () => {
