@@ -49,8 +49,25 @@ export function addSpan(tl: gsap.core.Timeline, until: string, span: Span): bool
 }
 
 /**
+ * What runs while the scene is at a range of its beats, from `first` up to, not including,
+ * `until`, whichever way it moved there: a sound playing on (playAudio's `until`), or a loop.
+ */
+interface Range {
+  first: number;
+  until: number;
+  /** The scene is at `beat`, in the range: `stepped` when a step forward, heard, played into it. */
+  inside(beat: number, stepped: boolean): void;
+  /** The scene is outside the range, or has left the stage. */
+  outside(): void;
+  /** The scene is gone: stop at once. */
+  kill(): void;
+}
+
+/**
  * One scene's beats as one paused GSAP timeline, with a label after each beat's animation.
- * Stepping forward tweens the playhead to the next label; everything else seeks.
+ * Stepping forward tweens the playhead to the next label; everything else seeks. A beat's loop
+ * repeats on a timeline of its own, beside it, which this one never holds: seeking its labels
+ * would reach none past a loop that runs for ever.
  */
 export class SceneTimeline {
   readonly timeline: gsap.core.Timeline;
@@ -61,7 +78,16 @@ export class SceneTimeline {
   private ids: string[];
   /** The beat whose `enter` is running, while the timeline is built. */
   private building = -1;
-  private spans: { first: number; until: number; span: Span }[] = [];
+  private ranges: Range[] = [];
+  /** The ranges that are loops, which `loops` starts or stops. */
+  private loopRanges: Range[] = [];
+  /** The beat shown, -1 before the first or off the stage. */
+  private at = -1;
+  /**
+   * Whether loops play, or each stays at its start. Off until a stage that plays them says so:
+   * a page of the PDF never does.
+   */
+  private looping = false;
   /** The spans' stops still fading out. */
   private fades = new Set<Promise<void>>();
 
@@ -80,13 +106,67 @@ export class SceneTimeline {
     });
     this.building = -1;
     this.timeline.seek(0, false);
+    beats.forEach((beat, index) => this.addLoop(beat, index, q));
   }
 
   addSpan(until: string, span: Span): boolean {
     const last = this.ids.indexOf(until);
     if (this.building < 0 || last <= this.building) return false;
-    this.spans.push({ first: this.building, until: last, span });
+    const first = this.building;
+    this.ranges.push({
+      first,
+      until: last,
+      // Only a step forward onto its first beat, heard, starts it.
+      inside: (beat, stepped) => {
+        if (stepped && beat === first) span.start();
+      },
+      outside: () => {
+        const stop = span.stop(true);
+        this.fades.add(stop);
+        void stop.finally(() => this.fades.delete(stop));
+      },
+      kill: () => void span.stop(false),
+    });
     return true;
+  }
+
+  /** A beat's loop, repeating from its start each time the scene arrives in its range. */
+  private addLoop(beat: Beat, index: number, q: Query) {
+    if (!beat.loop) return;
+    const until = beat.until === undefined ? this.ids.length : this.ids.indexOf(beat.until);
+    if (until <= index) {
+      console.warn(
+        `[tobos] beat "${beat.id}": until names "${beat.until}", which is not a later beat of this scene`,
+      );
+      return;
+    }
+    const loop = gsap.timeline({ paused: true, repeat: -1 });
+    beat.loop(loop, q);
+    // A round that takes no time would repeat for ever within one frame.
+    if (loop.duration() === 0) {
+      console.warn(`[tobos] beat "${beat.id}": its loop animates nothing, so nothing repeats`);
+      loop.kill();
+      return;
+    }
+    const range: Range = {
+      first: index,
+      until,
+      inside: () => {
+        if (!this.looping) loop.pause(0);
+        else if (loop.paused()) loop.restart();
+      },
+      outside: () => void loop.pause(0),
+      kill: () => void loop.kill(),
+    };
+    this.ranges.push(range);
+    this.loopRanges.push(range);
+  }
+
+  /** Play the loops, or keep each at its start: a still view, a render. Sound plays on as it was. */
+  loops(on: boolean) {
+    if (on === this.looping) return;
+    this.looping = on;
+    this.move(this.at, false, this.loopRanges);
   }
 
   /**
@@ -115,27 +195,23 @@ export class SceneTimeline {
   hold() {
     this.finish();
     this.timeline.seek(0, false);
-    this.sound(-1, false);
+    this.move(-1, false);
   }
 
-  /** The scene has left the stage: its spans fade out. */
+  /** The scene has left the stage: its spans fade out, its loops stop. */
   leave() {
-    this.sound(-1, false);
+    this.move(-1, false);
   }
 
   /**
-   * After a move to `beat` (-1: none), each span plays on while the beat is in its range,
-   * whichever way it moved there, and fades out outside it. Only a step forward onto its first
-   * beat, heard, starts it.
+   * After a move to `beat` (-1: none), each range runs while the beat is in it, whichever way it
+   * moved there, and stops outside it. `stepped`: a step forward, heard, played into the beat.
    */
-  private sound(beat: number, starting: boolean) {
-    for (const { first, until, span } of this.spans) {
-      if (beat < first || beat >= until) {
-        const stop = span.stop(true);
-        this.fades.add(stop);
-        void stop.finally(() => this.fades.delete(stop));
-      } else if (starting && beat === first) span.start();
-    }
+  private move(beat: number, stepped: boolean, ranges = this.ranges) {
+    this.at = beat;
+    for (const range of ranges)
+      if (beat < range.first || beat >= range.until) range.outside();
+      else range.inside(beat, stepped);
   }
 
   /**
@@ -146,7 +222,7 @@ export class SceneTimeline {
     const label = this.labels[Math.max(0, Math.min(beat, this.labels.length - 1))]!;
     this.finish();
     this.aloud = aloud;
-    this.sound(beat, animate && aloud);
+    this.move(beat, animate && aloud);
     if (!animate) {
       this.timeline.seek(label, false);
       return;
@@ -176,7 +252,7 @@ export class SceneTimeline {
 
   kill() {
     this.finish();
-    for (const { span } of this.spans) void span.stop(false);
+    for (const range of this.ranges) range.kill();
     this.timeline.kill();
   }
 }

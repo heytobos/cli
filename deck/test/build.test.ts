@@ -370,6 +370,32 @@ describe('beats', () => {
     ]);
   });
 
+  it('loop until a later beat of the scene, named by a literal, or are warned', async () => {
+    const until = async (beat: string) =>
+      (
+        await checkDeck(
+          variant({
+            'scenes/title.svelte': scene(
+              `export const beats = [{ id: 'a' }, { id: 'b', ${beat} }, { id: 'c' }];`,
+            ),
+          }),
+        )
+      ).map((p) => `${p.severity}: ${p.message}`);
+    const loop = "loop: (tl, q) => tl.to(q('p'), { rotation: 360, duration: 4 })";
+    expect(await until(loop)).toEqual([]);
+    expect(await until(`${loop}, until: 'c'`)).toEqual([]);
+    // Warned, not refused: before loops, the check passed a beat's `until`.
+    expect(await until(`${loop}, until: 'a'`)).toEqual([
+      'warning: `until` names "a", which doesn\'t come after "b", where the loop starts: it would never play. Name a later beat (c).',
+    ]);
+    expect(await until(`${loop}, until: name`)).toEqual([
+      'warning: `until` must be a string literal naming a later beat of this scene, so Tobos can check it.',
+    ]);
+    expect(await until("until: 'c'")).toEqual([
+      "warning: A beat's `until` says where its `loop` stops: add the `loop`, or remove `until`.",
+    ]);
+  });
+
   it("can't be only digits", async () => {
     const problems = await checkDeck(
       variant({ 'scenes/title.svelte': scene("export const beats = [{ id: '2' }];") }),

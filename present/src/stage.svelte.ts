@@ -20,7 +20,10 @@ export interface StageOptions {
   context: (index: number) => DeckContext;
   /** Mount the next scene ahead, out of sight. Off for render and the presenter's current view. */
   mountAhead?: boolean;
-  /** Never play animations: every cue lands on its end state (the presenter's own view). */
+  /**
+   * Never play animations: every cue lands on its end state, and loops stay at their start (the
+   * presenter's own view, a render).
+   */
   still?: boolean;
 }
 
@@ -97,10 +100,14 @@ export class Stage {
     }
   }
 
-  /** Play animations from the next cue on, or land every cue on its end state. */
+  /**
+   * Play animations from the next cue on, or land every cue on its end state. Loops start or stop
+   * at once.
+   */
   animate(on: boolean) {
     this.options.still = !on;
     if (!on) this.finish();
+    for (const layer of this.layers.values()) layer.timeline.loops(on);
   }
 
   /** Finish whatever is playing, at once. */
@@ -171,6 +178,7 @@ export class Stage {
     // Cancelled meanwhile (a reset, or a newer version of the scene): already unmounted.
     if (!this.mounting.delete(element)) return undefined;
     const timeline = new SceneTimeline(element, module.beats);
+    timeline.loops(!this.options.still);
     const layer: Layer = { index, element, instance, timeline, props, module };
     this.layers.set(index, layer);
     return layer;

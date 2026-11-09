@@ -18,6 +18,15 @@ export interface Beat {
   id: string;
   /** Add the animation into this beat to the scene's timeline. */
   enter?: (tl: gsap.core.Timeline, q: Query) => unknown;
+  /**
+   * Add one round of an animation that repeats while the scene is at this beat, and on through
+   * the beats after it up to `until`. Each arrival in that range, by any move, plays it from its
+   * start; leaving the range puts it back there, which is also what a still view, a render and a
+   * PDF show. End it as it starts, so a round follows the last without a jump.
+   */
+  loop?: (tl: gsap.core.Timeline, q: Query) => unknown;
+  /** With `loop`: the later beat of this scene it stops at. Default: it repeats to the scene's end. */
+  until?: string;
 }
 
 /** The props the engine passes to every scene. */

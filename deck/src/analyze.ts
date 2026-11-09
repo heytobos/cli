@@ -92,8 +92,13 @@ function readBeats(
   module: Node | null,
 ): Pick<Analysis, 'beats' | 'problems'> {
   const problems: Problem[] = [];
-  const at = (node: Node, message: string, rule = 'beats') => {
-    problems.push({ file, ...position(source, node.start), rule, message, severity: 'error' });
+  const at = (
+    node: Node,
+    message: string,
+    rule = 'beats',
+    severity: Problem['severity'] = 'error',
+  ) => {
+    problems.push({ file, ...position(source, node.start), rule, message, severity });
   };
   const missing = (): Pick<Analysis, 'beats' | 'problems'> => ({
     problems: [
@@ -143,14 +148,7 @@ function readBeats(
       );
       continue;
     }
-    const idProp = (beat.properties as Node[]).find(
-      (p) =>
-        p.type === 'Property' &&
-        !p.computed &&
-        (((p.key as Node).type === 'Identifier' && (p.key as Node).name === 'id') ||
-          ((p.key as Node).type === 'Literal' && (p.key as Node).value === 'id')),
-    );
-    const value = unwrap(idProp?.value as Node | undefined);
+    const value = unwrap(property(beat, 'id')?.value as Node | undefined);
     if (!value || value.type !== 'Literal' || typeof value.value !== 'string') {
       at(beat, "A beat's `id` must be a string literal.");
       continue;
@@ -182,16 +180,66 @@ function readBeats(
   return { beats, problems };
 }
 
+/** An object literal's property `name`, written as a plain key. */
+function property(object: Node, name: string): Node | undefined {
+  return (object.properties as Node[]).find(
+    (p) =>
+      p.type === 'Property' &&
+      !p.computed &&
+      (((p.key as Node).type === 'Identifier' && (p.key as Node).name === name) ||
+        ((p.key as Node).type === 'Literal' && (p.key as Node).value === name)),
+  );
+}
+
 /**
- * Check each `playAudio(…, { until })` in a beat: a string literal naming a later beat of the
- * scene, which the engine plays the sound until.
+ * Check each `until` of a beat, its loop's and each `playAudio(…, { until })`'s: a string literal
+ * naming a later beat of the scene, which the engine runs the loop or plays the sound until. A
+ * beat's own `until` was a key the check passed before beats had loops, so a deck may hold one:
+ * its problems are warnings, until no deck holds one.
  */
 function readUntil(
   beat: Node,
   index: number,
   beats: BeatInfo[],
-  at: (node: Node, message: string) => void,
+  at: (node: Node, message: string, rule?: string, severity?: Problem['severity']) => void,
 ) {
+  const check = (value: Node, what: string, severity: Problem['severity']) => {
+    const id = value.type === 'Literal' ? value.value : undefined;
+    const names = beats.map((b) => b.id);
+    const later = names.slice(index + 1);
+    if (typeof id !== 'string')
+      at(
+        value,
+        '`until` must be a string literal naming a later beat of this scene, so Tobos can check it.',
+        'beats',
+        severity,
+      );
+    else if (!names.includes(id))
+      at(
+        value,
+        `\`until\` names "${id}", which is not a beat of this scene (${names.join(', ')}).`,
+        'beats',
+        severity,
+      );
+    else if (!later.includes(id))
+      at(
+        value,
+        `\`until\` names "${id}", which doesn't come after "${names[index]}", where ${what} starts: it would never play. Name a later beat${later.length ? ` (${later.join(', ')})` : ', or add one'}.`,
+        'beats',
+        severity,
+      );
+  };
+  const own = unwrap(property(beat, 'until')?.value as Node | undefined);
+  if (own) {
+    if (!property(beat, 'loop'))
+      at(
+        own,
+        "A beat's `until` says where its `loop` stops: add the `loop`, or remove `until`.",
+        'beats',
+        'warning',
+      );
+    else check(own, 'the loop', 'warning');
+  }
   walk(beat, null, {
     CallExpression(node, { next }) {
       const callee = node.callee as Node;
@@ -202,36 +250,9 @@ function readUntil(
           (callee.property as Node).name === 'playAudio');
       const options = unwrap((node.arguments as Node[])[2]);
       const until =
-        named && options?.type === 'ObjectExpression'
-          ? (options.properties as Node[]).find(
-              (p) =>
-                p.type === 'Property' &&
-                !p.computed &&
-                (((p.key as Node).type === 'Identifier' && (p.key as Node).name === 'until') ||
-                  ((p.key as Node).type === 'Literal' && (p.key as Node).value === 'until')),
-            )
-          : undefined;
+        named && options?.type === 'ObjectExpression' ? property(options, 'until') : undefined;
       const value = unwrap(until?.value as Node | undefined);
-      if (until && value) {
-        const id = value.type === 'Literal' ? value.value : undefined;
-        const names = beats.map((b) => b.id);
-        const later = names.slice(index + 1);
-        if (typeof id !== 'string')
-          at(
-            value,
-            '`until` must be a string literal naming a later beat of this scene, so Tobos can check it.',
-          );
-        else if (!names.includes(id))
-          at(
-            value,
-            `\`until\` names "${id}", which is not a beat of this scene (${names.join(', ')}).`,
-          );
-        else if (!later.includes(id))
-          at(
-            value,
-            `\`until\` names "${id}", which doesn't come after "${names[index]}", where the sound starts: it would never play. Name a later beat${later.length ? ` (${later.join(', ')})` : ', or add one'}.`,
-          );
-      }
+      if (until && value) check(value, 'the sound', 'error');
       next();
     },
   });
@@ -869,7 +890,7 @@ function readBehaviour(file: string, source: string, root: unknown, problems: Pr
           at(
             node,
             'motion/loop',
-            'repeat: -1 loops for ever. Nothing loops while the presenter talks: give it a number of repeats, or make it a beat.',
+            "repeat: -1 loops for ever, on a clock the position can't recreate, and a timeline it is in never reaches its end. Put one round of it in a beat's `loop`, which the engine repeats, or give it a number of repeats.",
             'warning',
           );
         next();
@@ -910,7 +931,8 @@ function readBehaviour(file: string, source: string, root: unknown, problems: Pr
         file,
         ...position(source, index),
         rule: 'motion/loop',
-        message: 'A CSS animation that runs for ever. Nothing loops while the presenter talks.',
+        message:
+          "A CSS animation that runs for ever, on a clock the position can't recreate. Put one round of it in a beat's `loop`, which the engine repeats.",
         severity: 'warning',
       });
 }

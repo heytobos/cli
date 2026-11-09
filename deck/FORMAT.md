@@ -74,14 +74,40 @@ A presentation is a sequence of **beats**. One click advances one beat. A scene 
 - `enter(tl, q)` adds the animation into the beat to `tl`, the scene's GSAP timeline. `q(selector)` finds elements inside this scene only. A beat without `enter` changes nothing on screen (useful as the first beat of a scene whose layout is already complete).
 - The engine builds one timeline per scene: every beat's `enter`, followed by a label with the beat's ID. Animations that hide something at the start use `tl.from(...)`, so the hidden state is the timeline's start.
 - The scene's first beat is its entrance: stepping into a scene plays it.
+- `loop(tl, q)` adds one round of an animation that repeats while the scene is at this beat, and on through the beats after it, to the scene's end or up to, not including, the beat `until` names (see [Loops](#loops)).
 
 ### What the engine guarantees
 
-- **What is on screen depends only on the position.** Stepping forward plays the beat's animation. Going back, jumping, or reloading lands on the beat's end state instantly. A click while a beat is still playing finishes it at once and starts the next.
+- **What is on screen depends only on the position**, and a loop's round on how long ago the presenter arrived in its range. Stepping forward plays the beat's animation. Going back, jumping, or reloading lands on the beat's end state instantly. A click while a beat is still playing finishes it at once and starts the next.
 - **Scenes are mounted ahead**, out of sight, and their media preloads, so stepping into a scene never blinks.
 - **The stage is 1920×1080**, scaled to the screen. Write all sizes in stage pixels.
 
-So everything that moves belongs in a beat's `enter`, video and sound too (see [Video](#video) and [Sound](#sound)), and a scene keeps only state the position recreates. An animation started in `onMount` or a timer runs on its own clock, and the check warns about both.
+So everything that moves belongs in a beat's `enter`, video and sound too (see [Video](#video) and [Sound](#sound)), or, for motion that repeats, its `loop`, and a scene keeps only state the position recreates. An animation started in `onMount`, a timer or one that repeats for ever runs on its own clock, and the check warns about each.
+
+### Loops
+
+Motion that repeats while the presenter talks, a turning wheel or a pulse, is one round of it in a beat's `loop`, and the engine repeats that round:
+
+```ts
+export const beats: Beat[] = [
+  { id: 'ask' },
+  {
+    id: 'orbit',
+    enter: (tl, q) => tl.from(q('[data-part=planet]'), { opacity: 0, duration: 0.6 }),
+    loop: (tl, q) => tl.to(q('[data-part=planet]'), { rotation: 360, duration: 8, ease: 'none' }),
+    until: 'explain',
+  },
+  { id: 'detail' },
+  { id: 'explain' },
+];
+```
+
+- **It repeats through a range of beats**: from its own beat on, through the beats after it, to the scene's end, or up to, not including, the beat `until` names. Clicking on or back among those beats doesn't start it again. `until` is a string literal naming a later beat of the same scene; the check warns of any other, and of an `until` without a `loop`, and the engine runs no loop with an `until` it can't place.
+- **Each arrival in the range starts it from its start**, whatever the move: a step, a jump, going back, a reload. It starts with the beat's `enter`, not after it. Leaving the range, or the scene, puts it back at its start.
+- **The presenter's view, a render, the PDF and a deck with its animations turned off show its start.** So does a share link for a visitor whose system asks for less motion, until they turn animations on.
+- **End a round as it starts**, so the next follows without a jump: `rotation: 360`, or `yoyo: true, repeat: 1` for something that goes and comes back.
+- **A loop animates what no beat's `enter` does**: the same property of the same element would have two animations pulling at it. To loop something a beat moves in, loop an element inside it.
+- Inside `loop`, `repeat: -1` and `playVideo` or `playAudio` don't belong: the round is what repeats, and video and sound play in beats.
 
 ### Props
 
@@ -346,7 +372,7 @@ Tobos checks every version before it lands, and refuses one that fails. It check
 | `dependencies`                                                 | error            | a package in `deck.json`'s `dependencies` that npm can't supply or that won't bundle for the browser, or packages over the limits (npm packages, above)                      |
 | `motion/timer`                                                 | warning          | `setTimeout`, `setInterval`, `requestAnimationFrame`: they run on their own clock, which the position can't recreate                                                         |
 | `motion/on-mount`                                              | warning          | GSAP animation started in `onMount`, which plays even when the scene is mounted ahead, out of sight                                                                          |
-| `motion/loop`                                                  | warning          | `repeat: -1` and CSS animations that run for ever                                                                                                                            |
+| `motion/loop`                                                  | warning          | `repeat: -1` and CSS animations that run for ever: a beat's `loop` repeats one round instead (see [Loops](#loops))                                                           |
 
 The viewer keeps a connection open to follow new versions, so a browser test that waits for the network to go idle never finishes; wait for the page's `load` event instead.
 

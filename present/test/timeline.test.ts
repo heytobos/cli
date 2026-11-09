@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { gsap } from 'gsap';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Beat } from '../src/index.ts';
-import { SceneTimeline } from '../src/timeline.ts';
+import { addSpan, SceneTimeline } from '../src/timeline.ts';
 
 let root: HTMLElement;
 
@@ -91,5 +91,118 @@ describe('a scene timeline', () => {
       other.kill();
       fresh.remove();
     }
+  });
+});
+
+describe("a beat's loop", () => {
+  /** Move GSAP's clock on, as its ticker would. */
+  const elapse = (seconds: number) => gsap.updateRoot(gsap.globalTimeline.rawTime() + seconds);
+  const x = () => Number(gsap.getProperty(root.querySelector('.c')!, 'x'));
+  const spin = (until?: string): Beat[] => [
+    { id: 'a' },
+    {
+      id: 'spin',
+      enter: (tl, q) => tl.from(q('.b'), { opacity: 0, duration: 0.5 }),
+      loop: (tl, q) => tl.to(q('.c'), { x: 100, duration: 4, ease: 'none' }),
+      ...(until === undefined ? {} : { until }),
+    },
+    { id: 'c' },
+    { id: 'd' },
+  ];
+
+  it('repeats through its range, from its start on each arrival, whichever way', () => {
+    const tl = new SceneTimeline(root, spin('d'));
+    tl.loops(true);
+    tl.show(0, false);
+    elapse(1);
+    expect(x()).toBe(0);
+    tl.show(1, true);
+    elapse(1);
+    expect(x()).toBeCloseTo(25);
+    elapse(4);
+    expect(x()).toBeCloseTo(25);
+    // On through the next beat, without starting again.
+    tl.show(2, true);
+    elapse(1);
+    expect(x()).toBeCloseTo(50);
+    // The beat it stops at puts it back at its start.
+    tl.show(3, true);
+    expect(x()).toBe(0);
+    elapse(1);
+    expect(x()).toBe(0);
+    // A jump back into the range plays it from its start.
+    tl.show(2, false);
+    elapse(1);
+    expect(x()).toBeCloseTo(25);
+    tl.kill();
+  });
+
+  it("repeats to the scene's end by default, and stops when the scene leaves or waits", () => {
+    const tl = new SceneTimeline(root, spin());
+    tl.loops(true);
+    tl.show(3, false);
+    elapse(1);
+    expect(x()).toBeCloseTo(25);
+    tl.leave();
+    expect(x()).toBe(0);
+    tl.show(1, false);
+    elapse(2);
+    expect(x()).toBeCloseTo(50);
+    tl.hold();
+    expect(x()).toBe(0);
+    tl.kill();
+  });
+
+  it('stays at its start until a stage plays it, and starts once animations are on', () => {
+    // A page of the PDF is a timeline no stage plays.
+    const tl = new SceneTimeline(root, spin());
+    tl.show(1, false);
+    elapse(1);
+    expect(x()).toBe(0);
+    tl.loops(true);
+    elapse(1);
+    expect(x()).toBeCloseTo(25);
+    tl.loops(false);
+    expect(x()).toBe(0);
+    tl.kill();
+  });
+
+  it('starts and stops alone: a sound playing on through beats is left as it was', () => {
+    const span = { start: vi.fn(), stop: vi.fn(() => Promise.resolve()) };
+    const tl = new SceneTimeline(root, [
+      { id: 'a', enter: (timeline) => addSpan(timeline, 'c', span) },
+      ...spin().slice(1),
+    ]);
+    tl.loops(true);
+    tl.show(0, true);
+    tl.show(1, true);
+    expect(span.start).toHaveBeenCalledOnce();
+    // Past its range, where a sound of a later beat may be playing on the same element.
+    tl.show(2, true);
+    expect(span.stop).toHaveBeenCalled();
+    span.stop.mockClear();
+    tl.loops(false);
+    tl.loops(true);
+    expect(span.stop).not.toHaveBeenCalled();
+    tl.kill();
+  });
+
+  it("leaves the beats' timing as it was", () => {
+    const tl = new SceneTimeline(root, spin());
+    expect(tl.duration(1)).toBe(0.5);
+    expect(tl.timeline.duration()).toBe(0.5);
+    tl.kill();
+  });
+
+  it('warns of an until that names no later beat, or a loop that takes no time', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const tl = new SceneTimeline(root, [...spin('a'), { id: 'empty', loop: () => undefined }]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('until names "a"'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('its loop animates nothing'));
+    tl.show(1, false);
+    elapse(1);
+    expect(x()).toBe(0);
+    tl.kill();
+    warn.mockRestore();
   });
 });
