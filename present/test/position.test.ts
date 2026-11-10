@@ -7,9 +7,7 @@ import {
   ordinal,
   parseHash,
   sceneStep,
-  shownCount,
   shownFrom,
-  shownOrdinal,
   step,
   type Outline,
 } from '../src/position.ts';
@@ -158,12 +156,5 @@ describe('presenting, with hidden scenes', () => {
 
   it('begins at the end of the last scene that shows after the last hidden one', () => {
     expect(shownFrom(show, { scene: 5, beat: 0 })).toEqual({ scene: 4, beat: 1 });
-  });
-
-  it('counts only the beats it steps through', () => {
-    expect(shownCount(show)).toBe(3);
-    expect(shownOrdinal(show, { scene: 1, beat: 0 })).toBe(0);
-    expect(shownOrdinal(show, { scene: 4, beat: 1 })).toBe(2);
-    expect(shownOrdinal(show, { scene: 2, beat: 1 })).toBeUndefined();
   });
 });

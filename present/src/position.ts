@@ -106,22 +106,6 @@ export function shownFrom(outline: Outline, position: Position): Position {
 }
 
 /**
- * The position's number among the beats presenting steps through, from 0, and how many there
- * are: a hidden scene's beats aren't counted. Undefined for a beat of a hidden scene.
- */
-export function shownOrdinal(outline: Outline, position: Position): number | undefined {
-  if (outline.scenes[position.scene]?.hidden) return undefined;
-  let n = 0;
-  for (let s = 0; s < position.scene; s++)
-    if (!outline.scenes[s]!.hidden) n += outline.scenes[s]!.beats.length;
-  return n + position.beat;
-}
-
-export function shownCount(outline: Outline): number {
-  return outline.scenes.reduce((n, scene) => n + (scene.hidden ? 0 : scene.beats.length), 0);
-}
-
-/**
  * The cue for moving from one position to another. Only a single step forward animates;
  * anything else (back, jumps, reloads) lands on the end state.
  */

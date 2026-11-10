@@ -123,3 +123,33 @@ export function action(event: KeyboardEvent): Action | null {
       return null;
   }
 }
+
+/**
+ * The presenter's view's own keys, beside the stage's: P pauses the timer, + and − size the notes,
+ * ⇧↓ and ⇧↑ scroll them by a paragraph without moving the stage, ⌫ goes back after a jump. The
+ * view takes the notes' keys only when it has notes, and ⌫ only after a jump; otherwise they are
+ * the stage's, as before.
+ */
+export type PresenterKey = 'pause' | 'larger' | 'smaller' | 'notes-down' | 'notes-up' | 'back';
+
+export function presenterKey(event: KeyboardEvent): PresenterKey | null {
+  const target = event.target as Element | null;
+  if (target?.closest?.(EDITABLE)) return null;
+  if (event.metaKey || event.ctrlKey || event.altKey) return null;
+  if (event.shiftKey && event.key === 'ArrowDown') return 'notes-down';
+  if (event.shiftKey && event.key === 'ArrowUp') return 'notes-up';
+  switch (event.key) {
+    case 'p':
+    case 'P':
+      return 'pause';
+    case '+':
+    case '=':
+      return 'larger';
+    case '-':
+      return 'smaller';
+    case 'Backspace':
+      return 'back';
+    default:
+      return null;
+  }
+}

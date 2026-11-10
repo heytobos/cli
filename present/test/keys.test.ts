@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { action, actionIn, moveOf, ownerOf, type Action } from '../src/viewer/keys.ts';
+import {
+  action,
+  actionIn,
+  moveOf,
+  ownerOf,
+  presenterKey,
+  type Action,
+} from '../src/viewer/keys.ts';
 
 /** A key press as action() reads it, on the page's body unless told where. */
 const press = (key: string, more: Partial<KeyboardEvent> = {}) =>
@@ -118,5 +125,31 @@ describe('the one key map', () => {
       'next',
     ])
       expect(actionIn(data), JSON.stringify(data)).toBeNull();
+  });
+});
+
+describe("the presenter's view's own keys", () => {
+  it('pauses the timer, sizes and scrolls the notes, and goes back after a jump', () => {
+    expect(['p', 'P', '+', '=', '-', 'Backspace'].map((k) => presenterKey(press(k)))).toEqual([
+      'pause',
+      'pause',
+      'larger',
+      'larger',
+      'smaller',
+      'back',
+    ]);
+    expect([
+      presenterKey(press('ArrowDown', { shiftKey: true })),
+      presenterKey(press('ArrowUp', { shiftKey: true })),
+    ]).toEqual(['notes-down', 'notes-up']);
+  });
+
+  it("leaves the stage's keys, a modifier's and a field's alone", () => {
+    expect(
+      ['ArrowDown', 'ArrowRight', ' ', 'f', 'Escape'].map((k) => presenterKey(press(k))),
+    ).toEqual(Array(5).fill(null));
+    expect(presenterKey(press('Backspace', { metaKey: true }))).toBeNull();
+    const field = { closest: (selector: string) => (selector.includes('input') ? {} : null) };
+    expect(presenterKey(press('p', { target: field as unknown as EventTarget }))).toBeNull();
   });
 });
