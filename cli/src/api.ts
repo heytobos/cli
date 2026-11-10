@@ -43,7 +43,7 @@ export async function api<T = Record<string, unknown>>(
 
 /**
  * A failed response as an error, with what the server says besides (a limit's plan) for --json.
- * A plan's limit (402) or an archived deck (423) exits with 5, and says whose decision it is.
+ * A plan's limit (402) or a View only deck (423) exits with 5, and says whose decision it is.
  */
 export function failure(response: Response, data: unknown, prefix = ''): CliError {
   // `{ error, message }` (ADR 0005): `error` is the code, `message` what to do.

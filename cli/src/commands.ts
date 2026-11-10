@@ -36,8 +36,12 @@ interface DeckInfo {
   role?: 'owner' | 'editor' | 'presenter' | 'viewer';
   /** Whose it is; for one shared with you, on their plan. */
   owner?: string;
-  /** Read-only until its owner opens it again: no pushes, no presenting. */
+  /** View only, under the name servers from before give it. */
   archived?: boolean;
+  /** Beyond the decks its owner's plan keeps editable: no pushes, until its owner chooses it. */
+  viewOnly?: boolean;
+  /** Made by `new` where the plan kept no more editable: the deck that is View only now. */
+  madeViewOnly?: { id: string; title: string; note: string };
   /** The folder it is in, by its path from the root: of the person's own decks only. */
   folder?: string;
   rev: string | null;
@@ -203,12 +207,12 @@ export async function whoami(out: Output) {
   out.result({ ...me, server: settings().server }, () => `${me.email} on ${settings().server}`);
 }
 
-/** What `tobos ls` says of one besides its title: someone else's, archived. */
+/** What `tobos ls` says of one besides its title: someone else's, View only. */
 function aboutDeck(d: DeckInfo): string {
   const can = { editor: 'you edit', presenter: 'you present', viewer: 'you view' } as const;
   const notes = [
     d.role && d.role !== 'owner' && `${d.owner ?? 'someone else'}’s, ${can[d.role]}`,
-    d.archived && 'archived: read-only',
+    (d.viewOnly ?? d.archived) && 'view only: no pushes',
   ].filter(Boolean);
   return notes.length ? `  (${notes.join('; ')})` : '';
 }
@@ -463,6 +467,8 @@ export async function create(out: Output, args: Args) {
   out.result({ ...info, dir: dir ?? null }, () =>
     [
       `Created ${info.title}: ${info.url}`,
+      // Made where the plan kept no more editable: which deck is View only now, for the person.
+      info.madeViewOnly ? info.madeViewOnly.note : '',
       dir ? `Pulled into ${relative(process.cwd(), dir) || '.'}. Read AGENTS.md there first.` : '',
     ]
       .filter(Boolean)

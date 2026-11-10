@@ -37,8 +37,8 @@ They decide what to make and how much of it you build: one scene at a time, or t
 
 ## What stays the person's
 
-- **Exit code 5** is a limit or an archived deck. Show the person the message as it is, which says what they can do, and wait for their answer. The deck stays in Tobos: a deck built elsewhere to upload later, media shrunk or hosted elsewhere to fit, or someone else's account would decide for them what is theirs to decide.
-- **Archiving, opening again and deleting** a deck, and deleting a session's answers, are done by the person on the deck's page, in their own browser.
+- **Exit code 5** is a limit or a View only deck. Show the person the message as it is, which says what they can do, and wait for their answer. The deck stays in Tobos: a deck built elsewhere to upload later, media shrunk or hosted elsewhere to fit, or someone else's account would decide for them what is theirs to decide.
+- **Choosing which decks are editable** (Free keeps 3; the rest are View only, presented and shared as before), **deleting** a deck and **deleting a session's answers** are done by the person on the web, in their own browser. When `tobos new` says a deck is View only now to make room, tell the person, with the link it gives.
 - **Who is on a deck, and its link,** are the person's, on the deck's page: they put people on it, change what each may do, take them off, and turn the link on or off there. You neither see nor change any of it: `tobos ls` tells you only what you may do on each deck and whose it is. Can edit builds it with their own agent, can present presents it with its notes and polls and starts decks from its design, and can view sees the slides.
 - **Each scene's notes,** what the speaker says, are the person's: they write them under the stage on the deck's page, and the presenter sees them. You neither read nor write them, and a scene needs none from you.
 - **The URL `tobos open` prints** is the deck's page, where the person watches it, presents it and shares it. Presenting starts there alone: no link you can get presents the deck.

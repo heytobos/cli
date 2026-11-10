@@ -67,8 +67,8 @@ The skill (what your harness reads to know Tobos without this help)
 
 Every command takes --json and then prints one JSON object.
 Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in (or not yet approved),
-4 a conflict: someone changed the same lines (pull, resolve, push again), 5 a plan's limit or an
-archived deck: the person decides what to do, so show them the message and wait.
+4 a conflict: someone changed the same lines (pull, resolve, push again), 5 a plan's limit or a
+View only deck: the person decides what to do, so show them the message and wait.
 `;
 
 const COMMON: ParseArgsConfig['options'] = {

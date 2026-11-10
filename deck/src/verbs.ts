@@ -88,7 +88,7 @@ const CHANGESET_SCHEMA = {
 
 export const VERBS = {
   list: {
-    does: 'The decks the person works on, by id: their own, and those shared with them that they may present or change. Each with its title, your level on it and whose it is, whether it is archived (read-only), when it last changed, its address in Tobos, and, for the person’s own, its folder. With a path, what that folder holds: its folders, then its decks, a shortcut to a deck shared with the person marked as one, with its owner.',
+    does: 'The decks the person works on, by id: their own, and those shared with them that they may present or change. Each with its title, your level on it and whose it is, whether it is View only (beyond the decks its owner’s plan keeps editable: it takes no change), when it last changed, its address in Tobos, and, for the person’s own, its folder. With a path, what that folder holds: its folders, then its decks, a shortcut to a deck shared with the person marked as one, with its owner.',
     input: { properties: { path: { type: 'string', description: FOLDER_PATH } }, required: [] },
     cli: [
       {
