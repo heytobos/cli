@@ -171,7 +171,7 @@ export const VERBS = {
     ],
   },
   move: {
-    does: 'Moves the person’s decks, a deck by its id or title, and folders, by path, with all that is in them, into a folder, made with the folders on its path if there are none. A folder a move empties goes. Refused, with nothing moved, if one isn’t there, if a title is two decks’ (name that one by its id), if the folder has one of a moved folder’s name, or if a folder would go into itself.',
+    does: 'Moves the person’s decks, a deck by its id or title, and folders, by path, with all that is in them, into a folder, made with the folders on its path if there are none. With `name`, renames one folder where it is instead; with nothing to move, makes the folder at `to`. A folder stays when a move empties it: only the person deletes one. Refused, with nothing changed, if one isn’t there, if a title is two decks’ (name that one by its id), if the folder has one of a moved folder’s name already, if a folder would go into itself, or if a folder to make or a new name is there already.',
     input: {
       properties: {
         decks: {
@@ -182,17 +182,28 @@ export const VERBS = {
         folders: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Folders to move, each by its path, with all that is in them.',
+          description:
+            'Folders to move, each by its path, with all that is in them; or, with `name`, the one folder to rename.',
         },
-        to: { type: 'string', description: `Where they go. ${FOLDER_PATH}` },
+        to: {
+          type: 'string',
+          description: `Where they go, or with nothing to move, the folder to make. ${FOLDER_PATH}`,
+        },
+        name: {
+          type: 'string',
+          description:
+            'The new name of the one folder in `folders`, renamed where it is, with no decks and no `to`.',
+        },
       },
-      required: ['to'],
+      required: [],
     },
     cli: [
       {
         usage: 'tobos mv <deck or /folder>… </path>',
-        does: 'move decks and folders into that folder, made if there is none; a folder a move empties goes',
+        does: 'move decks and folders into that folder, made if there is none; a folder a move empties stays',
       },
+      { usage: 'tobos mv </folder> --name <name>', does: 'rename a folder where it is' },
+      { usage: 'tobos mkdir </path>', does: 'make an empty folder, and those on its path' },
     ],
   },
 } as const satisfies Record<string, Verb>;

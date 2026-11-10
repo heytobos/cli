@@ -92,7 +92,8 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
       from: { type: 'string' },
     },
   },
-  mv: { run: commands.mv },
+  mv: { run: commands.mv, options: { name: { type: 'string' } } },
+  mkdir: { run: commands.mkdir },
   pull: { run: commands.pull },
   outline: {
     run: commands.outline,

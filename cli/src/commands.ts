@@ -249,14 +249,28 @@ export async function ls(out: Output, args: Args) {
 
 /**
  * Decks and folders moved into a folder, the last argument, which is made if there is none: a
- * deck by its id or its title, a folder by its path, which starts with `/`.
+ * deck by its id or its title, a folder by its path, which starts with `/`. With --name, the one
+ * folder named is renamed where it is.
  */
 export async function mv(out: Output, args: Args) {
+  const name = args.values.name;
+  if (typeof name === 'string') {
+    const [folder, ...more] = args.positionals;
+    if (!folder?.startsWith('/') || more.length)
+      throw new CliError(
+        '--name renames one folder where it is: `tobos mv </folder> --name <name>`, the folder by its path.',
+      );
+    const renamed = await api<{ to: string }>('/api/drive/move', {
+      body: { folders: [folder], name },
+    });
+    out.result(renamed, () => `Renamed ${folder} to ${renamed.to}.`);
+    return;
+  }
   const named = args.positionals.slice(0, -1);
   const to = args.positionals.at(-1);
   if (!to || named.length === 0)
     throw new CliError(
-      'What goes where? `tobos mv <deck or /folder>… <folder>`: decks by id or title, folders by path.',
+      'What goes where? `tobos mv <deck or /folder>… <folder>`: decks by id or title, folders by path. `tobos mkdir </path>` makes an empty folder.',
     );
   const moved = await api<{ to: string }>('/api/drive/move', {
     body: {
@@ -266,6 +280,15 @@ export async function mv(out: Output, args: Args) {
     },
   });
   out.result(moved, () => `Moved ${plural(named.length, 'item')} into ${moved.to}.`);
+}
+
+/** An empty folder made, with the folders on its path that aren't there: `move` with nothing to move. */
+export async function mkdir(out: Output, args: Args) {
+  const [path, ...more] = args.positionals;
+  if (!path || more.length)
+    throw new CliError('Which folder? `tobos mkdir </path>`, such as /Courses/AI 101.');
+  const made = await api<{ to: string }>('/api/drive/move', { body: { to: path } });
+  out.result(made, () => `Made ${made.to}.`);
 }
 
 // ─── Working copies ─────────────────────────────────────────────────────────

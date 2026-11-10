@@ -29,7 +29,8 @@ They decide what to make and how much of it you build: one scene at a time, or t
 - File every deck you make: once it is made, move it into the folder it belongs in.
 - Before you move more than a handful of decks, show the person the tree you propose, and make it once they say yes.
 - A reorganisation is taken back by moving the decks back where they were: note where they were before you move them.
-- A folder goes when it empties, by a move or a deck's deletion: there is no removing one. A folder with only archived decks in it isn't empty.
+- Make a folder with `tobos mkdir /path` (or a move into a path that isn't there), and rename one in place with `tobos mv /path --name New`. A folder stays when it empties.
+- Deleting a folder or a deck is the person's: you never delete one. An empty folder they no longer want, tell them about, and leave it.
 
 ## What stays the person's
 
