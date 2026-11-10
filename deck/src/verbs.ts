@@ -171,7 +171,7 @@ export const VERBS = {
     ],
   },
   move: {
-    does: 'Moves the person’s decks, a deck by its id or title, and folders, by path, with all that is in them, into a folder, made with the folders on its path if there are none. With `name`, renames one folder where it is instead; with nothing to move, makes the folder at `to`. A folder stays when a move empties it: only the person deletes one. Refused, with nothing changed, if one isn’t there, if a title is two decks’ (name that one by its id), if the folder has one of a moved folder’s name already, if a folder would go into itself, or if a folder to make or a new name is there already.',
+    does: 'Moves the person’s decks, a deck by its id or title, and folders, by path, with all that is in them, into a folder, made with the folders on its path if there are none. With `name`, renames one folder where it is instead; with nothing to move, makes the folder at `to`. A folder stays when a move empties it: only the person deletes one, on the web. Refused, with nothing changed, if one isn’t there, if a title is two decks’ (name that one by its id), if the folder has one of a moved folder’s name already, if a folder would go into itself, or if a folder to make or a new name is there already.',
     input: {
       properties: {
         decks: {

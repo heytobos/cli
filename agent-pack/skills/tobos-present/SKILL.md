@@ -30,7 +30,8 @@ They decide what to make and how much of it you build: one scene at a time, or t
 - Before you move more than a handful of decks, show the person the tree you propose, and make it once they say yes.
 - A reorganisation is taken back by moving the decks back where they were: note where they were before you move them.
 - Make a folder with `tobos mkdir /path` (or a move into a path that isn't there), and rename one in place with `tobos mv /path --name New`. A folder stays when it empties.
-- Deleting a folder or a deck is the person's: you never delete one. An empty folder they no longer want, tell them about, and leave it.
+- Deleting a folder or a deck is the person's, on the web: you never delete one. An empty folder they no longer want, tell them about, and leave it.
+- A deck or folder the person deleted waits in their trash for 30 days, and is gone to you meanwhile: `tobos ls` doesn't list it, and naming it answers that it isn't there. Only the person restores it, from the trash on the web.
 
 ## What stays the person's
 
