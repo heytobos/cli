@@ -25,14 +25,14 @@ export interface OutlineChapter {
 }
 
 /**
- * A deck's outline: its title, and its chapters and their scenes in order (ADR 0006). Data, held
- * by Tobos, never a file of the deck; Tobos's own decks keep theirs in `outline.json` in the
- * codebase, in this shape.
+ * A deck's outline: its title, and its scenes in order (ADR 0006). A deck has no chapters, or
+ * every scene is in one, never a mix: with chapters, `chapters` and their scenes; with none, its
+ * `scenes`. Data, held by Tobos, never a file of the deck; Tobos's own decks keep theirs in
+ * `outline.json` in the codebase, in this shape.
  */
-export interface Outline {
-  title: string;
-  chapters: OutlineChapter[];
-}
+export type Outline =
+  | { title: string; chapters: OutlineChapter[]; scenes?: never }
+  | { title: string; scenes: OutlineScene[]; chapters?: never };
 
 /** deck.json: what the deck's code needs, its packages. The outline isn't in it (ADR 0006). */
 export interface DeckJson {
@@ -147,7 +147,8 @@ export type StoredBuild = Build | LegacyBuild;
 
 /**
  * What the viewer needs to show one revision of a deck: its build, with the deck's outline as it
- * is now joined in (joinOutline). Only the scenes both have are in it.
+ * is now joined in (joinOutline). Only the scenes both have are in it. A deck with no chapters has
+ * its scenes in one chapter with an empty id and title, which nothing names on a slide.
  */
 export type Manifest = Omit<Build, 'scenes'> & { title: string; chapters: ManifestChapter[] };
 

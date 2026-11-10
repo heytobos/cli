@@ -994,7 +994,7 @@ describe('media', () => {
 describe('what a share gets', () => {
   const entry = (hash: string) => ({ hash: hash.repeat(64), size: 1000, type: 'image/png' });
   const outline = structuredClone(sampleOutline);
-  outline.chapters[0]!.scenes.push({ id: 'quiz', title: 'Quiz' });
+  outline.chapters![0]!.scenes.push({ id: 'quiz', title: 'Quiz' });
   const tree = variant({
     'media.json': JSON.stringify({
       ...JSON.parse(text(sample.read('media.json'))),

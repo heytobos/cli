@@ -13,8 +13,12 @@ describe('Tobos standard', () => {
     // Its outline, which the server holds as it is here (start-from.ts), places every scene.
     const { outline, problems } = parseOutline(readFileSync(`${root}/outline.json`, 'utf8'));
     expect(problems).toEqual([]);
-    expect(outline!.chapters.map((c) => c.title)).toEqual(['Layouts', 'Components', 'Foundations']);
-    expect(outline!.chapters.flatMap((c) => c.scenes.map((s) => s.id)).sort()).toEqual(
+    expect(outline!.chapters!.map((c) => c.title)).toEqual([
+      'Layouts',
+      'Components',
+      'Foundations',
+    ]);
+    expect(outline!.chapters!.flatMap((c) => c.scenes.map((s) => s.id)).sort()).toEqual(
       Object.keys(build.manifest!.scenes).sort(),
     );
     expect(build.manifest!.styles).toHaveLength(1);

@@ -16,7 +16,7 @@ import {
   type Position,
 } from '../position.ts';
 import { Stage, type SceneModule } from '../stage.svelte.ts';
-import { shownOf } from './shown.ts';
+import { contextFor } from './shown.ts';
 
 /** The deck's outline; `presenting`, its hidden scenes marked, for its steps to go over. */
 export function outlineOf(manifest: SharedManifest, presenting = false): Outline {
@@ -29,34 +29,6 @@ export function outlineOf(manifest: SharedManifest, presenting = false): Outline
       })),
     ),
   };
-}
-
-/**
- * Where scene `index` sits in the deck. `presenting`, a scene that shows lists the chapters
- * presenting shows, as an agenda does; a hidden one, gone to, is as on the deck's page.
- */
-export function contextFor(
-  manifest: SharedManifest,
-  index: number,
-  presenting = false,
-): DeckContext {
-  let n = 0;
-  for (const chapter of manifest.chapters)
-    for (const scene of chapter.scenes) {
-      if (n++ !== index) continue;
-      const listed = presenting && !scene.hidden ? shownOf(manifest) : manifest;
-      return {
-        title: manifest.title,
-        chapters: listed.chapters.map((c) => ({
-          id: c.id,
-          title: c.title,
-          scenes: c.scenes.map((s) => ({ id: s.id, title: s.title })),
-        })),
-        chapter: { id: chapter.id, title: chapter.title },
-        scene: { id: scene.id, title: scene.title },
-      };
-    }
-  throw new Error(`No scene ${index}`);
 }
 
 export interface PlayerOptions {

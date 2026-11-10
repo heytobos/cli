@@ -4,6 +4,7 @@
  * Joined when a manifest is read, never when the deck is compiled, so a change to the outline
  * reaches the viewer without a build.
  */
+import { chaptersOf } from './deck-json.ts';
 import type {
   Build,
   BuildScene,
@@ -62,7 +63,8 @@ export function legacyOutline(build: LegacyBuild): Outline {
 /**
  * A build with the deck's outline joined in, as the viewer, presenting, the share link, its PDF
  * and stills read it: the scenes the outline places that the build has, in the outline's order,
- * with its titles and what it hides. A chapter left with none isn't in it.
+ * with its titles and what it hides. A chapter left with none isn't in it; a deck with no chapters
+ * has its scenes in one with no id and no title (NO_CHAPTER).
  */
 export function joinOutline(build: StoredBuild, outline: Outline): Manifest {
   const scenes = buildScenes(build);
@@ -77,7 +79,7 @@ export function joinOutline(build: StoredBuild, outline: Outline): Manifest {
   return {
     ...rest,
     title: outline.title,
-    chapters: outline.chapters
+    chapters: chaptersOf(outline)
       .map((chapter) => ({
         id: chapter.id,
         title: chapter.title,
@@ -96,7 +98,7 @@ export function joinOutline(build: StoredBuild, outline: Outline): Manifest {
 
 /** The scenes a build has that the outline doesn't place, by id: what waits to be placed. */
 export function unplacedScenes(build: StoredBuild, outline: Outline): string[] {
-  const placed = new Set(outline.chapters.flatMap((c) => c.scenes.map((s) => s.id)));
+  const placed = new Set(chaptersOf(outline).flatMap((c) => c.scenes.map((s) => s.id)));
   return Object.keys(buildScenes(build))
     .filter((id) => !placed.has(id))
     .sort();

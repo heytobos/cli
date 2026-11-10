@@ -5,10 +5,15 @@ export type { Rules } from './analyze.ts';
 export { exportsBeats } from './analyze.ts';
 export {
   AT_LEAST_ONE_SHOWN,
+  chapterId,
+  chapterless,
+  chaptersOf,
   formatMediaJson,
   ID,
+  NO_CHAPTER,
   OUTLINE_IN_DECK_JSON,
   OUTLINE_MOVED,
+  outlineFrom,
   outlineInDeckJson,
   parseDeckJson,
   parseMediaJson,

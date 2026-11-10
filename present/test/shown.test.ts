@@ -1,6 +1,6 @@
 import type { SharedManifest } from '@tobos/deck';
 import { describe, expect, it } from 'vitest';
-import { shownOf } from '../src/viewer/shown.ts';
+import { contextFor, shownOf } from '../src/viewer/shown.ts';
 
 const scene = (id: string, beats: string[], hidden = false) => ({
   id,
@@ -34,5 +34,25 @@ describe('shownOf', () => {
   it('is the manifest itself when nothing is hidden', () => {
     const open = shownOf(deck);
     expect(shownOf(open)).toBe(open);
+  });
+});
+
+describe('contextFor', () => {
+  it('names the chapter a scene is in, and the chapters presenting shows', () => {
+    expect(contextFor(deck, 3, true)).toMatchObject({
+      chapter: { id: 'three', title: 'Three' },
+      scene: { id: 'd' },
+      chapters: [{ id: 'one' }, { id: 'three' }],
+    });
+  });
+
+  it('names no chapter in a deck with none: its one has no id and no title, and none is listed', () => {
+    const flat = { ...deck, chapters: [{ id: '', title: '', scenes: [scene('a', ['x'])] }] };
+    expect(contextFor(flat, 0)).toEqual({
+      title: 'Lecture',
+      chapters: [],
+      chapter: { id: '', title: '' },
+      scene: { id: 'a', title: 'a' },
+    });
   });
 });

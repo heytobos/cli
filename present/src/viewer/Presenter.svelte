@@ -265,16 +265,18 @@
   let fromList = false;
   let listed = false;
 
+  /** A chapter's heading's height: none in a deck with no chapters, whose one has no title. */
+  const headingOf = (section: Element) =>
+    section.querySelector<HTMLElement>('h3')?.offsetHeight ?? 0;
   /** How far below a row's chapter heading, stuck on top, the row has to be to show whole. */
-  const underHeading = (li: HTMLElement) =>
-    li.closest('section')!.querySelector('h3')!.offsetHeight + 8;
+  const underHeading = (li: HTMLElement) => headingOf(li.closest('section')!) + 8;
 
   /** A scroll that leaves whole rows under the chapter's heading: its start, or a row just clear of it. */
   function listTarget(list: HTMLElement, li: HTMLElement): number {
     const head = underHeading(li);
     const want = Math.max(0, li.offsetTop - Math.max(list.clientHeight / 3, head));
     const marks = [...list.querySelectorAll('section')].flatMap((section) => {
-      const h = section.querySelector('h3')!.offsetHeight;
+      const h = headingOf(section);
       const rows = [...section.querySelectorAll('li')].slice(1);
       return [section.offsetTop, ...rows.map((r) => r.offsetTop - h)];
     });
@@ -816,9 +818,10 @@
       >
         {#each chapters as chapter, c (chapter.id)}
           <!-- Each chapter's heading stays at the top while its scenes scroll, until the next one's
-               pushes it out. -->
+               pushes it out. A deck with no chapters has its scenes in one with no title: no
+               heading. -->
           <section class:here={chapterHere === c}>
-            <h3>{chapter.title}</h3>
+            {#if chapter.title}<h3>{chapter.title}</h3>{/if}
             <ol>
               {#each chapter.scenes as scene, s (scene.id)}
                 {@const index = sceneIndex(c, s)}

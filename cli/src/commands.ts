@@ -47,15 +47,18 @@ interface DeckInfo {
   outline?: Outline;
 }
 
-/** A deck's outline, as the server gives it: `tobos outline` prints and changes it. */
+/** A scene of the outline: its id, which is its file's name, its title, and whether it shows. */
+type OutlineScene = { id: string; title: string; hidden?: true };
+
+/**
+ * A deck's outline, as the server gives it: `tobos outline` prints and changes it. A deck has no
+ * chapters, its `scenes` then in order, or every scene in one of its `chapters`.
+ */
 interface Outline {
   version: number;
   title: string;
-  chapters: {
-    id: string;
-    title: string;
-    scenes: { id: string; title: string; hidden?: true }[];
-  }[];
+  chapters?: { id: string; title: string; scenes: OutlineScene[] }[];
+  scenes?: OutlineScene[];
   /** The scene files it doesn't place. */
   unplaced: string[];
 }
@@ -215,8 +218,10 @@ function aboutDeck(d: DeckInfo): string {
 /** A folder's path as a prefix of what is in it: none for the root. */
 const inFolder = (path: string) => (path === '/' ? '' : `${path}/`);
 
+/** What a folder holds: a folder, a deck, or a shortcut to a deck shared with the person. */
 type Entry =
-  { kind: 'folder'; name: string; path: string } | { kind: 'deck'; id: string; title: string };
+  | { kind: 'folder'; name: string; path: string }
+  | { kind: 'deck'; id: string; title: string; shortcut?: true; owner?: string };
 
 /**
  * The decks the person can work on, each in its folder, and those shared with
@@ -232,7 +237,11 @@ export async function ls(out: Output, args: Args) {
       listed.entries.length === 0
         ? `${listed.path} is empty.`
         : listed.entries
-            .map((e) => (e.kind === 'folder' ? `${e.name}/` : `${e.id}  ${e.title}`))
+            .map((e) =>
+              e.kind === 'folder'
+                ? `${e.name}/`
+                : `${e.id}  ${e.title}${e.shortcut ? `  (a shortcut: ${e.owner}'s deck)` : ''}`,
+            )
             .join('\n'),
     );
     return;
@@ -602,20 +611,25 @@ async function pushIfChanged(out: Output, id: string, message?: string) {
 /** An operation on the outline, as `write` takes it (ADR 0006). */
 type Op = Record<string, unknown> & { op: string };
 
-/** The outline as the person would read it: chapters, numbered scenes, and those not placed. */
+/**
+ * The outline as the person would read it: chapters, numbered scenes, and those not placed; a deck
+ * with no chapters, its scenes alone.
+ */
 function saidOutline(outline: Outline): string {
   let n = 0;
-  const width = Math.max(0, ...outline.chapters.flatMap((c) => c.scenes.map((s) => s.id.length)));
+  const all = outline.scenes ?? (outline.chapters ?? []).flatMap((c) => c.scenes);
+  const width = Math.max(0, ...all.map((s) => s.id.length));
+  const scene = (s: OutlineScene, indent: string) =>
+    `${indent}${String(++n).padStart(3)}  ${s.id.padEnd(width)}  ${s.title}${s.hidden ? '  (hidden)' : ''}`;
   return [
     `${outline.title}  (outline version ${outline.version})`,
-    ...outline.chapters.flatMap((c) => [
-      `  ${c.title}  [${c.id}]`,
-      ...(c.scenes.length ? [] : ['    (no scenes)']),
-      ...c.scenes.map(
-        (s) =>
-          `    ${String(++n).padStart(3)}  ${s.id.padEnd(width)}  ${s.title}${s.hidden ? '  (hidden)' : ''}`,
-      ),
-    ]),
+    ...(outline.scenes
+      ? ['  No chapters', ...outline.scenes.map((s) => scene(s, '  '))]
+      : (outline.chapters ?? []).flatMap((c) => [
+          `  ${c.title}  [${c.id}]`,
+          ...(c.scenes.length ? [] : ['    (no scenes)']),
+          ...c.scenes.map((s) => scene(s, '    ')),
+        ])),
     outline.unplaced.length
       ? `Not placed, so not shown (\`tobos outline place <scene>\`): ${outline.unplaced.join(', ')}`
       : '',
@@ -624,7 +638,10 @@ function saidOutline(outline: Outline): string {
     .join('\n');
 }
 
-/** Where `--after`, `--before`, `--chapter` (with `--start`) say scenes go, if they say. */
+/**
+ * Where `--after`, `--before`, `--chapter` (with `--start`) say scenes go, if they say; `--start`
+ * alone, a deck's start, in one with no chapters.
+ */
 function placeFrom(args: Args): Record<string, unknown> | undefined {
   const { after, before, chapter, start } = args.values;
   const given = [after, before, chapter].filter((v) => typeof v === 'string');
@@ -633,12 +650,14 @@ function placeFrom(args: Args): Record<string, unknown> | undefined {
   if (typeof after === 'string') return { after };
   if (typeof before === 'string') return { before };
   if (typeof chapter === 'string') return { chapter, at: start ? 'start' : 'end' };
+  if (start) return { at: 'start' };
   return undefined;
 }
 
 /**
  * The operations `tobos outline <op> …` stands for. A scene placed or moved with nowhere said goes
- * at the end of the last chapter, as the outline is now.
+ * at the end of the last chapter, as the outline is now, or of a deck with none; and a deck's first
+ * chapter takes every scene (outline, below).
  */
 function opsFrom(args: Args): Op[] {
   const [what, ...rest] = args.positionals;
@@ -684,9 +703,10 @@ function opsFrom(args: Args): Op[] {
       if (verb === 'rename' && id && words.length)
         return [{ op: 'renameChapter', chapter: id, title: words.join(' ') }];
       if (verb === 'move' && id) return [{ op: 'moveChapter', chapter: id, before }];
+      if (verb === 'remove' && args.values.all && !id) return [{ op: 'removeChapters' }];
       if (verb === 'remove' && id) return [{ op: 'removeChapter', chapter: id }];
       throw new CliError(
-        '`tobos outline chapter add <id> "Title" [--before c]`, `chapter rename <id> "Title"`, `chapter move <id> [--before c]` (last without), or `chapter remove <id>` (an empty one).',
+        '`tobos outline chapter add <id> "Title" [--before c]`, `chapter rename <id> "Title"`, `chapter move <id> [--before c]` (last without), `chapter remove <id>` (an empty one), or `chapter remove --all` (every chapter, the scenes staying in order).',
       );
     }
     default:
@@ -713,13 +733,15 @@ export async function outline(out: Output, args: Args) {
   }
   const ops = opsFrom(args);
   for (const op of ops) {
+    // A deck with no chapters takes its first only with every scene in it.
+    if (op.op === 'addChapter' && !(await now()).chapters?.length) {
+      if (op.before)
+        throw new CliError('This deck has no chapters: its first goes without --before.');
+      op.scenes = 'all';
+    }
     if (!('to' in op) || op.to !== undefined) continue;
-    const last = (await now()).chapters.at(-1);
-    if (!last)
-      throw new CliError(
-        'The outline has no chapter: `tobos outline chapter add <id> "Title"` makes one.',
-      );
-    op.to = { chapter: last.id, at: 'end' };
+    const last = (await now()).chapters?.at(-1);
+    op.to = last ? { chapter: last.id, at: 'end' } : { at: 'end' };
   }
   const written = await api<{ outline: Omit<Outline, 'unplaced'> }>(`/api/decks/${id}/files`, {
     server,

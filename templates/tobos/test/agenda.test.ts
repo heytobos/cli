@@ -41,9 +41,14 @@ const chapters = [
   { id: 'why', title: 'Why' },
   { id: 'how', title: 'How' },
 ];
-/** Each item's chapter and what it is: current, dimmed (`other`), or neither. */
-function items(props: Record<string, unknown>, here: string) {
-  const deck = { chapters, chapter: chapters.find((c) => c.id === here) };
+/**
+ * Each item's chapter and what it is: current, dimmed (`other`), or neither. `here` undefined: a
+ * deck with no chapters, whose chapter has no id and no title.
+ */
+function items(props: Record<string, unknown>, here: string | undefined) {
+  const deck = here
+    ? { chapters, chapter: chapters.find((c) => c.id === here) }
+    : { chapters: [], chapter: { id: '', title: '' } };
   const { body } = render(Agenda, { props, context: new Map([['tobos:deck', deck]]) });
   return [...body.matchAll(/<li[^>]*class="([^"]*)"[^>]*>[\s\S]*?class="name[^"]*">([^<]*)</g)].map(
     (m) =>
@@ -58,5 +63,15 @@ describe('the Agenda', () => {
 
   it('dims nothing on a slide in a chapter it leaves out', () => {
     expect(items({ skip: ['opening'] }, 'opening')).toEqual(['Why', 'How']);
+  });
+
+  it('lists the items it is given, in a deck with chapters or none, highlighting none', () => {
+    const given = ['The problem', 'What we tried', 'What next'];
+    expect(items({ items: given }, undefined)).toEqual(given);
+    expect(items({ items: given, current: 'why' }, 'why')).toEqual(given);
+  });
+
+  it('lists nothing in a deck with no chapters, given no items', () => {
+    expect(items({}, undefined)).toEqual([]);
   });
 });

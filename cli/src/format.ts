@@ -29,8 +29,10 @@ The outline (below) changes with \`tobos outline\`, live at once, with no push: 
 prints it and the scene files it doesn't place; \`place <scene> --after <scene>\` (or
 \`--before <scene>\`, \`--chapter <id> [--start]\`, \`--title "…"\`), \`move <scene>… --after
 <scene>\`, \`hide\` and \`show <scene>…\`, \`rename <scene> "Title"\`, \`remove <scene>…\`, \`title
-"…"\`, and \`chapter add|rename|move|remove\`. \`tobos pull\` says what changed in it on the deck's
-page since. Exit code 4 means it changed meanwhile: \`tobos outline\`, then again.
+"…"\`, and \`chapter add|rename|move|remove\`. A deck has no chapters or every scene in one: its
+first chapter, \`chapter add\`, takes every scene, and \`chapter remove --all\` takes every chapter
+out. \`tobos pull\` says what changed in it on the deck's page since. Exit code 4 means it changed
+meanwhile: \`tobos outline\`, then again.
 
 \`.tobos/\` holds this file and the version the copy is of: leave it be. A push leaves out what
 is in \`.tobos/\`, \`.git/\`, \`sources/\` and \`node_modules/\` at the copy's top.

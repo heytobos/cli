@@ -7,4 +7,5 @@
   import { Agenda } from '../master/index.ts';
 </script>
 
+<!-- The deck's chapters. A deck with none lists what it is given: <Agenda items={['Why', 'How']} /> -->
 <Agenda />

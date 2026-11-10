@@ -4,7 +4,8 @@ import type { SceneModule } from '../stage.svelte.ts';
 import { SceneTimeline } from '../timeline.ts';
 import { mediaKnowTheirLength } from '../playback.ts';
 import type { ViewerConfig } from './config.ts';
-import { contextFor, outlineOf } from './player.ts';
+import { outlineOf } from './player.ts';
+import { contextFor } from './shown.ts';
 import { settled } from './ready.ts';
 
 /**

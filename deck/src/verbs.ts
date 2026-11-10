@@ -88,7 +88,7 @@ const CHANGESET_SCHEMA = {
 
 export const VERBS = {
   list: {
-    does: 'The decks the person works on, by id: their own, and those shared with them that they may present or change. Each with its title, your level on it and whose it is, whether it is archived (read-only), when it last changed, its address in Tobos, and, for the person’s own, its folder. With a path, what that folder holds: its folders, then its decks.',
+    does: 'The decks the person works on, by id: their own, and those shared with them that they may present or change. Each with its title, your level on it and whose it is, whether it is archived (read-only), when it last changed, its address in Tobos, and, for the person’s own, its folder. With a path, what that folder holds: its folders, then its decks, a shortcut to a deck shared with the person marked as one, with its owner.',
     input: { properties: { path: { type: 'string', description: FOLDER_PATH } }, required: [] },
     cli: [
       {
@@ -171,7 +171,7 @@ export const VERBS = {
     ],
   },
   move: {
-    does: 'Moves the person’s decks, a deck by its id or title, and folders, by path, with all that is in them, into a folder, made with the folders on its path if there are none. With `name`, renames one folder where it is instead; with nothing to move, makes the folder at `to`. A folder stays when a move empties it: only the person deletes one, on the web. Refused, with nothing changed, if one isn’t there, if a title is two decks’ (name that one by its id), if the folder has one of a moved folder’s name already, if a folder would go into itself, or if a folder to make or a new name is there already.',
+    does: 'Moves the person’s decks, a deck by its id or title, and folders, by path, with all that is in them, into a folder, made with the folders on its path if there are none. A deck shared with the person moves as its one shortcut in their folders, made by its first move; the deck stays its owner’s, where they keep it. With `name`, renames one folder where it is instead; with nothing to move, makes the folder at `to`. A folder stays when a move empties it: only the person deletes one, on the web. Refused, with nothing changed, if one isn’t there, if a title is two decks’ (name that one by its id), if the folder has one of a moved folder’s name already, if a folder would go into itself, or if a folder to make or a new name is there already.',
     input: {
       properties: {
         decks: {

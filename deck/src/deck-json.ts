@@ -1,8 +1,57 @@
 import type { Rules } from './analyze.ts';
-import type { DeckJson, MediaJson, Outline, Problem } from './types.ts';
+import type {
+  DeckJson,
+  MediaJson,
+  Outline,
+  OutlineChapter,
+  OutlineScene,
+  Problem,
+} from './types.ts';
 
 /** An ID of a scene, a chapter or a beat: lowercase letters, digits and dashes, from a letter. */
 export const ID = /^[a-z][a-z0-9-]*$/;
+
+/**
+ * A new chapter's id: six lowercase letters and digits, from a letter (`k7gh02`), so it keeps to
+ * ID and says nothing a rename would leave stale; one `taken` says is taken is drawn again.
+ */
+export function chapterId(taken: (id: string) => boolean = () => false): string {
+  const letters = 'abcdefghijklmnopqrstuvwxyz';
+  const chars = `${letters}0123456789`;
+  for (;;) {
+    const random = crypto.getRandomValues(new Uint8Array(6));
+    const id = [...random]
+      .map((byte, i) => (i === 0 ? letters : chars)[byte % (i === 0 ? 26 : 36)])
+      .join('');
+    if (!taken(id)) return id;
+  }
+}
+
+/**
+ * The chapter a deck with no chapters keeps its scenes in, inside Tobos and in a manifest: its id
+ * and title are empty, as no chapter's can be. The outline's JSON has `scenes` instead.
+ */
+export const NO_CHAPTER = '';
+
+/** An outline's chapters, a deck with none as its one chapter with no id (NO_CHAPTER). */
+export function chaptersOf<C extends OutlineChapter>(outline: {
+  title?: string;
+  chapters?: C[];
+  scenes?: OutlineScene[];
+}): C[] {
+  if (outline.chapters?.length) return outline.chapters;
+  return [{ id: NO_CHAPTER, title: '', scenes: outline.scenes ?? [] } as unknown as C];
+}
+
+/** Whether `chapters` are a deck's with no chapters: its scenes in the one with no id, or none. */
+export const chapterless = (chapters: { id: string }[]) =>
+  chapters.length === 0 || (chapters.length === 1 && chapters[0]!.id === NO_CHAPTER);
+
+/** An outline from its title and chapters, as chaptersOf has them: `scenes` for a deck with none. */
+export function outlineFrom(title: string, chapters: OutlineChapter[]): Outline {
+  if (chapterless(chapters)) return { title, scenes: chapters[0]?.scenes ?? [] };
+  return { title, chapters };
+}
 
 const FILE = 'deck.json';
 const PACKAGE = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
@@ -104,8 +153,8 @@ export function outlineInDeckJson(text: string | undefined): string | undefined 
 
 /**
  * An outline as Tobos's own decks keep it in the codebase, `outline.json` (ADR 0006): its title,
- * its chapters and their scenes, by the rules every change to an outline keeps. Returns it only
- * if it is valid.
+ * its chapters and their scenes, or for a deck with none its scenes, by the rules every change to
+ * an outline keeps. Returns it only if it is valid.
  */
 export function parseOutline(
   text: string | undefined,
@@ -129,7 +178,26 @@ export function parseOutline(
   const chapterIds = new Set<string>();
   const sceneIds = new Set<string>();
   let shown = 0;
-  if (!Array.isArray(raw.chapters)) problems.push(bad('"chapters" must be a list.'));
+  const scenesAt = (scenes: unknown[], where: string) =>
+    scenes.forEach((scene: unknown, s) => {
+      const at = `${where}[${s}]`;
+      if (!isObject(scene)) return problems.push(bad(`${at} must be an object.`));
+      if (typeof scene.id !== 'string' || !ID.test(scene.id))
+        problems.push(bad(`${at}.id must be lowercase letters, digits and dashes.`));
+      else if (sceneIds.has(scene.id)) problems.push(bad(`Scene "${scene.id}" is listed twice.`));
+      else sceneIds.add(scene.id);
+      titled(scene.title, `${at}.title`);
+      if (scene.hidden !== undefined && typeof scene.hidden !== 'boolean')
+        problems.push(bad(`${at}.hidden is true or false.`));
+      if (scene.hidden !== true) shown++;
+    });
+  if (raw.chapters !== undefined && raw.scenes !== undefined)
+    return {
+      problems: [bad('An outline has "chapters" or, for a deck with none, "scenes": not both.')],
+    };
+  if (Array.isArray(raw.scenes)) scenesAt(raw.scenes, 'scenes');
+  else if (!Array.isArray(raw.chapters))
+    problems.push(bad('"chapters" must be a list, or "scenes" for a deck with no chapters.'));
   else
     raw.chapters.forEach((chapter: unknown, c) => {
       const where = `chapters[${c}]`;
@@ -142,35 +210,29 @@ export function parseOutline(
       titled(chapter.title, `${where}.title`);
       if (!Array.isArray(chapter.scenes))
         return problems.push(bad(`${where}.scenes must be a list.`));
-      chapter.scenes.forEach((scene: unknown, s) => {
-        const at = `${where}.scenes[${s}]`;
-        if (!isObject(scene)) return problems.push(bad(`${at} must be an object.`));
-        if (typeof scene.id !== 'string' || !ID.test(scene.id))
-          problems.push(bad(`${at}.id must be lowercase letters, digits and dashes.`));
-        else if (sceneIds.has(scene.id)) problems.push(bad(`Scene "${scene.id}" is listed twice.`));
-        else sceneIds.add(scene.id);
-        titled(scene.title, `${at}.title`);
-        if (scene.hidden !== undefined && typeof scene.hidden !== 'boolean')
-          problems.push(bad(`${at}.hidden is true or false.`));
-        if (scene.hidden !== true) shown++;
-      });
+      scenesAt(chapter.scenes, `${where}.scenes`);
     });
   if (sceneIds.size > SCENES_MAX)
     problems.push(bad(`${sceneIds.size} scenes; a deck may have ${SCENES_MAX}.`));
   if (shown === 0) problems.push(bad(AT_LEAST_ONE_SHOWN));
   if (problems.length > 0) return { problems };
   type Raw = { id: string; title: string };
+  const scenesOf = (scenes: (Raw & { hidden?: boolean })[]) =>
+    scenes.map((scene) => ({
+      id: scene.id,
+      title: scene.title.trim(),
+      ...(scene.hidden ? { hidden: true as const } : {}),
+    }));
+  const title = (raw.title as string).trim();
+  if (Array.isArray(raw.scenes))
+    return { outline: { title, scenes: scenesOf(raw.scenes) }, problems };
   const outline: Outline = {
-    title: (raw.title as string).trim(),
+    title,
     chapters: (raw.chapters as (Raw & { scenes: (Raw & { hidden?: boolean })[] })[]).map(
       (chapter) => ({
         id: chapter.id,
         title: chapter.title.trim(),
-        scenes: chapter.scenes.map((scene) => ({
-          id: scene.id,
-          title: scene.title.trim(),
-          ...(scene.hidden ? { hidden: true as const } : {}),
-        })),
+        scenes: scenesOf(chapter.scenes),
       }),
     ),
   };

@@ -15,6 +15,7 @@ Tobos hosts presentations written as code: a deck is a folder of files, one Svel
 - A new deck starts from Tobos standard's design. The person's own house styles are decks in `tobos ls`: start from one with `--from <id>`, which copies its master, and ask which when there are several.
 - Then read the deck's `AGENTS.md`: it points to the loop, the format and the deck's slide master.
 - The deck's outline, its chapters and scenes in order, their titles and which are hidden, isn't a file: Tobos holds it, and `tobos outline` shows and changes it, live at once. A new scene's file shows nowhere until `tobos outline place <scene>` puts it in. deck.json lists only the npm packages.
+- A deck has no chapters, or every scene is in one. Its first chapter, `tobos outline chapter add <id> "Title"`, takes every scene; add the others after it, and move scenes in. Make a chapter's id six random lowercase letters and digits, starting with a letter (`k7gh02`): its title is what the slides show. `tobos outline chapter remove --all` takes every chapter out, the scenes staying in order.
 - The person's decks are in folders, which `tobos --help` lists the commands for.
 
 Exit code 3 means this machine isn't connected to the person's account. Run `tobos login`: it prints an address, which the person opens on any device, logs in at (a first login signs them up, and accepts https://tobos.ai/terms) and approves this machine. Give it to them in one line, then, once they did, run `tobos login` again. In CI or a sandbox with no one to ask, `TOBOS_TOKEN` and `TOBOS_SERVER` stand in for the login.
@@ -31,6 +32,7 @@ They decide what to make and how much of it you build: one scene at a time, or t
 - A reorganisation is taken back by moving the decks back where they were: note where they were before you move them.
 - Make a folder with `tobos mkdir /path` (or a move into a path that isn't there), and rename one in place with `tobos mv /path --name New`. A folder stays when it empties.
 - Deleting a folder or a deck is the person's, on the web: you never delete one. An empty folder they no longer want, tell them about, and leave it.
+- A deck shared with the person can have one shortcut in their folders: `tobos mv` of it places that shortcut, or moves it, and `tobos ls /path` marks it as one, with its owner. The deck stays its owner's. Leaving a deck shared with them, and deleting a shortcut, are the person's, on the web.
 - A deck or folder the person deleted waits in their trash for 30 days, and is gone to you meanwhile: `tobos ls` doesn't list it, and naming it answers that it isn't there. Only the person restores it, from the trash on the web.
 
 ## What stays the person's

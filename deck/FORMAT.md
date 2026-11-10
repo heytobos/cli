@@ -22,11 +22,14 @@ Besides `media/`, a deck's files may take 100 MB together and number at most 10,
 The deck's title, its chapters, and its scenes in order, with their titles and whether they show, are its **outline**. Tobos holds it, not a file: no file of the deck has it, and changing it makes no version and needs no check. It is live at once, everywhere the deck is open. `read` gives it, with the scene files it doesn't place, and `write`'s `outline` changes it, with files or alone.
 
 - **A scene is a file**, `scenes/<id>.svelte`, its id its name, that exports `beats` (see below). A file there that doesn't is a component, with a warning to move it to `lib/`. Tobos checks and compiles every scene, placed in the outline or not.
-- **A new scene shows nowhere until it is placed**: `{ "op": "place", "scene": "<id>", "title": "…", "to": { "after": "<id>" } }`, or `"to": { "before": "<id>" }`, or `{ "chapter": "<id>", "at": "start" }` (or `"end"`). Place it in the same `write` that adds its file, or once that has landed.
-- **Each change is one operation**, made relative to its neighbours: `move` (`"scenes"` and `"to"`), `hide` (`"scenes"`, `"hidden": true` or `false`), `rename` (`"scene"`, `"title"`), `remove` (out of the outline; its file stays), `title` (the deck's), and for chapters `addChapter`, `renameChapter`, `moveChapter` (`"before"` a chapter, or `null` for last) and `removeChapter` (an empty one). Changes made at once from elsewhere seldom collide; one that names what is gone is refused as a conflict, with the outline as it is: read it again, then change it.
+- **A deck has no chapters, or every scene is in one**, never a mix. With chapters, the outline has `"chapters"`, each with its `"scenes"`; with none, `"chapters"` is empty and `"scenes"` lists them, and the slides name no chapter: no wayfinder, no "Part n".
+- **A new scene shows nowhere until it is placed**: `{ "op": "place", "scene": "<id>", "title": "…", "to": { "after": "<id>" } }`, or `"to": { "before": "<id>" }`, or `{ "chapter": "<id>", "at": "start" }` (or `"end"`), or in a deck with no chapters `{ "at": "start" }` (or `"end"`). Place it in the same `write` that adds its file, or once that has landed.
+- **Each change is one operation**, made relative to its neighbours: `move` (`"scenes"` and `"to"`), `hide` (`"scenes"`, `"hidden": true` or `false`), `rename` (`"scene"`, `"title"`), `remove` (out of the outline; its file stays), `title` (the deck's), and for chapters `addChapter` (`"chapter"`, `"title"`, `"before"` a chapter, or last), `renameChapter`, `moveChapter` (`"before"` a chapter, or `null` for last), `removeChapter` (an empty one) and `removeChapters` (every chapter out, every scene staying where it is). Changes made at once from elsewhere seldom collide; one that names what is gone is refused as a conflict, with the outline as it is: read it again, then change it.
+- **A deck's first chapter takes every scene**: `{ "op": "addChapter", "chapter": "<id>", "title": "…", "scenes": "all" }`, and only it; an `addChapter` without it, in a deck with no chapters, is refused. Add the others empty after it, in the same `write`, and `move` scenes into them. A chapter stays when its last scene leaves; presenting, the share link and the PDF skip it.
+- **A new chapter's id is random**: six lowercase letters and digits, starting with a letter (`k7gh02`), made by you, as the same `write` needs it to move scenes in. A chapter's name is its `title`, which shows on the slides: the id never does.
 - **Deleting a scene's file** takes it out of the outline in the same version.
 - **Hidden** keeps a scene in the deck and on its page, while the share link and its PDF leave it out and presenting steps over it: a backup slide for questions, or one for another audience. The presenter's view lists it, dimmed, and shows it when clicked there or gone to on the deck's page; the steps go through its beats, then on to the next scene that shows. At least one scene shows.
-- **People arrange it too**, on the deck's page: they hide, rename and move scenes, take them out, and drag those not placed in. A title changed there is the outline's: change the slide's own heading to match.
+- **People arrange it too**, on the deck's page: they hide, rename and move scenes, take them out, and drag those not placed in; and add, rename, move and remove chapters. A title changed there is the outline's: change the slide's own heading to match.
 
 IDs are lowercase letters, digits and dashes, starting with a letter: `same-problem`, `q2`. Chapter IDs are unique across the chapters. Titles, of the deck, a chapter or a scene, are at most 200 characters. A deck places at most 500 scenes; a longer one is several decks.
 
@@ -115,7 +118,7 @@ A scene receives two props, if it wants them: `beat` (the current beat's ID) and
 
 ### Where the scene is: `useDeck()`
 
-`useDeck()` from `@tobos/present`, called in a component's script, returns the deck's `title`, its `chapters` (each with `id`, `title` and `scenes`, each with `id` and `title`), as the outline has them now, and the current `chapter` and `scene` (`id` and `title`). Layouts use it for wayfinders and agendas; a scene may too:
+`useDeck()` from `@tobos/present`, called in a component's script, returns the deck's `title`, its `chapters` (each with `id`, `title` and `scenes`, each with `id` and `title`), as the outline has them now, and the current `chapter` and `scene` (`id` and `title`). In a deck with no chapters, `chapters` is empty and the `chapter`'s `id` and `title` are empty strings: show nothing for them. Layouts use it for wayfinders and agendas; a scene may too:
 
 ```svelte
 <script lang="ts">
@@ -123,7 +126,7 @@ A scene receives two props, if it wants them: `beat` (the current beat's ID) and
   const { chapter } = useDeck();
 </script>
 
-<p>Part: {chapter.title}</p>
+{#if chapter.title}<p>Part: {chapter.title}</p>{/if}
 ```
 
 ### Loading ahead: `preload()`
