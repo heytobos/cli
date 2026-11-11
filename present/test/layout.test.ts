@@ -37,10 +37,35 @@ describe("the presenter's view's layout", () => {
     expect(arrange({ ...wide, slide: 0.4 }, screen).pane).toBe(0.4 * 800 - 9);
   });
 
-  it('fits again once a divider is dragged to the full slide', () => {
-    expect(dragSlide(500, 800, 400)).toBe(1);
-    expect(dragSlide(300, 800, 400)).toBe(0.375);
-    expect(dragSlide(10, 800, 400)).toBe(0.3);
+  it('widens the column for a slide dragged taller, so the divider stays where it was put', () => {
+    const fitted = arrange(DEFAULT_LAYOUT, screen);
+    const taller = arrange({ ...DEFAULT_LAYOUT, slide: (fitted.pane + 9 + 60) / 800 }, screen);
+    expect(taller.pane).toBeCloseTo(fitted.pane + 60);
+    expect(taller.left).toBeGreaterThan(fitted.left);
+    // The slide still fills the column's width: no ground beside it.
+    expect(taller.fullSlide).toBeCloseTo(taller.pane);
+    // Shorter, the column narrows with it, down to its least.
+    const shorter = arrange({ ...DEFAULT_LAYOUT, slide: 0.35 }, screen);
+    expect(shorter.pane).toBe(0.35 * 800 - 9);
+    expect(shorter.left).toBeCloseTo(0.45 * 1400 - 9);
+  });
+
+  it("grows the slide into the notes' room for a column dragged wider, so no ground opens beside it", () => {
+    const fitted = arrange(DEFAULT_LAYOUT, screen);
+    const wider = arrange({ ...DEFAULT_LAYOUT, left: 0.6 }, screen);
+    expect(wider.left).toBeGreaterThan(fitted.left);
+    expect(wider.pane).toBeCloseTo(wider.fullSlide);
+    // As far as a dragged slide goes, the notes keeping a fifth; the column stops with it.
+    const widest = arrange({ ...DEFAULT_LAYOUT, left: 0.8 }, screen);
+    expect(widest.pane).toBeCloseTo(0.8 * 800 - 9);
+    expect(widest.left).toBeCloseTo(((0.8 * 800 - 9 - 30) * 16) / 9);
+    expect(widest.fullSlide).toBeCloseTo(widest.pane);
+  });
+
+  it('keeps a divider within its range', () => {
+    expect(dragSlide(700, 800)).toBe(0.8);
+    expect(dragSlide(300, 800)).toBe(0.375);
+    expect(dragSlide(10, 800)).toBe(0.3);
     expect(dragLeft(2000, 1400)).toBe(0.8);
   });
 

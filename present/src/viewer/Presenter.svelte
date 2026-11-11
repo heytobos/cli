@@ -150,28 +150,63 @@
     saveLayout(storage(), layout);
   }
 
-  /** A divider follows the pointer while it is down; a double click puts it back. */
+  /**
+   * The layout a divider sets, put at `at` of `size`: the columns' sets the width, and the slide
+   * fills it; the slide's sets the slide's height, and the column widens or narrows to it. Either
+   * way the slide fills its column, and the divider stays where it was put.
+   */
+  const dividerAt = {
+    left: (at: number, size: number): Partial<Layout> => ({ left: dragLeft(at, size), slide: 1 }),
+    slide: (at: number, size: number): Partial<Layout> => ({ slide: dragSlide(at, size), left: 0 }),
+  };
+  /** A double click on either divider fits both again, as each drag let go of the other. */
+  const fitAgain = () => relayout({ left: DEFAULT_LAYOUT.left, slide: DEFAULT_LAYOUT.slide });
+
+  /**
+   * A divider follows the pointer while it is down, once a frame however often the pointer moves,
+   * as each move lays both slides out again; a double click puts it back.
+   */
   function drag(which: 'left' | 'slide', event: PointerEvent) {
     const gutter = event.currentTarget as HTMLElement;
-    const area = (which === 'left' ? mainEl : gutter.parentElement!).getBoundingClientRect();
+    const across = which === 'left';
+    const area = (across ? mainEl : gutter.parentElement!).getBoundingClientRect();
+    const own = gutter.getBoundingClientRect();
+    // Where on the divider it was taken hold of, so it doesn't jump to put its middle there.
+    const held = across
+      ? event.clientX - own.left - own.width / 2
+      : event.clientY - own.top - own.height / 2;
     gutter.setPointerCapture(event.pointerId);
     dragging = which;
+    let frame = 0;
+    let latest = event;
+    const place = (e: PointerEvent) => {
+      const change = across
+        ? dividerAt.left(e.clientX - held - area.left, area.width)
+        : dividerAt.slide(e.clientY - held - area.top, area.height);
+      layout = { ...layout, ...change };
+    };
     const onMove = (e: PointerEvent) => {
-      if (which === 'left') layout.left = dragLeft(e.clientX - area.left, area.width);
-      else layout.slide = dragSlide(e.clientY - area.top, area.height, sized.fullSlide);
+      latest = e;
+      frame ||= requestAnimationFrame(() => {
+        frame = 0;
+        place(latest);
+      });
     };
     const onUp = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      // Where it was let go, the frame not yet drawn; a click without a move changes nothing.
+      if (latest !== event) place(latest);
       dragging = null;
       // A click on a divider focuses it; the arrows go back to the stage once it is let go.
       gutter.blur();
       saveLayout(storage(), layout);
       gutter.removeEventListener('pointermove', onMove);
-      gutter.removeEventListener('pointerup', onUp);
-      gutter.removeEventListener('pointercancel', onUp);
+      gutter.removeEventListener('lostpointercapture', onUp);
     };
     gutter.addEventListener('pointermove', onMove);
-    gutter.addEventListener('pointerup', onUp);
-    gutter.addEventListener('pointercancel', onUp);
+    // Let go, cancelled, or the capture lost any other way: the drag ends.
+    gutter.addEventListener('lostpointercapture', onUp);
   }
 
   /** By keyboard, a divider in focus moves with its arrows, not the stage. */
@@ -181,15 +216,8 @@
     event.preventDefault();
     event.stopPropagation();
     if (which === 'left')
-      relayout({ left: dragLeft((sized.left + GUTTER / 2) / mainWidth + by * 0.02, 1) });
-    else
-      relayout({
-        slide: dragSlide(
-          sized.pane + GUTTER / 2 + by * 0.02 * mainHeight,
-          mainHeight,
-          sized.fullSlide,
-        ),
-      });
+      relayout(dividerAt.left(sized.left + GUTTER / 2 + by * 0.02 * mainWidth, mainWidth));
+    else relayout(dividerAt.slide(sized.pane + GUTTER / 2 + by * 0.02 * mainHeight, mainHeight));
   }
 
   /** The notes: their place kept through a scene's beats, and how many paragraphs are below. */
@@ -559,8 +587,7 @@
         event.preventDefault();
         move(how);
       } else if (what === 'present') present();
-      // Esc asks once more while presenting, as Stop presenting does.
-      else if (what === 'end') showing ? stopping.press('key', end) : end();
+      else if (what === 'end') end();
       else if (what === 'fullscreen') fullscreen();
     };
     window.addEventListener('keydown', onKey);
@@ -639,20 +666,19 @@
       >
     {/if}
     {#if showing}
-      <!-- Quiet, and it asks once more: ending the talk is the one thing here not to hit by accident. -->
+      <!-- Quiet, and a click asks once more: ending the talk is the one thing here not to hit by
+           accident. Esc ends it at once. -->
       <button
         class="stop"
         class:confirming={stopping.armed}
         onclick={(event) => {
-          stopping.press('click', end);
+          stopping.press(end);
           blurred(event);
         }}
       >
-        <Square size={10} fill="currentColor" aria-hidden="true" />{stopping.armed === 'key'
-          ? 'Esc again to stop'
-          : stopping.armed
-            ? 'Click again to stop'
-            : 'Stop presenting'}
+        <Square size={10} fill="currentColor" aria-hidden="true" />{stopping.armed
+          ? 'Click again to stop'
+          : 'Stop presenting'}
       </button>
     {:else}
       <button class="primary" onclick={present}>
@@ -683,7 +709,7 @@
           tabindex="0"
           title="Drag to resize · double-click to reset"
           onpointerdown={(event) => drag('slide', event)}
-          ondblclick={() => relayout({ slide: DEFAULT_LAYOUT.slide })}
+          ondblclick={fitAgain}
           onkeydown={(event) => nudge('slide', event)}
         ></div>
         <div class="notes-col">
@@ -743,7 +769,7 @@
       tabindex="0"
       title="Drag to resize · double-click to reset"
       onpointerdown={(event) => drag('left', event)}
-      ondblclick={() => relayout({ left: DEFAULT_LAYOUT.left })}
+      ondblclick={fitAgain}
       onkeydown={(event) => nudge('left', event)}
     ></div>
     <aside>
@@ -779,7 +805,7 @@
                   : 'Reset the timer to 0:00'}
                 aria-label={resetting.armed ? 'Click again to reset the timer' : 'Reset the timer'}
                 onclick={(event) => {
-                  resetting.press('click', () => (timer = reset(timer, (now = Date.now()))));
+                  resetting.press(() => (timer = reset(timer, (now = Date.now()))));
                   blurred(event);
                 }}><RotateCcw size={13} aria-hidden="true" /></button
               >

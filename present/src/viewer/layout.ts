@@ -22,11 +22,14 @@ export const GUTTER = 18;
  */
 export const NOTES_ROOM = 40 + 9 * 24 * 1.5;
 const KEY = 'tobos:presenter-layout';
-/** The left column's share: no less than this, nor more, fitted or dragged. */
+/**
+ * The left column's share: no less than this, nor more; fitted to the notes' room, no more than
+ * LEFT_FITTED_MOST, so the right column keeps room.
+ */
 const LEFT_LEAST = 0.45;
 const LEFT_FITTED_MOST = 0.7;
 const LEFT_MOST = 0.8;
-/** The slide's share of its column, dragged: between these, or fitted (1). */
+/** The slide's share of its column, dragged or followed: between these, so notes keep a fifth. */
 const SLIDE_LEAST = 0.3;
 const SLIDE_MOST = 0.8;
 
@@ -73,26 +76,37 @@ export interface Arranged {
 
 /**
  * Sizes for a main area `width` by `height`, Now's label `label` high (with its gap), and notes or
- * none. Fitted, the slide gets the height the notes leave, and the left column is as wide as that
- * slide, so no empty ground opens beside it; the right column takes the rest.
+ * none. The slide gets the height the notes leave, or the height its divider was dragged to, and
+ * the left column is as wide as that slide, so no empty ground opens beside it; the right column
+ * takes the rest. A column dragged wider has the slide fill it.
  */
 export function arrange(
   layout: Layout,
   { width, height, label, notes }: { width: number; height: number; label: number; notes: boolean },
 ): Arranged {
   const room = notes ? Math.min(NOTES_ROOM, 0.45 * height) + GUTTER / 2 : 0;
+  // The slide's height: where its divider was dragged, or what the notes' room leaves.
+  const dragged = notes && layout.slide < 1 ? layout.slide * height - GUTTER / 2 : undefined;
   const fitted = clamp(
-    (((height - room - label) * 16) / 9 + GUTTER / 2) / width,
+    ((((dragged ?? height - room) - label) * 16) / 9 + GUTTER / 2) / width,
     LEFT_LEAST,
-    LEFT_FITTED_MOST,
+    dragged === undefined ? LEFT_FITTED_MOST : LEFT_MOST,
   );
-  const left = Math.max(0, (layout.left || fitted) * width - GUTTER / 2);
+  // A column dragged wider has the slide grow into the notes' room, as far as one dragged would,
+  // and goes no wider than that slide, so no ground opens beside it.
+  const most = !notes ? height : layout.left ? SLIDE_MOST * height - GUTTER / 2 : height - room;
+  const left = Math.max(
+    0,
+    layout.left
+      ? Math.min(layout.left * width - GUTTER / 2, ((most - label) * 16) / 9)
+      : fitted * width - GUTTER / 2,
+  );
   const fullSlide = label + (left * 9) / 16;
   const pane = !notes
     ? height
-    : layout.slide >= 1
-      ? clamp(fullSlide, SLIDE_LEAST * height, height - room)
-      : Math.min(layout.slide * height - GUTTER / 2, fullSlide);
+    : dragged === undefined
+      ? clamp(fullSlide, SLIDE_LEAST * height, most)
+      : Math.min(dragged, fullSlide);
   const now = Math.min(left, ((pane - label) * 16) / 9);
   return { left, pane: Math.max(0, pane), fullSlide, next: Math.max(0, now / 2) };
 }
@@ -100,11 +114,5 @@ export function arrange(
 /** The left column's share for a divider dragged to `x` of a main area `width` wide. */
 export const dragLeft = (x: number, width: number) => clamp(x / width, LEFT_LEAST, LEFT_MOST);
 
-/**
- * The slide's share for a divider dragged to `y` of a column `height` high: to the slide's full
- * height or past it, it fits again, so the slide keeps the column's width as that changes.
- */
-export function dragSlide(y: number, height: number, fullSlide: number): number {
-  const share = clamp(y / height, SLIDE_LEAST, SLIDE_MOST);
-  return share * height >= fullSlide - 0.005 * height ? 1 : share;
-}
+/** The slide's share for a divider dragged to `y` of a column `height` high. */
+export const dragSlide = (y: number, height: number) => clamp(y / height, SLIDE_LEAST, SLIDE_MOST);
