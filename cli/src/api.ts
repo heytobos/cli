@@ -23,6 +23,11 @@ export interface ApiOptions {
   server?: string;
   /** For a raw body. */
   contentType?: string;
+  /**
+   * `server` is Mail's origin, as the server the token was made by named it (`/api/me`): the
+   * token may go there too (mail.ts).
+   */
+  mail?: boolean;
 }
 
 export async function api<T = Record<string, unknown>>(
@@ -74,7 +79,7 @@ export async function request(path: string, options: ApiOptions = {}): Promise<R
       );
     // The token is the server's it was made by, and goes to no other: not to the server a
     // working copy's git remote names, whoever set that remote (git's helper is as strict).
-    if (new URL(target).origin !== new URL(server).origin)
+    if (!options.mail && new URL(target).origin !== new URL(server).origin)
       throw new CliError(
         `This deck is on ${target}, but you are logged in to ${server}, and the token goes only there. Log in to the deck's server with \`tobos login --server ${target}\`.`,
         EXIT.auth,

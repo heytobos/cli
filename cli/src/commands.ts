@@ -26,7 +26,7 @@ import { install, SKILL_NAME } from './skill.ts';
 
 export interface Args {
   positionals: string[];
-  values: Record<string, string | boolean | undefined>;
+  values: Record<string, string | boolean | string[] | undefined>;
 }
 
 interface DeckInfo {
