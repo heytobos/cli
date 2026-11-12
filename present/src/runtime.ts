@@ -5,6 +5,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
+import { SKELETON } from './skeleton.ts';
 import type { ViewerConfig } from './viewer/config.ts';
 
 export interface Runtime {
@@ -92,6 +93,10 @@ const TOO_OLD =
   'font:16px/1.5 system-ui,sans-serif">This browser is too old to show the deck. Update it, or ' +
   'open the link in another browser.</p>';
 
+/**
+ * The viewer's page. It holds a slide's ghost from its first paint, until the engine draws the
+ * deck (skeleton.ts).
+ */
 export function viewerHtml(page: ViewerPage): string {
   const importMap = { imports: page.imports };
   return `<!doctype html>
@@ -109,7 +114,7 @@ ${Object.values(page.imports)
   .join('\n')}
 </head>
 <body>
-<div id="tobos"></div>
+<div id="tobos">${SKELETON}</div>
 <script>
 if (!(HTMLScriptElement.supports && HTMLScriptElement.supports('importmap')))
   document.getElementById('tobos').innerHTML = ${scriptJson(TOO_OLD)};

@@ -22,6 +22,9 @@ export function start(config: ViewerConfig) {
   if (config.answers && config.events && view !== 'print' && view !== 'render' && view !== 'sheet')
     followResponses(config.events);
   document.documentElement.dataset.view = view;
+  // Print, render and a sheet are documents: their pictures are taken once drawn, with no ghost.
+  if (view === 'print' || view === 'render' || view === 'sheet')
+    root.querySelector('.tobos-skeleton')?.remove();
   document.title = config.manifest.title;
   if (view === 'presenter') {
     mount(Presenter, { target: root, props: { config } });

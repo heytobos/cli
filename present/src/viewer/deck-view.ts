@@ -39,6 +39,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   const player: Player = new Player(stage, config.manifest, {
     presenting: view === 'audience',
     mountAhead: !render,
+    skeleton: !render,
     // A render lands on end states anyway; as a still view, it keeps loops at their start too.
     still: render,
     onMove: (position) => {

@@ -125,6 +125,7 @@ await esbuild.build({
   logLevel: 'warning',
   legalComments: 'none',
 });
+cpSync(join(root, 'src/skeleton.css'), join(tmp, 'skeleton.css'));
 cpSync(join(root, 'src/viewer/viewer.css'), join(tmp, 'viewer.css'));
 cpSync(join(root, 'src/phone/phone.css'), join(tmp, 'phone.css'));
 // The presenter's faces, tobos.ai's own (viewer.css names them), with their licences.
@@ -161,7 +162,7 @@ const imports: Record<string, string> = {};
 for (const entry of entries) for (const s of entry.specifiers) imports[s] = `${entry.out}.js`;
 writeFileSync(
   join(out, 'runtime.json.next'),
-  JSON.stringify({ id, imports, styles: ['viewer.css'] }, null, 2) + '\n',
+  JSON.stringify({ id, imports, styles: ['skeleton.css', 'viewer.css'] }, null, 2) + '\n',
 );
 renameSync(join(out, 'runtime.json.next'), join(out, 'runtime.json'));
 if (before !== id)

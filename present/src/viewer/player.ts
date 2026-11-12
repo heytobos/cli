@@ -15,7 +15,9 @@ import {
   type Outline,
   type Position,
 } from '../position.ts';
+import { skeleton, unveil } from '../skeleton.ts';
 import { Stage, type SceneModule } from '../stage.svelte.ts';
+import { settled } from './ready.ts';
 import { contextFor } from './shown.ts';
 
 /** The deck's outline; `presenting`, its hidden scenes marked, for its steps to go over. */
@@ -39,6 +41,8 @@ export interface PlayerOptions {
   presenting?: boolean;
   still?: boolean;
   mountAhead?: boolean;
+  /** A slide's ghost on the stage until its first scene is drawn, for a page someone watches. */
+  skeleton?: boolean;
   onMove?: (position: Position, cue: Cue) => void;
 }
 
@@ -52,9 +56,14 @@ export class Player {
   private overrides = new Map<string, string>();
 
   private options: PlayerOptions;
+  private host: HTMLElement;
+  /** The ghost, until a scene is drawn. */
+  private ghost: HTMLElement | undefined;
 
   constructor(host: HTMLElement, manifest: SharedManifest, options: PlayerOptions = {}) {
     this.options = options;
+    this.host = host;
+    if (options.skeleton) this.ghost = skeleton(host);
     this.manifest = manifest;
     this.outline = outlineOf(manifest, options.presenting);
     this.stage = new Stage(host, {
@@ -91,7 +100,24 @@ export class Player {
     cue.aloud = aloud;
     this.position = to;
     this.options.onMove?.(to, cue);
-    return this.stage.show(cue);
+    const shown = this.stage.show(cue);
+    if (!this.ghost) return shown;
+    // The ghost goes with the first move not overtaken by another, drawn or failed: a scene that
+    // failed to load leaves the stage empty, and a ghost would say it is still coming.
+    return shown.finally(() => {
+      if (this.position === to) this.drawn();
+    });
+  }
+
+  /**
+   * The ghost fades once what the stage shows has its fonts and pictures drawn, or after 3 s: a
+   * slide's text shouldn't wait behind it for a video an iPhone loads no frame of until it plays.
+   */
+  private drawn() {
+    const ghost = this.ghost;
+    if (!ghost) return;
+    this.ghost = undefined;
+    void settled(this.host, 3000).then(() => unveil(ghost));
   }
 
   goHash(hash: string, animate?: boolean, aloud?: boolean): Promise<void> {

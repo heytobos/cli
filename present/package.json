@@ -13,6 +13,8 @@
     "./stream": "./src/viewer/stream.ts",
     "./activities": "./src/activities.ts",
     "./runtime": "./src/runtime.ts",
+    "./skeleton": "./src/skeleton.ts",
+    "./skeleton.css": "./src/skeleton.css",
     "./package.json": "./package.json"
   },
   "scripts": {

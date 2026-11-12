@@ -536,11 +536,13 @@
       presenting: true,
       still: true,
       mountAhead: false,
+      skeleton: true,
     });
     next = new Player(b.stage, config.manifest, {
       presenting: true,
       still: true,
       mountAhead: true,
+      skeleton: true,
     });
     outline = current.outline;
     chapters = current.manifest.chapters;

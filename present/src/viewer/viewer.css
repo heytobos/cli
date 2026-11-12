@@ -28,6 +28,16 @@ body {
   position: fixed;
   inset: 0;
 }
+/* The page's ghost (skeleton.css) before the engine has a stage to put it on: where the stage
+   will be, 16:9 in the middle of the window. */
+#tobos > .tobos-skeleton {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: min(100vw, 100vh * 16 / 9);
+  aspect-ratio: 16 / 9;
+  translate: -50% -50%;
+}
 .tobos-letterbox {
   position: absolute;
   inset: 0;

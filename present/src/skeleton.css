@@ -1,0 +1,90 @@
+/*
+ * A slide's ghost while it loads (skeleton.ts), over the box it fills: the deck's paper, and its
+ * ink faintly for a title, four lines of text and a picture beside them, at the default master's
+ * margins. A master that names no paper or ink gets white and tobos.ai's ink. The viewer's
+ * runtime loads this, and the app imports it.
+ */
+.tobos-skeleton {
+  position: absolute;
+  inset: 0;
+  /* Under the presenter's hairline round each slide, over the scenes. */
+  z-index: 2147483646;
+  container-type: inline-size;
+  pointer-events: none;
+  background: var(--stage-paper, #fff);
+  transition: opacity 0.45s cubic-bezier(0.22, 0.61, 0.24, 1);
+}
+.tobos-skeleton.tobos-drawn {
+  opacity: 0;
+}
+.tobos-skeleton i {
+  position: absolute;
+  left: 5.83%;
+  overflow: hidden;
+  border-radius: 0.35cqw;
+  background: color-mix(in srgb, var(--stage-ink, #121a2c) 7%, var(--stage-paper, #fff));
+}
+/* A sheen across each, unless the visitor asks for less motion. */
+.tobos-skeleton i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--stage-paper, #fff) 70%, transparent),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: tobos-sheen 1.6s cubic-bezier(0.22, 0.61, 0.24, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tobos-skeleton i::after {
+    display: none;
+  }
+}
+@keyframes tobos-sheen {
+  to {
+    transform: translateX(100%);
+  }
+}
+.tobos-skeleton i:nth-child(1) {
+  top: 8.9%;
+  width: 44%;
+  height: 6.2%;
+}
+.tobos-skeleton i:nth-child(2) {
+  top: 26%;
+  width: 38%;
+  height: 3.4%;
+}
+.tobos-skeleton i:nth-child(3) {
+  top: 33.5%;
+  width: 34%;
+  height: 3.4%;
+}
+.tobos-skeleton i:nth-child(4) {
+  top: 41%;
+  width: 36%;
+  height: 3.4%;
+}
+.tobos-skeleton i:nth-child(5) {
+  top: 48.5%;
+  width: 22%;
+  height: 3.4%;
+}
+.tobos-skeleton i:nth-child(6) {
+  top: 26%;
+  left: 52%;
+  width: 42.17%;
+  height: 65.1%;
+}
+/* A slide's picture that took its time comes in over its ghost, rather than at once. */
+.tobos-arrive {
+  animation: tobos-arrive 0.3s cubic-bezier(0.22, 0.61, 0.24, 1);
+}
+@keyframes tobos-arrive {
+  from {
+    opacity: 0;
+  }
+}
