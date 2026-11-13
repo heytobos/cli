@@ -45,6 +45,8 @@ describe('the one key map', () => {
         press('F2'),
         press('F10', { shiftKey: true }),
         press('ContextMenu'),
+        press('r'),
+        press('R', { shiftKey: true }),
       ].map(action),
     ).toEqual([
       'undo',
@@ -59,6 +61,8 @@ describe('the one key map', () => {
       'rename',
       'menu',
       'menu',
+      'retitle',
+      'retitle',
     ]);
     expect(action(press('ArrowDown', { shiftKey: true }))).toBe('next-scene');
     expect(action(press('Enter', { metaKey: true }))).toBe('present');
@@ -85,6 +89,7 @@ describe('the one key map', () => {
       'remove',
       'rename',
       'menu',
+      'retitle',
     ] as Action[])
       expect(ownerOf(what), what).toBe('page');
     for (const what of [

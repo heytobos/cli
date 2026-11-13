@@ -7,7 +7,7 @@
 /**
  * The deck page's changes to its scenes, to those on stage or selected: H hides or unhides, ⌘Z
  * and ⇧⌘Z undo and redo, ⌘↑↓ move one place, ⌘⇧↑↓ to the start or end, ⌘⌫ or Delete removes,
- * ↵ or F2 renames, ⇧F10 or the menu key opens their menu.
+ * ↵ or F2 renames, ⇧F10 or the menu key opens their menu. R renames the deck itself (TOB-480).
  */
 const ARRANGE = [
   'hide',
@@ -20,6 +20,7 @@ const ARRANGE = [
   'remove',
   'rename',
   'menu',
+  'retitle',
 ] as const;
 const ACTIONS = [
   'next',
@@ -119,6 +120,9 @@ export function action(event: KeyboardEvent): Action | null {
       return 'rename';
     case 'ContextMenu':
       return 'menu';
+    case 'r':
+    case 'R':
+      return 'retitle';
     default:
       return null;
   }
