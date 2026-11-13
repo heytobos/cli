@@ -22,6 +22,8 @@ interface Stored {
     url: string;
     interval: number;
     expires: string;
+    /** The visit to tobos.ai that brought the person (`tobos login --ref`), sent with each poll. */
+    ref?: string;
   };
 }
 

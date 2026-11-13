@@ -102,9 +102,11 @@ describe('tobos', () => {
     }
   });
 
-  it('logs in by a code the person approves: the address first, then, run again, the token, through a proxy’s error; another server forgets it', async () => {
+  it('logs in by a code the person approves: the address first, then, run again, the token, through a proxy’s error, with the ref it was given; another server forgets it', async () => {
     /** What the server is asked, and its answers to the agent's polls, in turn. */
     const asked: string[] = [];
+    /** What each poll sent. */
+    const polled: Record<string, string>[] = [];
     const polls = [
       [400, { error: 'authorization_pending' }],
       [502, 'Bad gateway'],
@@ -126,8 +128,14 @@ describe('tobos', () => {
         );
       if (request.url === '/oauth/token') {
         const [status, body] = polls[asked.filter((a) => a.includes('/oauth/token')).length - 1]!;
-        response.statusCode = status;
-        return response.end(typeof body === 'string' ? body : JSON.stringify(body));
+        let sent = '';
+        request.on('data', (chunk) => (sent += chunk));
+        request.on('end', () => {
+          polled.push(JSON.parse(sent));
+          response.statusCode = status;
+          response.end(typeof body === 'string' ? body : JSON.stringify(body));
+        });
+        return;
       }
       response.end(JSON.stringify({ email: 'ada@example.com' }));
     });
@@ -143,7 +151,7 @@ describe('tobos', () => {
             env: {
               ...process.env,
               XDG_CONFIG_HOME: home,
-              TOBOS_SERVER: args.length ? '' : origin,
+              TOBOS_SERVER: args.includes('--server') ? '' : origin,
               TOBOS_TOKEN: '',
               TOBOS_NO_BROWSER: '1',
             },
@@ -168,15 +176,17 @@ describe('tobos', () => {
         deviceCode: 'tobos_device_x',
         userCode: 'BCDF-GHJK',
       });
-      // Run again, it waits on the same code. A proxy's error is no answer: the code stays.
-      expect(await login()).toMatchObject({ status: 1, json: { ok: false } });
-      expect(stored().device).toMatchObject({ deviceCode: 'tobos_device_x' });
+      // Run again, it waits on the same code. A proxy's error is no answer: the code stays. The
+      // ref given now, of the visit that brought the person, goes with every poll from now on.
+      expect(await login('--ref', 'visit-1')).toMatchObject({ status: 1, json: { ok: false } });
+      expect(stored().device).toMatchObject({ deviceCode: 'tobos_device_x', ref: 'visit-1' });
       // And again: it saves the token once approved.
       expect(await login()).toEqual({
         status: 0,
         json: { email: 'ada@example.com', server: origin },
       });
       expect(asked.filter((a) => a.startsWith('POST /oauth/device'))).toHaveLength(1);
+      expect(polled.map((p) => p.ref)).toEqual(['visit-1', 'visit-1', 'visit-1']);
       expect(asked.at(-1)).toBe('GET /api/me Bearer tobos_granted');
       expect(stored()).toMatchObject({ token: 'tobos_granted', email: 'ada@example.com' });
       expect(stored()).not.toHaveProperty('device');

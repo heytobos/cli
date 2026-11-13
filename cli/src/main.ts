@@ -29,7 +29,7 @@ const VERB_ROWS = Object.values(VERBS as Record<VerbName, Verb>)
 const HELP = `tobos ${VERSION}: the command line of Tobos, the office suite your coding agent works in.
 
 Account
-${row('tobos login [--server URL]', 'connect this machine: prints an address for the person to open and approve (logging in, or signing up, there); run it again once they did')}
+${row('tobos login [--server URL] [--ref ID]', 'connect this machine: prints an address for the person to open and approve (logging in, or signing up, there); run it again once they did; --ref: the one in the tobos.ai/start address they gave you')}
 ${row('tobos logout', "forget this machine's token")}
 ${row('tobos whoami', 'who you are, on which server')}
 
@@ -95,7 +95,7 @@ type Handler = (out: Output, args: commands.Args) => Promise<void>;
 const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options'] }> = {
   login: {
     run: commands.login,
-    options: { server: { type: 'string' } },
+    options: { server: { type: 'string' }, ref: { type: 'string' } },
   },
   logout: { run: commands.logout },
   whoami: { run: commands.whoami },

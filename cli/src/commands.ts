@@ -87,12 +87,17 @@ interface DeviceStart {
  * (a first code signs them up). The first `tobos login` prints the address, and opens it where
  * this machine has a browser; then it, or the next `tobos login`, waits a while for their answer,
  * on the same code, so an agent whose commands time out keeps one address to give the person.
+ * `--ref`: the visit to tobos.ai that brought them, from the line they copied there
+ * (product/start.md), which the server joins to the account the login makes, if it makes one.
  */
 export async function login(out: Output, args: Args) {
   const server = ((args.values.server as string) || settings().server).replace(/\/$/, '');
   const kept = settings().device;
+  const ref = typeof args.values.ref === 'string' && args.values.ref ? args.values.ref : undefined;
   let device =
     kept && kept.server === server && Date.parse(kept.expires) > Date.now() ? kept : undefined;
+  // A ref given only to the login that waits goes with its polls too.
+  if (device && ref && device.ref !== ref) save({ device: (device = { ...device, ref }) });
   let opened = false;
   if (!device) {
     const started = await api<DeviceStart>('/oauth/device', {
@@ -107,6 +112,7 @@ export async function login(out: Output, args: Args) {
       url: started.verification_uri_complete,
       interval: started.interval,
       expires: new Date(Date.now() + started.expires_in * 1000).toISOString(),
+      ...(ref ? { ref } : {}),
     };
     save({ server, device });
     opened = await openUrl(device.url);
@@ -157,6 +163,7 @@ async function waitForApproval(
       body: {
         grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
         device_code: device.deviceCode,
+        ...(device.ref ? { ref: device.ref } : {}),
       },
     });
     const answer = (await response.json().catch(() => ({}))) as {
