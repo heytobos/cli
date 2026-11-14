@@ -87,8 +87,9 @@ interface DeviceStart {
  * (a first code signs them up). The first `tobos login` prints the address, and opens it where
  * this machine has a browser; then it, or the next `tobos login`, waits a while for their answer,
  * on the same code, so an agent whose commands time out keeps one address to give the person.
- * `--ref`: the visit to tobos.ai that brought them, from the line they copied there
- * (product/start.md), which the server joins to the account the login makes, if it makes one.
+ * `--ref`: where their visit to tobos.ai came from, from the line they copied there
+ * (product/start.md), which the server keeps as the source of the account the login makes, if it
+ * makes one.
  */
 export async function login(out: Output, args: Args) {
   const server = ((args.values.server as string) || settings().server).replace(/\/$/, '');
