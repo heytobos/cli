@@ -27,6 +27,8 @@ type Read = Listed & {
   to?: string;
   cc?: string;
   text?: string;
+  /** Why the text is not all of it: Gmail didn't give a part of it. */
+  incomplete?: string;
   attachments?: { name: string; type: string; size: number }[];
 };
 
@@ -67,6 +69,7 @@ const shown = (m: Read) =>
     `Date: ${m.date}`,
     `Id: ${m.id} in ${m.inbox}`,
     ...(m.attachments ?? []).map((a) => `Attachment: ${a.name} (${a.type}, ${a.size} bytes)`),
+    m.incomplete && `Incomplete: ${m.incomplete}`,
     '',
     m.withheld ?? m.text ?? '',
   ]
