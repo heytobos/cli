@@ -165,15 +165,31 @@ const COMMANDS: Record<string, (out: Output, args: Args, rest: string[]) => Prom
       ...(values.archive ? ['INBOX'] : []),
       ...(values.read ? ['UNREAD'] : []),
     ];
-    const trash = values.trash ? true : values.untrash ? false : undefined;
+    if (values.trash || values.untrash)
+      throw new CliError(
+        `The trash is a command of its own: tobos mail trash ${rest.join(' ')}${values.untrash ? ' --restore' : ''}`,
+      );
     const answer = await call('sort', {
       messages: rest,
       ...(add.length ? { add } : {}),
       ...(remove.length ? { remove } : {}),
-      ...(trash === undefined ? {} : { trash }),
       ...inboxOf(args),
     });
     out.result(answer, () => `Sorted ${rest.length} message${rest.length === 1 ? '' : 's'}.`);
+  },
+
+  async trash(out, args, rest) {
+    if (rest.length === 0) throw new CliError('Name the messages to move, by their ids.');
+    const restore = args.values.restore === true;
+    const answer = await call('trash', {
+      messages: rest,
+      ...(restore ? { restore } : {}),
+      ...inboxOf(args),
+    });
+    const n = `${rest.length} message${rest.length === 1 ? '' : 's'}`;
+    out.result(answer, () =>
+      restore ? `Brought ${n} out of the trash.` : `Moved ${n} to the trash.`,
+    );
   },
 
   async drafts(out, args) {

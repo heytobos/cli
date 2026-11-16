@@ -17,7 +17,7 @@ Tobos Mail opens the inboxes the person connected to it to you, read live from t
 
 ## Sorting
 
-- Nothing `sort` does is for good: a message stays in the trash 30 days, and `--untrash` brings it back.
+- `sort` labels, archives and marks read, and all of it can be undone the same way. The trash is `trash`'s: a message stays there 30 days, and `trash --restore` brings it back.
 - It adds the labels the inbox has, as `labels` lists them. A new label is the person's to make, in their mail app.
 - Before you sort more than a handful of messages, show the person what you mean to do, and do it once they say yes. Note the ids you moved, so it can be taken back.
 

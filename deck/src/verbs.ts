@@ -88,7 +88,7 @@ const CHANGESET_SCHEMA = {
 
 export const VERBS = {
   list: {
-    does: 'The decks the person works on, by id: their own, and those shared with them that they may present or change. Each with its title, your level on it and whose it is, whether it is View only (beyond the decks its owner’s plan keeps editable: it takes no change), when it last changed, its address in Tobos, and, for the person’s own, its folder. With a path, what that folder holds: its folders, then its decks, a shortcut to a deck shared with the person marked as one, with its owner.',
+    does: 'The decks the person works on, by id: their own, and those shared with them that they may present or change. Each with its title, the person’s level on it and whose it is, whether it is View only (beyond the decks its owner’s plan keeps editable: it takes no change), when it last changed, its address in Tobos, and, for the person’s own, its folder. With a path, what that folder holds: its folders, then its decks, a shortcut to a deck shared with the person marked as one, with its owner.',
     input: { properties: { path: { type: 'string', description: FOLDER_PATH } }, required: [] },
     cli: [
       {
@@ -125,7 +125,7 @@ export const VERBS = {
         does: 'the deck’s outline: its chapters and scenes in order, and the scene files it doesn’t place',
       },
     ],
-    chat: 'Without `paths`, lists its files with their sizes; with them, gives each file’s text, many in one call (a path ending in `/` reads every file under it). Reading media/ (`paths: ["media/"]`) shows its pictures, video and sound instead: each file’s name, type and size, when it was added and by whom, and contact sheets to see what they show, with the address of the deck’s page where the person drops files. With `since`, only the files added since that version. Paths of files in media/ show just those, one alone as large as the sheet. A picture the person gave you in the chat reaches you, not Tobos: give them the address of the deck’s page that reading media/ gives, where they drop it.',
+    chat: 'Without `paths`, lists its files with their sizes; with them, gives each file’s text, many in one call (a path ending in `/` reads every file under it). Reading media/ (`paths: ["media/"]`) shows its pictures, video and sound instead: each file’s name, type and size, when it was added and by whom, and contact sheets to see what they show, with the address of the deck’s page where the person drops files. With `since`, only the files added since that version. Paths of files in media/ show just those, one alone as large as the sheet.',
   },
   write: {
     does: 'Changes a deck’s files as one version, live at once, made on the version they were read at: Tobos merges what changed since, checks the deck as it would be, and saves nothing, saying why, if the check refuses it or someone changed the same lines. Dry, it only checks. With `outline`, it changes the deck’s outline too, or alone.',
@@ -147,22 +147,22 @@ export const VERBS = {
         does: 'the outline changed at once, no push: place, move, hide, show, rename, remove, title, chapter (tobos help says each)',
       },
     ],
-    chat: 'Each file’s text in full, a patch of part of it, a file on the web for media/, or null to delete it. All or nothing, so put everything a step needs into one call: a new scene’s file and the `outline` change that places it.',
+    chat: 'Each file’s text in full, a patch of part of it, a file on the web for media/, or null to delete it. All or nothing: a call’s files and its `outline` change land as one version, or none does.',
   },
   new: {
-    does: 'Makes a deck in the person’s account, with its first version, `rev`: one title scene, and the design of the deck it starts from, its master, the master’s media and the packages it imports. Tobos standard unless another deck is named, such as the person’s own house style (ask which when they have several). To use another deck’s scenes too, read them and write them like any file.',
+    does: 'Makes a deck in the person’s account, with its first version, `rev`: one title scene, and the design of the deck it starts from, its master, the master’s media and the packages it imports. Tobos standard unless another deck is named, such as the person’s own house style. It copies none of that deck’s scenes.',
     input: {
       properties: {
         title: { type: 'string', description: 'The title of the talk.' },
         from: {
           type: 'string',
           description:
-            'The id of the deck whose design to start from, one you may edit or present.',
+            'The id of the deck whose design to start from, as `list` gives it: one the person may edit or present.',
         },
       },
       required: ['title'],
     },
-    chat: 'Gives the deck’s id, its first version, `rev`, its files, and its address in Tobos; `list` gives the ids of the decks to start from.',
+    chat: 'Gives the deck’s id, its first version, `rev`, its files, and its address in Tobos.',
     cli: [
       {
         usage: 'tobos new "Title" [--from <id>] [--dir dir]',
@@ -171,7 +171,7 @@ export const VERBS = {
     ],
   },
   move: {
-    does: 'Moves the person’s decks, a deck by its id or title, and folders, by path, with all that is in them, into a folder, made with the folders on its path if there are none. A deck shared with the person moves as its one shortcut in their folders, made by its first move; the deck stays its owner’s, where they keep it. With `name`, renames one folder where it is instead; with nothing to move, makes the folder at `to`. A folder stays when a move empties it: only the person deletes one, on the web. Refused, with nothing changed, if one isn’t there, if a title is two decks’ (name that one by its id), if the folder has one of a moved folder’s name already, if a folder would go into itself, or if a folder to make or a new name is there already.',
+    does: 'Moves the person’s decks, a deck by its id or title, and folders, by path, with all that is in them, into a folder, made with the folders on its path if there are none. A deck shared with the person moves as its one shortcut in their folders, made by its first move; the deck stays its owner’s, where they keep it. With `name`, renames one folder where it is instead; with nothing to move, makes the folder at `to`. A folder stays when a move empties it: only the person deletes one, in Tobos Present. Refused, with nothing changed, if one isn’t there, if a title is two decks’ (an id names one of them), if the folder has one of a moved folder’s name already, if a folder would go into itself, or if a folder to make or a new name is there already.',
     input: {
       properties: {
         decks: {
