@@ -210,9 +210,25 @@ export async function logout(out: Output) {
   );
 }
 
+/** An app's name, as `tobos whoami` says it (TOB-499). */
+const APP_NAMES: Record<string, string> = { present: 'Tobos Present', mail: 'Tobos Mail' };
+
+/**
+ * Who this machine is logged in as, and the apps its grant reaches, which the person chooses at
+ * /connections (TOB-499); a server from before names none.
+ */
 export async function whoami(out: Output) {
-  const me = await api<{ email: string }>('/api/me');
-  out.result({ ...me, server: settings().server }, () => `${me.email} on ${settings().server}`);
+  const me = await api<{ email: string; apps?: string[] }>('/api/me');
+  const { server } = settings();
+  out.result({ ...me, server }, () =>
+    [
+      `${me.email} on ${server}`,
+      me.apps &&
+        `Uses ${me.apps.map((app) => APP_NAMES[app] ?? app).join(' and ') || 'no app'}; the person chooses which at ${server}/connections.`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  );
 }
 
 /** What `tobos ls` says of one besides its title: someone else's, View only. */

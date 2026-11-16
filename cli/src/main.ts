@@ -31,7 +31,7 @@ const HELP = `tobos ${VERSION}: the command line of Tobos, the office suite your
 Account
 ${row('tobos login [--server URL] [--ref ID]', 'connect this machine: prints an address for the person to open and approve (logging in, or signing up, there); run it again once they did; --ref: the one in the tobos.ai/start address they gave you')}
 ${row('tobos logout', "forget this machine's token")}
-${row('tobos whoami', 'who you are, on which server')}
+${row('tobos whoami', 'who you are, on which server, with which apps')}
 
 The five verbs (a deck by its id, or its title to mv it; a folder by its path; in a working copy,
 with no git: the server keeps the versions)
