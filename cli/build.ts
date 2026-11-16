@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import * as esbuild from 'esbuild';
 import ts from 'typescript';
-import { readTree, SKILL_NAME } from './src/skill.ts';
+import { readSkills } from './src/skill.ts';
 
 /**
  * The declarations of @tobos/present, generated from its source, so `tobos check --types` can
@@ -76,9 +76,9 @@ await esbuild.build({
     TOBOS_VERSION: JSON.stringify(pkg.version),
     TOBOS_PRESENT_TYPES: JSON.stringify(presentTypes()),
     TOBOS_TOOLCHAIN: JSON.stringify(toolchain()),
-    // The agent pack's skill, which `tobos skill install` writes into the person's harnesses.
-    TOBOS_SKILL: JSON.stringify(
-      readTree(new URL(`../agent-pack/skills/${SKILL_NAME}/`, import.meta.url).pathname),
+    // The agent pack's skills, which `tobos skill install` writes into the person's harnesses.
+    TOBOS_SKILLS: JSON.stringify(
+      readSkills(new URL('../agent-pack/skills/', import.meta.url).pathname),
     ),
   },
   legalComments: 'none',

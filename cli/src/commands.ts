@@ -22,7 +22,7 @@ import { sizeNote } from './media.ts';
 import { openUrl } from './open-url.ts';
 import { ASK_THE_PERSON, CliError, EXIT, type Output } from './out.ts';
 import { writeFormatGuide } from './format.ts';
-import { install, SKILL_NAME } from './skill.ts';
+import { install, SKILL_NAMES } from './skill.ts';
 
 export interface Args {
   positionals: string[];
@@ -877,27 +877,39 @@ export async function render(out: Output, args: Args) {
 
 // ─── The skill ──────────────────────────────────────────────────────────────
 
-/** `tobos skill install` puts the Tobos skill where the person's harnesses read skills. */
+/**
+ * `tobos skill install` puts the Tobos skills where the person's harnesses read skills: each
+ * folder it wrote, and each it left to a skill of the same name the CLI didn't write.
+ */
 export async function skill(out: Output, args: Args) {
   if (args.positionals[0] !== 'install')
     throw new CliError(
-      '`tobos skill install` installs the skill; there is no other skill command.',
+      '`tobos skill install` installs the skills; there is no other skill command.',
     );
   const targets = install();
   const refused = targets.filter((t) => t.action === 'refused');
   if (refused.length)
     throw new CliError(
-      `Couldn't write the skill to ${refused.map((t) => t.dir).join(' or ')}: ${refused[0]!.reason}. ` +
+      `Couldn't write the skills to ${refused.map((t) => t.dir).join(' or ')}: ${refused[0]!.reason}. ` +
         "A harness's sandbox can stop writes outside the working folder: ask the person to approve " +
         'the command, or to run `tobos skill install` themselves.',
       EXIT.error,
       { targets },
     );
-  const next = 'New conversations in the harness load the skill.';
-  out.result({ skill: SKILL_NAME, version: VERSION, targets, next }, () =>
+  const kept = targets.filter((t) => t.action === 'kept');
+  const next = [
+    'New conversations in the harness load the skills.',
+    ...kept.map(
+      (t) =>
+        `${t.dir} holds a skill of the person's own by that name, so the CLI left it as it is: it is theirs to rename or remove, if they want Tobos's ${t.skill} there.`,
+    ),
+  ].join(' ');
+  out.result({ skills: SKILL_NAMES, version: VERSION, targets, next }, () =>
     [
-      `The ${SKILL_NAME} skill (${VERSION}):`,
-      ...targets.map((t) => `  ${t.dir}  (${t.harnesses.join(', ')})`),
+      `The Tobos skills (${VERSION}):`,
+      ...targets
+        .filter((t) => t.action === 'installed')
+        .map((t) => `  ${t.dir}  (${t.harnesses.join(', ')})`),
       next,
     ].join('\n'),
   );

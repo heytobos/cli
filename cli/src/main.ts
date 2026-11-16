@@ -75,9 +75,10 @@ ${row('tobos mail discard <draft>', 'delete a draft')}
 ${row('tobos mail send <draft>', 'ask to send it: it waits for the person’s Send on Mail’s page, and goes from their address')}
 A code, password reset or sign-in link is withheld: the person reads it themselves.
 
-The skill (what your harness reads to know Tobos without this help)
-  tobos skill install                         put it where Claude Code, Codex, OpenCode and others
-                                              read skills; later CLIs keep it up to date
+The skills (what your harness reads to know Tobos without this help: tobos-present for decks,
+tobos-mail for Mail)
+  tobos skill install                         put them where Claude Code, Codex, OpenCode and
+                                              others read skills; later CLIs keep them up to date
 
 Every command takes --json and then prints one JSON object.
 Exit codes: 0 ok, 1 error, 2 the deck has problems, 3 not logged in (or not yet approved),

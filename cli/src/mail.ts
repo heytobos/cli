@@ -37,7 +37,7 @@ async function call<T = Record<string, unknown>>(tool: string, body: object): Pr
   const me = await api<{ email: string; mail?: string }>('/api/me');
   if (!me.mail)
     throw new CliError(
-      `Tobos Mail isn’t open to ${me.email}: it is in closed beta. The person asks for access at tobos.ai.`,
+      `Tobos Mail is in closed beta, and ${me.email} isn’t in it. Someone invited opens their invite link and logs in there as ${me.email}; then this works.`,
     );
   return api<T>(`/api/${tool}`, { server: me.mail, mail: true, body });
 }
