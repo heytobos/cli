@@ -128,7 +128,7 @@ export const VERBS = {
     chat: 'Without `paths`, lists its files with their sizes; with them, gives each file’s text, many in one call (a path ending in `/` reads every file under it). Reading media/ (`paths: ["media/"]`) shows its pictures, video and sound instead: each file’s name, type and size, when it was added and by whom, and contact sheets to see what they show, with the address of the deck’s page where the person drops files. With `since`, only the files added since that version. Paths of files in media/ show just those, one alone as large as the sheet.',
   },
   write: {
-    does: 'Changes a deck’s files as one version, live at once, made on the version they were read at: Tobos merges what changed since, checks the deck as it would be, and saves nothing, saying why, if the check refuses it or someone changed the same lines. Dry, it only checks. With `outline`, it changes the deck’s outline too, or alone.',
+    does: 'Changes a deck: writes, patches or deletes its files and saves them as one new version, shown at once on the deck’s page. `base` is the version the files were read at; Tobos merges what changed since. Before saving, Tobos checks the deck: if the check fails, or the changes conflict with someone else’s, nothing is saved and the answer says why. With `dry`, it checks and saves no version. With `outline`, it also places, moves, hides or renames scenes, or does only that.',
     input: {
       properties: { ...CHANGESET_SCHEMA.properties },
       required: CHANGESET_SCHEMA.required,
@@ -147,7 +147,7 @@ export const VERBS = {
         does: 'the outline changed at once, no push: place, move, hide, show, rename, remove, title, chapter (tobos help says each)',
       },
     ],
-    chat: 'Each file’s text in full, a patch of part of it, a file on the web for media/, or null to delete it. All or nothing: a call’s files and its `outline` change land as one version, or none does.',
+    chat: 'A file is given as its text in full, a patch of part of it, a web address for a file in media/, or null to delete it. All or nothing: a call’s files and its `outline` changes all land, or none does.',
   },
   new: {
     does: 'Makes a deck in the person’s account, with its first version, `rev`: one title scene, and the design of the deck it starts from, its master, the master’s media and the packages it imports. Tobos standard unless another deck is named, such as the person’s own house style. It copies none of that deck’s scenes.',
