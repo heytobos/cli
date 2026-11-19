@@ -236,7 +236,7 @@ function aboutDeck(d: DeckInfo): string {
   const can = { editor: 'you edit', presenter: 'you present', viewer: 'you view' } as const;
   const notes = [
     d.role && d.role !== 'owner' && `${d.owner ?? 'someone else'}’s, ${can[d.role]}`,
-    (d.viewOnly ?? d.archived) && 'view only: no pushes',
+    (d.viewOnly ?? d.archived) && 'View only: no pushes',
   ].filter(Boolean);
   return notes.length ? `  (${notes.join('; ')})` : '';
 }
