@@ -44,6 +44,11 @@ const CHANGESET_SCHEMA = {
       type: 'string',
       description: 'What the change does, as a commit message says: needed unless `dry`.',
     },
+    publish: {
+      type: 'string',
+      description:
+        'A theme’s write only: publishes the version it lands, or the theme’s latest if `files` is empty, to the decks that follow the theme, with this one-line note of what changed ("New logo, and a warmer accent"). Each deck’s owner is then offered it. A version is published once.',
+    },
     dry: {
       type: 'boolean',
       description:
@@ -137,6 +142,10 @@ export const VERBS = {
       {
         usage: 'tobos push [-m "what changed"]',
         does: 'the copy’s changes as one version, media uploaded',
+      },
+      {
+        usage: 'tobos push --publish "note"',
+        does: 'in a theme’s copy: its changes pushed, and that version (or its latest) published to the decks that follow it',
       },
       {
         usage: 'tobos check [--types]',

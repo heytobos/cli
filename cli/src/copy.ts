@@ -345,6 +345,18 @@ export interface Written {
   rev: string;
   changed: boolean;
   problems: { severity: string; file?: string; message: string }[];
+  /** The version a theme's write published (ADR 0010, D5). */
+  published?: Published;
+}
+
+/** A version of a theme published to its decks, as the server says it. */
+export interface Published {
+  theme: string;
+  rev: string;
+  note: string;
+  publishedAt: string;
+  /** When each version of the theme was published, which names this one (D6). */
+  publishes?: string[];
 }
 
 /**
@@ -355,7 +367,16 @@ export interface Written {
 export async function writeCopy(
   copy: Copy,
   message: string,
-  { dry = false, note }: { dry?: boolean; note: (m: string) => void },
+  {
+    dry = false,
+    note,
+    with: more = {},
+  }: {
+    dry?: boolean;
+    note: (m: string) => void;
+    /** More of the changeset: `publish`, a theme's note (ADR 0010, D5). */
+    with?: Record<string, unknown>;
+  },
 ): Promise<Written & { sent: string[]; uploaded: string[] }> {
   const { root, base } = copy;
   const changes = changesOf(copy);
@@ -371,7 +392,7 @@ export async function writeCopy(
         : { base64: Buffer.from(bytes).toString('base64') };
     }
   }
-  const body = { base: base.rev, message, dry, files };
+  const body = { ...more, base: base.rev, message, dry, files };
   const uploaded: string[] = [];
   for (let tries = 1; ; tries++) {
     const response = await request(`/api/decks/${base.deck}/files`, {
@@ -418,6 +439,16 @@ export async function writeCopy(
       }
       continue;
     }
+    // A theme's version published already (ADR 0010, D5): nothing to merge.
+    if (data.error === 'conflict' && 'published' in data)
+      throw new CliError(
+        (data as { message?: string }).message ?? 'Published already.',
+        EXIT.conflict,
+        {
+          ...data,
+          status: response.status,
+        },
+      );
     if (data.error === 'conflict')
       throw new CliError(
         `${(data as { message?: string }).message ?? 'The deck changed meanwhile.'}\nRun \`tobos pull\`, which merges what changed, then push again.`,

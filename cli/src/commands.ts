@@ -3,6 +3,7 @@ import { hostname } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import type { Problem } from '@tobos/deck';
 import { formatProblems } from '@tobos/deck/format-problems';
+import { versionName } from '@tobos/deck/version-name';
 import { api, failure, request, VERSION } from './api.ts';
 import { forget, save, settings } from './config.ts';
 import {
@@ -17,6 +18,7 @@ import {
   writeCopy,
   type Base,
   type Copy,
+  type Published,
 } from './copy.ts';
 import { sizeNote } from './media.ts';
 import { openUrl } from './open-url.ts';
@@ -590,9 +592,14 @@ export async function check(out: Output, args: Args) {
  * The working copy's changes written as one version, which the server checks and every open
  * preview follows; then the copy takes that version, with whatever else it merged in.
  */
-async function pushCopy(out: Output, copy: Copy, message?: string) {
+async function pushCopy(
+  out: Output,
+  copy: Copy,
+  message?: string,
+  more: { publish?: string } = {},
+) {
   const changes = changesOf(copy);
-  if (changes.length === 0)
+  if (changes.length === 0 && more.publish === undefined)
     return { pushed: false as const, rev: copy.base.rev, uploaded: [], page: [] as PageChange[] };
   noteSizes(
     out,
@@ -601,7 +608,14 @@ async function pushCopy(out: Output, copy: Copy, message?: string) {
   );
   for (const { path, hash } of changes) out.note(`  ${hash ? '' : 'deleted '}${path}`);
   out.note('pushing…');
-  const written = await writeCopy(copy, message || 'Update the deck', { note: (m) => out.note(m) });
+  const written = await writeCopy(
+    copy,
+    message || (changes.length ? 'Update the deck' : 'Publish'),
+    {
+      note: (m) => out.note(m),
+      with: more,
+    },
+  );
   // The version it made, others' merged changes in it: on what was just sent as the base, so the
   // files it sent are the server's now, and nothing is merged twice.
   try {
@@ -623,6 +637,7 @@ async function pushCopy(out: Output, copy: Copy, message?: string) {
     rev: written.rev,
     uploaded: written.uploaded,
     problems: written.problems,
+    ...(written.published ? { published: written.published } : {}),
     // What changed that the copy didn't make, on the page or by Tobos, since its version.
     page: await pageChanges(out, copy.root, copy.base, written.rev),
   };
@@ -630,26 +645,47 @@ async function pushCopy(out: Output, copy: Copy, message?: string) {
 
 export async function push(out: Output, args: Args) {
   const copy = requireCopy();
-  const pushed = await pushCopy(out, copy, args.values.message as string | undefined);
+  const publish = args.values.publish;
+  if (publish !== undefined && (typeof publish !== 'string' || !publish.trim()))
+    throw new CliError('--publish takes a one-line note: `tobos push --publish "New logo"`.');
+  const sent = changesOf(copy).length;
+  const pushed = await pushCopy(out, copy, args.values.message as string | undefined, {
+    ...(typeof publish === 'string' ? { publish } : {}),
+  });
   // Nothing to push, the page may still have changed since the copy's version: pull takes it.
   const result = pushed.pushed
     ? pushed
     : { ...pushed, page: await pageChanges(out, copy.root, copy.base) };
   const url = `${copy.base.server}/${copy.base.deck}`;
+  const published = 'published' in result ? result.published : undefined;
   out.result({ ...result, url }, () =>
     [
       result.pushed
-        ? `✓ Pushed ${result.rev?.slice(0, 7)}${result.uploaded.length ? ` with ${plural(result.uploaded.length, 'media file')}` : ''}. Live at ${url}`
+        ? sent
+          ? `✓ Pushed ${result.rev?.slice(0, 7)}${result.uploaded.length ? ` with ${plural(result.uploaded.length, 'media file')}` : ''}. Live at ${url}`
+          : ''
         : result.page.length
           ? `Nothing to push, but the deck changed since this copy's version: run \`tobos pull\`. Live at ${url}`
           : `Nothing to push: the copy has no changes of its own. Live at ${url}`,
       // The check's warnings, which it took the version with: said to whoever pushed it.
       result.pushed ? formatProblems(result.problems as Problem[]) : '',
+      published ? `✓ Published ${saidPublished(published)}` : '',
       saidPage(result.page),
     ]
       .filter(Boolean)
       .join('\n'),
   );
+}
+
+/**
+ * A theme's version as the CLI names it (ADR 0010, D6): by its hash, and as people see it, where
+ * this machine is: "Synthesion c41e9a0 · 28 November", with its time where the theme published
+ * another that day, its year when it isn't this one.
+ */
+function saidPublished(published: Published): string {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const name = versionName(published.publishedAt, published.publishes ?? [], zone);
+  return `${published.theme} ${published.rev.slice(0, 7)} · ${name}: “${published.note}”`;
 }
 
 /**

@@ -129,7 +129,10 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
     },
   },
   check: { run: commands.check, options: { types: { type: 'boolean' } } },
-  push: { run: commands.push, options: { message: { type: 'string', short: 'm' } } },
+  push: {
+    run: commands.push,
+    options: { message: { type: 'string', short: 'm' }, publish: { type: 'string' } },
+  },
   open: {
     run: commands.open,
     options: {

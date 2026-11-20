@@ -16,6 +16,7 @@
     "./media-pattern": "./src/media-pattern.ts",
     "./media-type": "./src/media-type.ts",
     "./verbs": "./src/verbs.ts",
+    "./version-name": "./src/version-name.ts",
     "./types": "./src/types.ts",
     "./FORMAT.md": "./FORMAT.md",
     "./package.json": "./package.json"
