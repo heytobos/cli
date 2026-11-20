@@ -31,6 +31,14 @@ export {
 } from './outline.ts';
 export { masterOf } from './master.ts';
 export type { Master } from './master.ts';
+export {
+  formatLookRecord,
+  LOOK_FILE,
+  lookRecordIn,
+  lookRecordOf,
+  parseLookRecord,
+} from './look.ts';
+export type { LookRecord } from './look.ts';
 export { isSafePath, memoryTree, readText } from './tree.ts';
 export { sha256 } from './hash.ts';
 export { activitiesOf, openActivity, TEXT_MAX } from './activity.ts';

@@ -10,6 +10,7 @@ data/              precomputed data (JSON), computed before, never by Tobos
 lib/               shared code and components for this deck (.svelte, .ts, .js)
 media/             images, video, audio, stored by their content
 media.json         what is in media/, by content hash: written by Tobos, never by you
+theme.json         where the deck's look came from: written by Tobos, never by you
 scripts/           your scripts that compute data/ and media/ (kept, never run by Tobos)
 sources/           originals the scripts read: full-size scans, raw data (never in the deck)
 AGENTS.md          points the agent that builds the deck to this file and the master's guide

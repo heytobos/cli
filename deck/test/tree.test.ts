@@ -25,7 +25,9 @@ describe('isSafePath', () => {
       '',
       '.git/config',
       'lib/.GIT/HEAD',
+      // A NUL ends an entry for git: what follows would be another (writeCommit).
+      `unused\u00000 ${'0'.repeat(40)}\ttheme.json`,
     ])
-      expect(isSafePath(path), path).toBe(false);
+      expect(isSafePath(path), JSON.stringify(path)).toBe(false);
   });
 });
