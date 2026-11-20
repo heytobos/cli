@@ -49,6 +49,12 @@ interface DeckInfo {
   scenes: { id: string; beats: string[] }[];
   /** Its outline, which Tobos holds apart from its files (ADR 0006). */
   outline?: Outline;
+  /** A theme (ADR 0010): decks follow it; it isn't presented. */
+  theme?: boolean;
+  /** What `new` warns of, such as --from going. */
+  warning?: string;
+  /** Made by `new --theme-from`: the deck that follows the new theme now. */
+  followed?: string;
 }
 
 /** A scene of the outline: its id, which is its file's name, its title, and whether it shows. */
@@ -233,7 +239,9 @@ export async function whoami(out: Output) {
 
 /** What `tobos ls` says of one besides its title: someone else's, View only. */
 function aboutDeck(d: DeckInfo): string {
-  const can = { editor: 'you edit', presenter: 'you present', viewer: 'you view' } as const;
+  const can = d.theme
+    ? ({ editor: 'you edit', presenter: 'you use', viewer: 'you view' } as const)
+    : ({ editor: 'you edit', presenter: 'you present', viewer: 'you view' } as const);
   const notes = [
     d.role && d.role !== 'owner' && `${d.owner ?? 'someone else'}’s, ${can[d.role]}`,
     (d.viewOnly ?? d.archived) && 'View only: no pushes',
@@ -274,13 +282,22 @@ export async function ls(out: Output, args: Args) {
     );
     return;
   }
-  const { decks } = await api<{ decks: DeckInfo[] }>('/api/decks');
-  out.result({ decks }, () =>
-    decks.length === 0
-      ? 'No decks yet. `tobos new "Title"` starts one.'
-      : decks
-          .map((d) => `${d.id}  ${inFolder(d.folder ?? '/')}${d.title}${aboutDeck(d)}`)
-          .join('\n'),
+  const { decks, themes = [] } = await api<{ decks: DeckInfo[]; themes?: DeckInfo[] }>(
+    '/api/decks',
+  );
+  const line = (d: DeckInfo) => `${d.id}  ${inFolder(d.folder ?? '/')}${d.title}${aboutDeck(d)}`;
+  out.result({ decks, themes }, () =>
+    [
+      decks.length === 0
+        ? 'No decks yet. `tobos new "Title"` starts one.'
+        : decks.map(line).join('\n'),
+      // Themes apart, as the person's home lists them (ADR 0010, D1).
+      themes.length
+        ? `\nThemes (\`tobos new "Title" --theme <name>\` starts a deck that follows one)\n${themes.map((d) => `${d.id}  ${d.title}${aboutDeck({ ...d, theme: true })}`).join('\n')}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n'),
   );
 }
 
@@ -465,9 +482,10 @@ async function pullCopy(out: Output, info: DeckInfo, dir: string) {
 }
 
 /**
- * A new deck, its design copied from another deck (Tobos standard unless `--from` names one): its
- * master, the master's media and the packages it imports. Then pulled into a folder of its own,
- * unless `--no-pull`.
+ * A new deck, following a theme (the person's default unless `--theme` names one): it gets a copy
+ * of the theme's master, the master's media and the packages it imports. With `--theme-from`, a
+ * theme made from a deck instead. Then pulled into a folder of its own, unless `--no-pull`.
+ * `--from`, a deck whose theme to follow, works for one release with the server's warning.
  */
 export async function create(out: Output, args: Args) {
   const title = args.positionals.join(' ').trim();
@@ -480,8 +498,14 @@ export async function create(out: Output, args: Args) {
   )
     throw new CliError(`${resolve(args.values.dir)} already exists.`);
   const info = await api<DeckInfo>('/api/decks', {
-    body: { title, from: args.values.from },
+    body: {
+      title,
+      theme: args.values.theme,
+      themeFrom: args.values['theme-from'],
+      from: args.values.from,
+    },
   });
+  if (info.warning) out.note(info.warning, true);
   let dir: string | undefined;
   if (!args.values['no-pull']) {
     dir = resolve((args.values.dir as string) ?? info.id);
@@ -490,7 +514,8 @@ export async function create(out: Output, args: Args) {
   }
   out.result({ ...info, dir: dir ?? null }, () =>
     [
-      `Created ${info.title}: ${info.url}`,
+      `Created ${info.theme ? 'the theme ' : ''}${info.title}: ${info.url}`,
+      info.followed ? `${info.followed} follows it now.` : '',
       // Made where the plan kept no more editable: which deck is View only now, for the person.
       info.madeViewOnly ? info.madeViewOnly.note : '',
       dir ? `Pulled into ${relative(process.cwd(), dir) || '.'}. Read AGENTS.md there first.` : '',

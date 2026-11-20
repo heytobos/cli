@@ -88,7 +88,7 @@ const CHANGESET_SCHEMA = {
 
 export const VERBS = {
   list: {
-    does: 'The decks the person works on, by id: their own, and those shared with them that they may present or change. Each with its title, the person’s level on it and whose it is, whether it is View only (beyond the decks its owner’s plan keeps editable: it takes no change), when it last changed, its address in Tobos, and, for the person’s own, its folder. With a path, what that folder holds: its folders, then its decks, a shortcut to a deck shared with the person marked as one, with its owner.',
+    does: 'The decks the person works on, by id: their own, and those shared with them that they may present or change; and apart, as `themes`, the themes they may use or edit, which new decks follow. Each with its title, the person’s level on it and whose it is, whether it is View only (beyond the decks its owner’s plan keeps editable: it takes no change), when it last changed, its address in Tobos, and, for the person’s own, its folder. With a path, what that folder holds: its folders, then its decks, a shortcut to a deck shared with the person marked as one, with its owner.',
     input: { properties: { path: { type: 'string', description: FOLDER_PATH } }, required: [] },
     cli: [
       {
@@ -150,14 +150,24 @@ export const VERBS = {
     chat: 'A file is given as its text in full, a patch of part of it, a web address for a file in media/, or null to delete it. All or nothing: a call’s files and its `outline` changes all land, or none does.',
   },
   new: {
-    does: 'Makes a deck in the person’s account, with its first version, `rev`: one title scene, and the design of the deck it starts from, its master, the master’s media and the packages it imports. Tobos standard unless another deck is named, such as the person’s own house style. It copies none of that deck’s scenes.',
+    does: 'Makes a deck in the person’s account, with its first version, `rev`: one title scene, and the design of the theme it follows, its master, the master’s media and the packages it imports, at the theme’s newest published version. The person’s default theme, their own Tobos standard, unless `theme` names another. With `themeFrom`, makes a theme instead: a copy of that deck’s design, scenes and outline, published once; the deck, if it is the person’s, then follows it.',
     input: {
       properties: {
-        title: { type: 'string', description: 'The title of the talk.' },
+        title: { type: 'string', description: 'The title of the talk, or of the theme.' },
+        theme: {
+          type: 'string',
+          description:
+            'The theme the deck follows, by its name or id, as `list` gives them: one the person owns or may use.',
+        },
+        themeFrom: {
+          type: 'string',
+          description:
+            'Makes a theme, not a deck: the id of the deck (or theme) whose design, scenes and outline it copies.',
+        },
         from: {
           type: 'string',
           description:
-            'The id of the deck whose design to start from, as `list` gives it: one the person may edit or present.',
+            'Goes in the next release, replaced by `theme`: the id of a deck, whose theme the new deck follows.',
         },
       },
       required: ['title'],
@@ -165,8 +175,12 @@ export const VERBS = {
     chat: 'Gives the deck’s id, its first version, `rev`, its files, and its address in Tobos.',
     cli: [
       {
-        usage: 'tobos new "Title" [--from <id>] [--dir dir]',
-        does: 'a deck with the design of another (Tobos standard unless --from); pulled into ./<id> or dir (--no-pull: only made)',
+        usage: 'tobos new "Title" [--theme <name>] [--dir dir]',
+        does: 'a deck that follows a theme (your default unless --theme); pulled into ./<id> or dir (--no-pull: only made)',
+      },
+      {
+        usage: 'tobos new "Name" --theme-from <id>',
+        does: 'a theme made from a deck: its design, scenes and outline; the deck then follows it',
       },
     ],
   },

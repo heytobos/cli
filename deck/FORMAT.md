@@ -71,7 +71,7 @@ A presentation is a sequence of **beats**. One click advances one beat. A scene 
 </Content>
 ```
 
-- `Content` is a layout from the deck's master (see [The master](#the-master)). Tobos standard, which a new deck starts from unless it names another, has `Title` and `Content`, which the examples here use; `master/GUIDE.md` says what the deck's own master has, and with which props.
+- `Content` is a layout from the deck's master (see [The master](#the-master)). Tobos standard, the theme a new deck follows unless it names another, has `Title` and `Content`, which the examples here use; `master/GUIDE.md` says what the deck's own master has, and with which props.
 
 - `beats` is exported as an array literal, and every `id` is a string literal. Tobos reads the beats without running your code, so computed lists and IDs are rejected.
 - A scene has at most 100 beats. One that needs more is several scenes.
@@ -384,7 +384,7 @@ The viewer keeps a connection open to follow new versions, so a browser test tha
 
 ## The master
 
-`master/` is the deck's slide master, and the deck's own code: a new deck gets a copy of another deck's master, and from then on nothing outside the deck changes it.
+`master/` is the deck's slide master, and the deck's own code: a new deck gets a copy of its theme's master (see [Themes](#themes)), and nothing outside the deck changes it without its owner.
 
 ```
 master/index.ts       what scenes import: `import { Title, Content } from '../master/index.ts'`
@@ -402,12 +402,14 @@ media/master/         the master's own files: its fonts, a logo (media like any 
 - `tokens.css` names the deck's values on `:root`: its colours, its font stacks, a type scale (`--…size…`) and a spacing scale, each named for what it is for, not for its value. Write `var(--…)` rather than the value: a token changes when the theme does, a value written by hand stays as it is. Deviating is allowed, and named: in a deck that follows a theme (it has `theme.json`), the check warns where the deck's own files write a colour, a font, a type size or a spacing by hand, in a `<style>`, a `style` attribute or `style:` directive, or SVG's `fill`, `stroke` or `font-family` (`theme/…`, under Checks), and never refuses it. Its own files are its scenes, `lib/`, and each master file it changed or added since `theme.json` recorded it; a master file kept as the theme had it is the theme's.
 - `master.json`'s rules apply to every scene. Both are optional: without them, nothing is checked beyond the format.
 
-## Starting from another deck
+## Themes
 
-A new deck starts from another deck's design: Tobos standard, unless `new` names another with `from`, one the person may edit or present, such as their own house style.
+A deck's look comes from a **theme**: a deck with a mark, listed under Themes, which other decks follow and which is never presented. Every deck that isn't a theme follows exactly one; a theme follows nothing.
 
-- It gets a copy of that deck's master: `master/`, the media in `media/master/`, and the `dependencies` the master imports. Not its `lib/` or `scenes/`, so a master imports neither: it keeps to its own files and packages.
-- A copy is a copy: nothing refers back, so changing the other deck changes only the decks started from it afterwards. To bring a deck along, copy the master's files across.
-- To use the other deck's scenes too, read them and write them like any file.
-- A deck others start from keeps a scene per layout and component, with sample content, so its page shows its design as any deck's does. When you add or change a layout, add or change its scene too.
-- Tobos standard (`06b48295-7c5c-4e1f-90f5-a082d60941de`, the full house style: Title, Section, Content, Agenda and Blank, with Quote, Stat, Chip and Code) comes with Tobos: anyone may read it and start from it.
+- **A new deck follows a theme**, the person's default unless `new` names another with `theme`, by its name or id. It gets a copy of the theme's design at its newest published version: `master/`, the media in `media/master/`, and the `dependencies` the master imports. Not its `lib/` or `scenes/`, so a master imports neither: it keeps to its own files and packages.
+- **The deck holds all of it**, so building, presenting, the PDF and the share link never read the theme. `theme.json` records which theme, which version, and the hash of each design file the deck took, so the deck's own changes are told from the theme's: only Tobos writes it.
+- **Every account has its own Tobos standard**, a copy made with the account, its default theme: the full house style (Title, Section, Content, Agenda and Blank, with Quote, Stat, Chip and Code). Its owner changes it like any theme, and Tobos never changes it after.
+- **To start from a deck's own design, make a theme of it**: `new` with `themeFrom`, the deck's id, and the theme's name as its title. The theme gets a copy of the deck's design, its scenes and its outline, and its first version is published, "Made from" the deck. The deck, if it is the person's, then follows the theme. Trim the theme's scenes to one per layout and component, with sample content, so its page shows its design. When you add or change a layout, add or change its scene too.
+- **`from`**, the id of a deck, still works for this release, with a warning: the new deck follows that deck's theme. Then it goes. Use `theme`.
+- **Its people**: a theme is shared with people who "Can use" it (start decks from it, and follow it) or "Can edit" it (change it, and publish it). Free keeps 5 themes and Pro 10, apart from the decks.
+- To use another deck's scenes too, read them and write them like any file.

@@ -107,6 +107,8 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
     options: {
       dir: { type: 'string' },
       'no-pull': { type: 'boolean' },
+      theme: { type: 'string' },
+      'theme-from': { type: 'string' },
       from: { type: 'string' },
     },
   },
