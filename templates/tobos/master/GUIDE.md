@@ -8,6 +8,7 @@ They are in `master.json`; the check enforces them on every version.
 
 - **Nothing smaller than 28px**, anywhere in the deck: the check refuses a smaller `font-size` in the forms FORMAT.md's Checks lists (`em` and `calc()` it can't read). It's the smallest size readable from the back of a lecture hall.
 - **Every scene renders exactly one layout as its root**: the check warns about a scene that doesn't.
+- **Values come from the tokens** (below). A colour, a font, a type size or a spacing written by hand is a warning, never a refusal: the check names each colour and font that differs from the deck's theme, and counts the sizes and spacings of each file. A value written as a token changes when the theme does; one written by hand stays as it is. Deviate when a slide needs it.
 
 ## Rules the check can't enforce, which we hold you to
 
@@ -135,7 +136,8 @@ A video is motion like any other: it plays in a beat, with `playVideo` from `@to
 CSS variables, for scenes that draw their own things:
 
 - Colour: `--stage-paper`, `--stage-ink`, `--stage-muted`, `--stage-rule`, `--stage-accent` (the ink, unless a deck sets its own), `--stage-dark`, `--stage-highlight` (red); `--stage-soft`, the ink's tint, for surfaces only.
-- Type: `--stage-font-text` (Hanken Grotesk), `--stage-font-label` (Geist Mono; capitals, tracked `--stage-label-tracking`, 0.08em), `--stage-font-mono` (Geist Mono). Sizes: `--stage-size-label` 28, `-code` 32, `-body` 40, `-lead` 52, `-title` 64, `-section` 96, `-display` 144. A label of a scene's own takes `class="stage-label"`, the face the master's chips, kickers and wayfinder use, rather than copying it.
+- Type: `--stage-font-text` (Hanken Grotesk), `--stage-font-label` (Geist Mono; capitals, tracked `--stage-label-tracking`, 0.08em), `--stage-font-mono` (Geist Mono). Sizes, named for what the text is: `--stage-size-label` 28, `-code` 32, `-body` 40, `-lead` 52, `-title` 64, `-section` 96, `-display` 144. A label of a scene's own takes `class="stage-label"`, the face the master's chips, kickers and wayfinder use, rather than copying it.
+- Spacing, named for what it separates, not for its size: `--stage-space-part` 8 (the parts of one thing: a number and its label), `-item` 16 (small things side by side), `-list` 24 (a list's entries), `-pair` 32 (a text and the one it belongs to: a kicker and its title), `-block` 48 (a slide's blocks: its headline and its body), `-column` 64 (columns), `-group` 96 (groups that stand apart). For a gap, a margin or a padding, pick the one that names what it separates.
 - Grid: `--stage-margin-x` 112, `--stage-margin-top` 96, `--stage-margin-bottom` 96, 12 columns, `--stage-gutter` 32. `import { grid, column } from '../master/index.ts'` gives the same numbers in TypeScript. Press L in the viewer to see the guides.
 
 ## The source

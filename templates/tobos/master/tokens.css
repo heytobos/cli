@@ -1,5 +1,5 @@
 /*
- * The master's tokens: colours, fonts and sizes, in stage pixels on the 1920×1080 stage. Every
+ * The master's tokens: colours, fonts, sizes and spacing, in stage pixels on the 1920×1080 stage. Every
  * layout, component and scene uses these variables; change the look here.
  */
 /* The faces are tobos.ai's: Hanken Grotesk and Geist Mono (SIL Open Font License, the OFL-*.txt beside them). */
@@ -87,7 +87,16 @@
   --stage-margin-top: 96px;
   --stage-margin-bottom: 96px;
   --stage-gutter: 32px;
+  /* Spacing, named for what it separates, from the closest to the farthest apart. Every step is a
+     multiple of --stage-space. */
   --stage-space: 8px;
+  --stage-space-part: 8px; /* the parts of one thing: a number and its label */
+  --stage-space-item: 16px; /* small things side by side: chips, a swatch and its name */
+  --stage-space-list: 24px; /* the entries of a list */
+  --stage-space-pair: 32px; /* a text and the one it belongs to: a kicker and its title */
+  --stage-space-block: 48px; /* the blocks of a slide: its headline and its body */
+  --stage-space-column: 64px; /* columns side by side */
+  --stage-space-group: 96px; /* groups that stand apart: stats side by side */
 
   /* Focus: what isn't the point right now. */
   --stage-opacity-dim: 0.25;

@@ -33,12 +33,12 @@
     inset: var(--stage-margin-top) var(--stage-margin-x) var(--stage-margin-bottom);
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 48px 32px;
+    gap: var(--stage-space-block) var(--stage-gutter);
     align-content: center;
   }
   .swatch {
     display: grid;
-    gap: 16px;
+    gap: var(--stage-space-item);
     color: var(--stage-muted);
   }
   .swatch .chip {

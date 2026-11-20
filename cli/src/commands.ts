@@ -618,6 +618,8 @@ export async function push(out: Output, args: Args) {
         : result.page.length
           ? `Nothing to push, but the deck changed since this copy's version: run \`tobos pull\`. Live at ${url}`
           : `Nothing to push: the copy has no changes of its own. Live at ${url}`,
+      // The check's warnings, which it took the version with: said to whoever pushed it.
+      result.pushed ? formatProblems(result.problems as Problem[]) : '',
       saidPage(result.page),
     ]
       .filter(Boolean)
@@ -631,9 +633,14 @@ export async function push(out: Output, args: Args) {
  */
 async function pushIfChanged(out: Output, id: string, message?: string) {
   const found = findCopy();
-  if (!found?.base || found.base.deck !== id) return { pushed: false, uploaded: [] as string[] };
-  const { pushed, uploaded } = await pushCopy(out, found as Copy, message);
-  return { pushed, uploaded };
+  if (!found?.base || found.base.deck !== id)
+    return { pushed: false, uploaded: [] as string[], problems: [] as Problem[] };
+  const { pushed, uploaded, ...rest } = await pushCopy(out, found as Copy, message);
+  // The check's warnings, which it took the version with: said here, as a `check` after it finds
+  // the copy unchanged and says nothing.
+  const problems = ('problems' in rest ? rest.problems : []) as Problem[];
+  if (problems.length) out.note(formatProblems(problems));
+  return { pushed, uploaded, problems };
 }
 
 // ─── The outline ────────────────────────────────────────────────────────────
@@ -819,11 +826,11 @@ export async function open(out: Output, args: Args) {
   const position = args.positionals[0];
   if (!position && typeof args.values.deck !== 'string' && !findCopy()?.base) return openApp(out);
   const id = await deckId(args);
-  const { pushed } = await pushIfChanged(out, id);
+  const { pushed, problems } = await pushIfChanged(out, id);
   const url = `${settings().server}/${id}`;
   const full = position ? `${url}#${position}` : url;
   const opened = !args.values.print && (await openUrl(full));
-  out.result({ url: full, opened, pushed }, () => full);
+  out.result({ url: full, opened, pushed, problems }, () => full);
 }
 
 /** Outside a deck: the person's decks, in Tobos, where they log in at /login if they aren't. */
@@ -846,7 +853,11 @@ export async function render(out: Output, args: Args) {
   const deck = copy?.base ? { id: copy.base.deck, root: copy.root } : undefined;
   const id = typeof args.values.deck === 'string' ? parseId(args.values.deck) : deck?.id;
   if (!id) throw new CliError('Run this inside a deck you pulled, or pass --deck <id>.');
-  const { pushed, uploaded } = await pushIfChanged(out, id, args.values.message as string);
+  const { pushed, uploaded, problems } = await pushIfChanged(
+    out,
+    id,
+    args.values.message as string,
+  );
   const view = await renderView(id);
   const { url } = view;
   const rev = view.rev ?? undefined;
@@ -881,7 +892,7 @@ export async function render(out: Output, args: Args) {
     scale: Number(args.values.scale ?? 1),
     note: (m) => out.note(m),
   });
-  out.result({ rev, pushed, uploaded, files, errors }, () =>
+  out.result({ rev, pushed, uploaded, problems, files, errors }, () =>
     files
       .map(
         (f) =>

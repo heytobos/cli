@@ -377,6 +377,8 @@ Tobos checks every version before it lands, and refuses one that fails. It check
 | `motion/timer`                                                 | warning          | `setTimeout`, `setInterval`, `requestAnimationFrame`: they run on their own clock, which the position can't recreate                                                         |
 | `motion/on-mount`                                              | warning          | GSAP animation started in `onMount`, which plays even when the scene is mounted ahead, out of sight                                                                          |
 | `motion/loop`                                                  | warning          | `repeat: -1` and CSS animations that run for ever: a beat's `loop` repeats one round instead (see [Loops](#loops))                                                           |
+| `theme/colour`, `theme/font`                                   | warning          | in a deck that follows a theme, a colour or font family written by hand where `master/tokens.css` has tokens for it, each named once a file (see [The master](#the-master))  |
+| `theme/size`, `theme/spacing`                                  | warning          | the same for type sizes (as `master/min-font-size` reads them) and spacings (margin, padding, gap, inset in px or rem), counted once a file                                  |
 
 The viewer keeps a connection open to follow new versions, so a browser test that waits for the network to go idle never finishes; wait for the page's `load` event instead.
 
@@ -388,7 +390,7 @@ The viewer keeps a connection open to follow new versions, so a browser test tha
 master/index.ts       what scenes import: `import { Title, Content } from '../master/index.ts'`
 master/layouts/       layouts: Svelte components that fill the 1920×1080 stage
 master/components/    components scenes put inside a layout
-master/tokens.css     colours, fonts, sizes, as CSS variables; the deck's one stylesheet
+master/tokens.css     colours, fonts, type sizes, spacing, as CSS variables; the deck's one stylesheet
 master/master.json    the rules the check enforces: {"rules": {"minFontSize": 28, "layoutRoot": true}}
 master/GUIDE.md       how to use it, for agents: every layout, component and rule
 media/master/         the master's own files: its fonts, a logo (media like any other)
@@ -397,6 +399,7 @@ media/master/         the master's own files: its fonts, a logo (media like any 
 - Change the master when the deck needs something it doesn't have, and write the change down in `master/GUIDE.md`.
 - `tokens.css` is linked on every page that shows the deck. Its `url()`s name files in `media/`, relative to `master/`: `src: url(../media/master/fonts/brand.woff2)`. Nothing else in the deck may be a stylesheet; a component's own CSS goes in its `<style>` block.
 - A file the master's components show, such as a logo, is media: `import logo from '$media/master/logo.svg'`.
+- `tokens.css` names the deck's values on `:root`: its colours, its font stacks, a type scale (`--…size…`) and a spacing scale, each named for what it is for, not for its value. Write `var(--…)` rather than the value: a token changes when the theme does, a value written by hand stays as it is. Deviating is allowed, and named: in a deck that follows a theme (it has `theme.json`), the check warns where the deck's own files write a colour, a font, a type size or a spacing by hand, in a `<style>`, a `style` attribute or `style:` directive, or SVG's `fill`, `stroke` or `font-family` (`theme/…`, under Checks), and never refuses it. Its own files are its scenes, `lib/`, and each master file it changed or added since `theme.json` recorded it; a master file kept as the theme had it is the theme's.
 - `master.json`'s rules apply to every scene. Both are optional: without them, nothing is checked beyond the format.
 
 ## Starting from another deck

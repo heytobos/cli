@@ -14,6 +14,7 @@ Tobos Present hosts presentations written as code: a deck is a folder of files, 
 - `tobos ls` lists the decks the person can work on, by id. `tobos pull <id>` gets one; `tobos new "Title"` starts one and pulls it.
 - A new deck starts from Tobos standard's design. The person's own house styles are decks in `tobos ls`: start from one with `--from <id>`, which copies its master, and ask which when there are several.
 - Then read the deck's `AGENTS.md`: it points to the loop, the format and the deck's slide master.
+- Write colours, fonts, type sizes and spacing as the master's tokens, `var(--stage-…)`, so they follow the deck's theme. One written by hand is allowed, and the check names it in a warning: keep it only where the slide needs it.
 - The deck's outline, its chapters and scenes in order, their titles and which are hidden, isn't a file: Tobos holds it, and `tobos outline` shows and changes it, live at once. A new scene's file shows nowhere until `tobos outline place <scene>` puts it in. deck.json lists only the npm packages.
 - A deck has no chapters, or every scene is in one. Its first chapter, `tobos outline chapter add <id> "Title"`, takes every scene; add the others after it, and move scenes in. Make a chapter's id six random lowercase letters and digits, starting with a letter (`k7gh02`): its title is what the slides show. `tobos outline chapter remove --all` takes every chapter out, the scenes staying in order.
 - The person's decks are in folders, which `tobos --help` lists the commands for.

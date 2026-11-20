@@ -2,6 +2,7 @@ import { parse as parseJs } from 'acorn';
 import { parse as parseSvelte } from 'svelte/compiler';
 import { walk } from 'zimmerframe';
 import { TEXT_MAX } from './activity.ts';
+import { coloursIn, familyIn, spacingsIn } from './css-values.ts';
 import { isGlob, literalText, MEDIA } from './media-imports.ts';
 import { position } from './tree.ts';
 import type { Activity, Problem, TextField } from './types.ts';
@@ -41,7 +42,20 @@ export interface Analysis {
   takes?: Take[];
   /** What the file exports, if it could be read. */
   exports?: Exports;
+  /** The values it writes by hand where a theme has tokens (deviations.ts), if it is Svelte. */
+  written?: Written[];
   problems: Problem[];
+}
+
+/**
+ * A value a file writes by hand, of a kind a theme names in tokens: a colour, a font family, a
+ * type size, or a spacing, which is the whole declaration (`gap: 96px`).
+ */
+export interface Written {
+  kind: 'colour' | 'font' | 'size' | 'spacing';
+  value: string;
+  line: number;
+  column: number;
 }
 
 /** An import or a re-export that takes names from a module: `default` for a default import. */
@@ -785,25 +799,134 @@ function proseOf(ast: ReturnType<typeof parseSvelte>): { start: number; end: num
   return prose;
 }
 
+/** The font sizes code writes in px or rem, in each form SIZES reads, each once. */
+function fontSizesIn(code: string): Size[] {
+  const seen = new Set<number>();
+  return SIZES.flatMap((sizes) => sizes(code)).filter(
+    (match) => !seen.has(match.index) && seen.add(match.index),
+  );
+}
+
 function readFontSizes(file: string, source: string, rules: Rules, problems: Problem[]) {
   const floor = rules.minFontSize;
   if (!floor) return;
-  const seen = new Set<number>();
-  for (const sizes of SIZES)
-    for (const match of sizes(source)) {
-      if (seen.has(match.index)) continue;
-      seen.add(match.index);
-      // rem is relative to the page's 16px, not the stage's body size.
-      const size = Number(match.value) * (match.unit === 'rem' ? 16 : 1);
-      if (size < floor)
-        problems.push({
-          file,
-          ...position(source, match.index),
-          rule: 'master/min-font-size',
-          message: `${size}px is below the master's smallest stage size, ${floor}px. It won't be readable from the back of the room.`,
-          severity: 'error',
-        });
+  for (const match of fontSizesIn(source)) {
+    // rem is relative to the page's 16px, not the stage's body size.
+    const size = Number(match.value) * (match.unit === 'rem' ? 16 : 1);
+    if (size < floor)
+      problems.push({
+        file,
+        ...position(source, match.index),
+        rule: 'master/min-font-size',
+        message: `${size}px is below the master's smallest stage size, ${floor}px. It won't be readable from the back of the room.`,
+        severity: 'error',
+      });
+  }
+}
+
+/** SVG's attributes that take a colour or a font family, as CSS's properties of their names do. */
+const PRESENTATION = new Set([
+  'fill',
+  'stroke',
+  'stop-color',
+  'flood-color',
+  'lighting-color',
+  'color',
+  'font-family',
+]);
+
+/**
+ * The values a Svelte file writes by hand of the kinds a theme has tokens for: in its <style>,
+ * its `style` attributes and `style:` directives, and SVG's colour and font attributes, which
+ * Svelte's parser reads; and its font sizes, read as master/min-font-size reads them. `code` is
+ * the source with its prose blanked (codeOnly).
+ */
+function readWritten(source: string, code: string, ast: ReturnType<typeof parseSvelte>): Written[] {
+  const written: Written[] = fontSizesIn(code).map((match) => ({
+    kind: 'size',
+    value: `${match.value}${match.unit ?? 'px'}`,
+    ...position(source, match.index),
+  }));
+  const declared = (property: string, value: string, index: number) => {
+    const at = position(source, index);
+    for (const colour of coloursIn(property, value))
+      written.push({ kind: 'colour', value: colour, ...at });
+    const family = familyIn(property, value);
+    if (family) written.push({ kind: 'font', value: family, ...at });
+    if (spacingsIn(property, value).length)
+      written.push({ kind: 'spacing', value: `${property}: ${value.trim()}`, ...at });
+  };
+  /**
+   * An attribute's parts written as text, with where each starts: its text, and each expression
+   * that is a string, `{'#8c3a27'}` or `{`32px`}`.
+   */
+  const nodes = (value: unknown): Node[] =>
+    Array.isArray(value) ? (value as Node[]) : value && value !== true ? [value as Node] : [];
+  const parts = (value: unknown): { text: string; start: number }[] =>
+    nodes(value).flatMap((part) => {
+      if (part.type === 'Text') return [{ text: part.raw as string, start: part.start }];
+      const expression = part.type === 'ExpressionTag' ? (part.expression as Node) : undefined;
+      const text = literalText(expression);
+      return text === undefined ? [] : [{ text, start: expression!.start + 1 }];
+    });
+  /**
+   * A `style` attribute's value as one text, its declarations whole however its parts are written:
+   * an expression that is a string as that string, any other as a variable, which nothing reads;
+   * and where in the source each place in it is.
+   */
+  const stream = (value: unknown) => {
+    let text = '';
+    const at: { from: number; start: number }[] = [];
+    for (const part of nodes(value)) {
+      const expression = part.type === 'ExpressionTag' ? (part.expression as Node) : undefined;
+      const literal = literalText(expression);
+      const start = literal === undefined ? part.start : expression!.start + 1;
+      at.push({ from: text.length, start });
+      text += part.type === 'Text' ? (part.raw as string) : (literal ?? 'var(--)');
     }
+    const source = (index: number) => {
+      const part = at.findLast((p) => p.from <= index) ?? { from: 0, start: 0 };
+      return part.start + index - part.from;
+    };
+    return { text, source };
+  };
+  /** An attribute's value, if it is one part written as text. */
+  const text = (value: unknown) => {
+    const all = parts(value);
+    return all.length === 1 && (!Array.isArray(value) || value.length === 1) ? all[0] : undefined;
+  };
+  const modern = ast as unknown as { fragment: Node; css?: Node | null };
+  if (modern.css)
+    walk(modern.css, null, {
+      Declaration(node) {
+        declared(node.property as string, node.value as string, node.start);
+      },
+    });
+  walk(modern.fragment, null, {
+    Attribute(node, { next }) {
+      const name = (node.name as string).toLowerCase();
+      const value = text(node.value);
+      if (name === 'style') {
+        // `style="color: #8c3a27; font-size: {size}px"`: each declaration of its text.
+        const { text: css, source } = stream(node.value);
+        let offset = 0;
+        for (const declaration of css.split(';')) {
+          const colon = declaration.indexOf(':');
+          const property = declaration.slice(0, colon).trim();
+          if (colon > 0 && /^-?-?[a-z][\w-]*$/i.test(property))
+            declared(property, declaration.slice(colon + 1), source(offset + colon + 1));
+          offset += declaration.length + 1;
+        }
+      } else if (PRESENTATION.has(name) && value) declared(name, value.text, value.start);
+      next();
+    },
+    StyleDirective(node, { next }) {
+      const value = text(node.value);
+      if (value) declared(node.name as string, value.text, node.start);
+      next();
+    },
+  });
+  return written.sort((a, b) => a.line - b.line || a.column - b.column);
 }
 
 const TIMERS = new Set(['setTimeout', 'setInterval', 'requestAnimationFrame']);
@@ -1136,6 +1259,12 @@ export function analyzeSvelte(
   const code = codeOnly(source, proseOf(ast));
   readFontSizes(file, code, rules, problems);
   readBehaviour(file, code, ast, problems);
+  // Read for warnings alone (deviations.ts), so a file they can't be read from refuses nothing.
+  try {
+    result.written = readWritten(source, code, ast);
+  } catch {
+    result.written = [];
+  }
   // A component exports itself, and what its module script exports; the instance script's
   // exports are the component's own, not the file's.
   const script = ast.module?.content as unknown as Node | undefined;

@@ -8,6 +8,7 @@ import {
   type Rules,
 } from './analyze.ts';
 import { ID, parseDeckJson, parseMasterJson, parseMediaJson } from './deck-json.ts';
+import { deviationsOf } from './deviations.ts';
 import { sha256 } from './hash.ts';
 import { compileMedia, MEDIA } from './media-imports.ts';
 import { globMatcher } from './media-pattern.ts';
@@ -658,6 +659,14 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
         severity: 'error',
       });
   }
+
+  // What the deck's own files write by hand where its theme has tokens: warnings, never a refusal.
+  problems.push(
+    ...deviationsOf(
+      tree,
+      new Map([...graph.compiled].map(([path, file]) => [path, file.analysis.written ?? []])),
+    ),
+  );
 
   // Unless media.json itself is broken, as for the imports above.
   const stylesheet = masterStylesheet(tree, media, mediaProblems.length ? [] : problems);

@@ -8,7 +8,7 @@
 </script>
 
 <Content headline="Four tones">
-  <div style="display:flex;gap:16px">
+  <div style="display:flex;gap:var(--stage-space-item)">
     <Chip>soft</Chip><Chip tone="outline">outline</Chip><Chip tone="ink">ink</Chip><Chip
       tone="highlight">highlight</Chip
     >
