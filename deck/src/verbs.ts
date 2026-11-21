@@ -49,6 +49,17 @@ const CHANGESET_SCHEMA = {
       description:
         'A theme’s write only: publishes the version it lands, or the theme’s latest if `files` is empty, to the decks that follow the theme, with this one-line note of what changed ("New logo, and a warmer accent"). Each deck’s owner is then offered it. A version is published once.',
     },
+    follow: {
+      type: 'object',
+      description:
+        'A deck’s write: the deck follows this theme, at `version` or its newest published, its design merged by Tobos file by file with the theme’s, its own changes kept, with the write’s files on top; `base` must be its latest version. With `dry`, a preview, kept a day for its owner to `read` and `render` by its `rev`. `outline`: the outline’s version a comparison was made on, refused as a conflict if it, or the theme’s newest version, moved on. Going back is a follow of an earlier `version`.',
+      properties: {
+        theme: { type: 'string' },
+        version: { type: 'string' },
+        outline: { type: 'integer' },
+      },
+      required: ['theme'],
+    },
     dry: {
       type: 'boolean',
       description:
@@ -150,6 +161,14 @@ export const VERBS = {
       {
         usage: 'tobos check [--types]',
         does: 'the same, dry: the server’s check, nothing saved; --types adds TypeScript’s view, here',
+      },
+      {
+        usage: 'tobos check --follow <theme> [--version <rev>]',
+        does: 'the deck following that theme (its newest version, or one it published), dry: what comes from it and what stays the deck’s own, and a preview to render',
+      },
+      {
+        usage: 'tobos push --follow <theme> [--version <rev>]',
+        does: 'the deck follows it, with the copy’s changes on top; an earlier --version goes back',
       },
       {
         usage: 'tobos outline <op> …',

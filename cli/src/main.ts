@@ -58,6 +58,7 @@ from anywhere)
   tobos render scene/beat | scene | --all     PNGs of beats, for you to look at
          [--film] [--frames 6] [--out dir]    --film: frames through the animation
          [--scale 2] [-m "what changed"]      --scale: pixels per stage pixel; -m: for the push
+         [--rev <rev>]                        a version as it is, such as a follow's preview
   tobos open [scene/beat] [--print]           the deck's page in a browser, where the person
                                               presents it; --print: print the URL only, open nothing
   tobos open                                  outside a deck: the person's decks, in Tobos
@@ -128,10 +129,22 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
       all: { type: 'boolean' },
     },
   },
-  check: { run: commands.check, options: { types: { type: 'boolean' } } },
+  check: {
+    run: commands.check,
+    options: {
+      types: { type: 'boolean' },
+      follow: { type: 'string' },
+      version: { type: 'string' },
+    },
+  },
   push: {
     run: commands.push,
-    options: { message: { type: 'string', short: 'm' }, publish: { type: 'string' } },
+    options: {
+      message: { type: 'string', short: 'm' },
+      publish: { type: 'string' },
+      follow: { type: 'string' },
+      version: { type: 'string' },
+    },
   },
   open: {
     run: commands.open,
@@ -178,6 +191,7 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
       scale: { type: 'string' },
       deck: { type: 'string' },
       message: { type: 'string', short: 'm' },
+      rev: { type: 'string' },
     },
   },
 };

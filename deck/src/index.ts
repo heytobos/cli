@@ -39,6 +39,8 @@ export {
   parseLookRecord,
 } from './look.ts';
 export type { LookRecord } from './look.ts';
+export { planFollow, usedFromScenes } from './follow.ts';
+export type { DeckDesign, FollowPlan } from './follow.ts';
 export { isSafePath, memoryTree, readText } from './tree.ts';
 export { sha256 } from './hash.ts';
 export { activitiesOf, openActivity, TEXT_MAX } from './activity.ts';

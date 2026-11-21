@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import type { Problem } from '@tobos/deck';
@@ -18,6 +18,8 @@ import {
   writeCopy,
   type Base,
   type Copy,
+  type FollowAsked,
+  type Followed,
   type Published,
 } from './copy.ts';
 import { sizeNote } from './media.ts';
@@ -551,18 +553,26 @@ function noteSizes(out: Output, root: string, paths: string[]) {
 export async function check(out: Output, args: Args) {
   const copy = requireCopy(args.positionals[0]);
   const started = performance.now();
+  const follow = followAsked(args);
   // Nothing changed: the version pulled passed the check when it landed, so there is nothing to ask.
-  const unchanged = changesOf(copy).length === 0;
-  const written = unchanged
-    ? { problems: [] }
-    : await writeCopy(copy, 'Checked', { dry: true, note: (m) => out.note(m) }).catch(
-        (error: unknown) => {
+  const unchanged = changesOf(copy).length === 0 && !follow;
+  const written: { problems: unknown[]; refused?: boolean; rev?: string; followed?: Followed } =
+    unchanged
+      ? { problems: [] }
+      : await writeCopy(copy, 'Checked', {
+          dry: true,
+          note: (m) => out.note(m),
+          ...(follow ? { with: { follow } } : {}),
+        }).catch((error: unknown) => {
           // The check's errors are its answer, not a failure of the command.
           if (error instanceof CliError && error.exit === EXIT.problems)
-            return { problems: (error.extra.problems ?? []) as Problem[], refused: true };
+            return {
+              problems: (error.extra.problems ?? []) as Problem[],
+              refused: true,
+              followed: error.extra.followed as Followed | undefined,
+            };
           throw error;
-        },
-      );
+        });
   const problems = [...(written.problems as Problem[])];
   if (args.values.types) {
     const { checkTypes } = await import('./types.ts');
@@ -570,20 +580,34 @@ export async function check(out: Output, args: Args) {
   }
   const { errors, warnings } = problemSummary(problems);
   const ms = Math.round(performance.now() - started);
-  out.result({ ok: errors === 0, changed: !unchanged, errors, warnings, problems, ms }, () =>
-    [
-      unchanged
-        ? 'Nothing changed in the copy: the version it is of passed the check when it landed.'
-        : '',
-      formatProblems(problems),
-      errors === 0
-        ? unchanged
-          ? ''
-          : `✓ The check takes it${warnings ? `, with ${plural(warnings, 'warning')}` : ''} (${ms} ms)`
-        : `✗ ${plural(errors, 'error')}${warnings ? `, ${plural(warnings, 'warning')}` : ''}`,
-    ]
-      .filter(Boolean)
-      .join('\n'),
+  const followed = written.followed;
+  // What was compared, which `push --follow` accepts: its version and the outline's (D9).
+  if (follow && followed) remember(copy.root, follow.theme, followed, copy.base.rev);
+  out.result(
+    {
+      ok: errors === 0,
+      changed: !unchanged,
+      errors,
+      warnings,
+      problems,
+      ms,
+      ...(followed ? { followed, ...(errors === 0 ? { preview: written.rev } : {}) } : {}),
+    },
+    () =>
+      [
+        unchanged
+          ? 'Nothing changed in the copy: the version it is of passed the check when it landed.'
+          : '',
+        followed ? saidFollowed(followed, errors === 0 ? written.rev : undefined) : '',
+        formatProblems(problems),
+        errors === 0
+          ? unchanged
+            ? ''
+            : `✓ The check takes it${warnings ? `, with ${plural(warnings, 'warning')}` : ''} (${ms} ms)`
+          : `✗ ${plural(errors, 'error')}${warnings ? `, ${plural(warnings, 'warning')}` : ''}`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
   );
   if (errors > 0) process.exitCode = EXIT.problems;
 }
@@ -596,10 +620,10 @@ async function pushCopy(
   out: Output,
   copy: Copy,
   message?: string,
-  more: { publish?: string } = {},
+  more: { publish?: string; follow?: FollowAsked } = {},
 ) {
   const changes = changesOf(copy);
-  if (changes.length === 0 && more.publish === undefined)
+  if (changes.length === 0 && more.publish === undefined && more.follow === undefined)
     return { pushed: false as const, rev: copy.base.rev, uploaded: [], page: [] as PageChange[] };
   noteSizes(
     out,
@@ -638,6 +662,8 @@ async function pushCopy(
     uploaded: written.uploaded,
     problems: written.problems,
     ...(written.published ? { published: written.published } : {}),
+    ...(written.followed ? { followed: written.followed } : {}),
+    ...(written.update ? { update: written.update } : {}),
     // What changed that the copy didn't make, on the page or by Tobos, since its version.
     page: await pageChanges(out, copy.root, copy.base, written.rev),
   };
@@ -649,8 +675,10 @@ export async function push(out: Output, args: Args) {
   if (publish !== undefined && (typeof publish !== 'string' || !publish.trim()))
     throw new CliError('--publish takes a one-line note: `tobos push --publish "New logo"`.');
   const sent = changesOf(copy).length;
+  const follow = compared(copy.root, copy.base.rev, followAsked(args));
   const pushed = await pushCopy(out, copy, args.values.message as string | undefined, {
     ...(typeof publish === 'string' ? { publish } : {}),
+    ...(follow ? { follow } : {}),
   });
   // Nothing to push, the page may still have changed since the copy's version: pull takes it.
   const result = pushed.pushed
@@ -658,6 +686,9 @@ export async function push(out: Output, args: Args) {
     : { ...pushed, page: await pageChanges(out, copy.root, copy.base) };
   const url = `${copy.base.server}/${copy.base.deck}`;
   const published = 'published' in result ? result.published : undefined;
+  const followed = 'followed' in result ? result.followed : undefined;
+  if (followed) rmSync(join(copy.root, COMPARED), { force: true });
+  const update = 'update' in result ? result.update : undefined;
   out.result({ ...result, url }, () =>
     [
       result.pushed
@@ -670,11 +701,107 @@ export async function push(out: Output, args: Args) {
       // The check's warnings, which it took the version with: said to whoever pushed it.
       result.pushed ? formatProblems(result.problems as Problem[]) : '',
       published ? `✓ Published ${saidPublished(published)}` : '',
+      followed ? saidFollowed(followed) : '',
+      // Once, after the task: the person decides, having seen the comparison (ADR 0010, D8).
+      update
+        ? `${update.theme}, this deck's theme, has a newer version (${update.version.slice(0, 7)}): ${update.notes.join('; ')}. Tell the person once, after this task, with ${update.url}, where they compare it and update; \`tobos check --follow "${update.theme}"\` makes the comparison here.`
+        : '',
       saidPage(result.page),
     ]
       .filter(Boolean)
       .join('\n'),
   );
+}
+
+/** Where a copy keeps its last comparison with a theme (`check --follow`), for `push --follow`. */
+const COMPARED = join('.tobos', 'follow.json');
+
+/**
+ * A comparison kept: the theme as it was named, and by its id, and what it compared: the deck's
+ * version, the theme's and the outline's.
+ */
+function remember(root: string, named: string, followed: Followed, base: string | null) {
+  mkdirSync(join(root, '.tobos'), { recursive: true });
+  writeFileSync(
+    join(root, COMPARED),
+    JSON.stringify({
+      named,
+      theme: followed.theme,
+      base,
+      version: followed.version,
+      outline: followed.outline,
+    }) + '\n',
+  );
+}
+
+/**
+ * A follow with what its comparison compared: `push --follow` of the theme `check --follow` named,
+ * by that name or by its id, with no `--version`, accepts that version on that outline, refused if either moved on since.
+ */
+function compared(
+  root: string,
+  base: string | null,
+  follow: FollowAsked | undefined,
+): FollowAsked | undefined {
+  if (!follow || follow.version !== undefined) return follow;
+  let kept: {
+    named?: string;
+    theme?: string;
+    base?: string | null;
+    version?: string;
+    outline?: number;
+  } = {};
+  try {
+    kept = JSON.parse(readFileSync(join(root, COMPARED), 'utf8'));
+  } catch {
+    return follow;
+  }
+  const same = kept.named === follow.theme || kept.theme === follow.theme;
+  if (!same || !kept.version || kept.outline === undefined) return follow;
+  // The deck changed since it was compared, by a pull or a push: what it would land isn't that.
+  if (kept.base !== base)
+    throw new CliError(
+      `The deck changed since \`tobos check --follow ${follow.theme}\` compared it: compare again, then push.`,
+    );
+  return { ...follow, version: kept.version, outline: kept.outline };
+}
+
+/** What `--follow` and `--version` ask of a write (ADR 0010, D9), if anything. */
+function followAsked(args: Args): FollowAsked | undefined {
+  const { follow, version } = args.values;
+  if (follow === undefined) {
+    if (version !== undefined) throw new CliError('--version names a version of --follow’s theme.');
+    return undefined;
+  }
+  if (typeof follow !== 'string' || !follow.trim())
+    throw new CliError(
+      '--follow names a theme, by its name or id: `tobos check --follow Synthesion`.',
+    );
+  if (version !== undefined && (typeof version !== 'string' || !/^[0-9a-f]{7,40}$/.test(version)))
+    throw new CliError(
+      '--version is a version the theme published, by its hash: `--version c41e9a0`.',
+    );
+  return { theme: follow, ...(typeof version === 'string' ? { version } : {}) };
+}
+
+/**
+ * A follow as the CLI says it: the theme and version, what came from it and what stays the deck's
+ * own; a preview's version to read or render; and, refused, the words for later.
+ */
+function saidFollowed(followed: Followed, preview?: string): string {
+  const said = (what: string, keys: string[]) =>
+    keys.length ? `\n  ${what}: ${keys.join(', ')}` : '';
+  return [
+    `${preview ? 'Following' : '✓ Follows'} ${followed.name} ${followed.version.slice(0, 7)}`,
+    said('from the theme', [...followed.replaced, ...followed.added]),
+    said('the deck’s own, kept', followed.kept),
+    said('new in the theme, where the deck has its own, kept', followed.clashes),
+    said('gone from the theme, removed', followed.gone),
+    preview
+      ? `\n  Its preview is version ${preview}: read or render it with --rev, or \`tobos push --follow ${followed.theme}\` to take it.`
+      : '',
+    followed.words ? `\n  ${followed.words}` : '',
+  ].join('');
 }
 
 /**
@@ -865,12 +992,12 @@ export async function outline(out: Output, args: Args) {
  * What `tobos render` draws from: a renderer's link to the deck's latest push, the only link the
  * API makes (TOB-404), its revision and its scenes.
  */
-async function renderView(id: string) {
+async function renderView(id: string, rev?: string) {
   return api<{
     url: string;
     rev: string | null;
     scenes: DeckInfo['scenes'];
-  }>(`/api/decks/${id}/view`, { body: { view: 'render' } });
+  }>(`/api/decks/${id}/view`, { body: { view: 'render', ...(rev ? { rev } : {}) } });
 }
 
 /** The deck a command is about: `--deck <id>`, or the working copy's. */
@@ -914,12 +1041,13 @@ export async function render(out: Output, args: Args) {
   const deck = copy?.base ? { id: copy.base.deck, root: copy.root } : undefined;
   const id = typeof args.values.deck === 'string' ? parseId(args.values.deck) : deck?.id;
   if (!id) throw new CliError('Run this inside a deck you pulled, or pass --deck <id>.');
-  const { pushed, uploaded, problems } = await pushIfChanged(
-    out,
-    id,
-    args.values.message as string,
-  );
-  const view = await renderView(id);
+  // A version named, such as a follow's preview (ADR 0010, D9): drawn as it is, nothing pushed.
+  const asked = typeof args.values.rev === 'string' ? args.values.rev.trim() : undefined;
+  if (asked === '') throw new CliError('--rev takes a version: `tobos render --rev <rev>`.');
+  const { pushed, uploaded, problems } = asked
+    ? { pushed: false, uploaded: [] as string[], problems: [] }
+    : await pushIfChanged(out, id, args.values.message as string);
+  const view = await renderView(id, asked);
   const { url } = view;
   const rev = view.rev ?? undefined;
 

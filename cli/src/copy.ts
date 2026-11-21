@@ -347,6 +347,36 @@ export interface Written {
   problems: { severity: string; file?: string; message: string }[];
   /** The version a theme's write published (ADR 0010, D5). */
   published?: Published;
+  /** A deck's follow of a theme (ADR 0010, D9). */
+  followed?: Followed;
+  /** A newer version of the deck's theme its owner is offered (ADR 0010, D8). */
+  update?: { theme: string; version: string; publishedAt: string; notes: string[]; url: string };
+}
+
+/** What a follow asks (ADR 0010, D9): a theme, by its name or id, and a version of it. */
+export interface FollowAsked {
+  theme: string;
+  version?: string;
+  /** The outline's version compared: accepting refuses if it moved on (D9). */
+  outline?: number;
+}
+
+/** A follow made, or previewed, as the server says it: what came from the theme, what stayed. */
+export interface Followed {
+  theme: string;
+  name: string;
+  version: string;
+  publishedAt: string;
+  replaced: string[];
+  added: string[];
+  kept: string[];
+  clashes: string[];
+  gone: string[];
+  /** The outline's version it was made on. */
+  outline?: number;
+  /** Refused by the check: the scenes that can't load, and the words for the AI. */
+  scenes?: string[];
+  words?: string;
 }
 
 /** A version of a theme published to its decks, as the server says it. */
@@ -462,6 +492,7 @@ export async function writeCopy(
         {
           problems: data.problems,
           status: response.status,
+          ...(data.followed ? { followed: data.followed } : {}),
         },
       );
     throw failure(response, data);
