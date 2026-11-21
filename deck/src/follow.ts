@@ -44,7 +44,7 @@ export interface FollowPlan {
   /** By key (`master/…`, `media/master/…`, `package:<name>`): the theme's, put in. */
   replaced: string[];
   added: string[];
-  /** The deck's own changes, kept whatever the theme did with them. */
+  /** The deck's own changes, kept whatever the theme did with them, a deletion among them. */
   kept: string[];
   /** New in the theme where the deck has a file of its own, which it keeps. */
   clashes: string[];
@@ -139,6 +139,7 @@ export function planFollow(
       else next.files[key] = r;
     }
     // Deleted by the deck, and still the theme's: it stays deleted, as the record says.
+    if (d === undefined && r !== undefined) plan.kept.push(key);
   }
   next.files = sortedEntries(next.files);
   next.packages = sortedEntries(next.packages);
@@ -159,16 +160,45 @@ const CODE = /\.(svelte|ts|js|mjs|json)$/;
 /**
  * Whether a deck's scenes use a design file, as its files say it, by key: a file its scenes reach
  * through their imports, from `scenes/` (and tokens.css, which every page links), by path; media
- * they import, link or glob (`media/master/…`); a package they import (`package:<name>`). Read from the text, not
- * compiled: what a module imports by a name made at run time it doesn't see, so a file gone from a
- * theme that something reaches only so is taken for unused.
+ * they import, link or glob (`media/master/…`); a package they import (`package:<name>`). Read from
+ * the text, not compiled: what a module imports by a name made at run time it doesn't see, so a
+ * file gone from a theme that something reaches only so is taken for unused.
  */
 export function usedFromScenes(files: Map<string, Uint8Array>): (key: string) => boolean {
+  return reachedFrom(
+    files,
+    [...files.keys()].filter(
+      (path) => (path.startsWith('scenes/') && CODE.test(path)) || path === 'master/tokens.css',
+    ),
+  );
+}
+
+/**
+ * The scenes of a deck whose look a change of these design files may change, by id (ADR 0010,
+ * D7): each that reaches one of `changed` (keys as FollowPlan has them), and every one when the
+ * stylesheet every page links, tokens.css, or a file it imports or links changes. Read as usedFromScenes reads.
+ */
+export function scenesReaching(files: Map<string, Uint8Array>, changed: string[]): string[] {
+  const scenes = [...files.keys()].flatMap(
+    (path) => /^scenes\/([^/]+)\.svelte$/.exec(path)?.[1] ?? [],
+  );
+  const linked = reachedFrom(files, ['master/tokens.css']);
+  // A package's stylesheet, as tokens.css and all it imports or links, is on every page.
+  if (
+    changed.some((key) => key === 'master/tokens.css' || key.startsWith('package:') || linked(key))
+  )
+    return scenes;
+  return scenes.filter((id) => {
+    const reaches = reachedFrom(files, [`scenes/${id}.svelte`]);
+    return changed.some(reaches);
+  });
+}
+
+/** Whether what `roots` reach through their imports and links has a key (usedFromScenes). */
+function reachedFrom(files: Map<string, Uint8Array>, roots: string[]): (key: string) => boolean {
   const used = new Set<string>();
   const globs: ((key: string) => boolean)[] = [];
-  const queue = [...files.keys()].filter(
-    (path) => (path.startsWith('scenes/') && CODE.test(path)) || path === 'master/tokens.css',
-  );
+  const queue = [...roots];
   while (queue.length) {
     const path = queue.pop()!;
     if (used.has(path)) continue;

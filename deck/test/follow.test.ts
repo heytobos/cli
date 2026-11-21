@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { lookRecordOf, planFollow, sha256, usedFromScenes, type DeckDesign } from '../src/index.ts';
+import {
+  lookRecordOf,
+  planFollow,
+  scenesReaching,
+  sha256,
+  usedFromScenes,
+  type DeckDesign,
+} from '../src/index.ts';
 import type { Master } from '../src/master.ts';
 
 const text = (s: string) => new TextEncoder().encode(s);
@@ -195,5 +202,34 @@ describe('what a deck’s scenes use', () => {
   it('leaves out what nothing a scene reaches imports', () => {
     for (const key of ['master/layouts/Old.svelte', 'package:@scope/pkg', 'media/frames/a/1.png'])
       expect(used(key), key).toBe(false);
+  });
+});
+
+describe('the scenes a theme’s change reaches (ADR 0010, D7)', () => {
+  const files = new Map(
+    Object.entries({
+      'scenes/title.svelte': `<script>import { Title } from '../master/index.ts';</script>`,
+      'scenes/chart.svelte': `<script>import Bars from '../lib/Bars.svelte';</script>`,
+      'lib/Bars.svelte': `<div class="bars"></div>`,
+      'master/index.ts': `export { default as Title } from './layouts/Title.svelte';`,
+      'master/layouts/Title.svelte': `<script>import mark from '$media/master/mark.svg';</script>`,
+      'master/tokens.css': `@import './base.css';\n@font-face { src: url(../media/master/fonts/a.woff2) }`,
+      'master/base.css': `body { margin: 0 }`,
+    }).map(([p, t]) => [p, text(t)]),
+  );
+
+  it('are those that reach a changed file, by import or media', () => {
+    expect(scenesReaching(files, ['master/layouts/Title.svelte'])).toEqual(['title']);
+    expect(scenesReaching(files, ['media/master/mark.svg'])).toEqual(['title']);
+    expect(scenesReaching(files, ['master/GUIDE.md'])).toEqual([]);
+  });
+
+  it('are every scene when tokens.css, or what it imports or links, changes', () => {
+    expect(scenesReaching(files, ['master/tokens.css']).sort()).toEqual(['chart', 'title']);
+    expect(scenesReaching(files, ['master/base.css']).sort()).toEqual(['chart', 'title']);
+    expect(scenesReaching(files, ['media/master/fonts/a.woff2']).sort()).toEqual([
+      'chart',
+      'title',
+    ]);
   });
 });
