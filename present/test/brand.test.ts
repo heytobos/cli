@@ -15,3 +15,15 @@ describe("the engine's copies of tobos.ai's colours", () => {
     expect(value(read('../src/phone/phone.css'), '--ink')).toBe(value(brand, '--ink'));
   });
 });
+
+describe("the presenter's faces", () => {
+  it('are asked for by the names the viewer loads them under, whatever the master loads', () => {
+    const css = read('../src/viewer/viewer.css') + read('../src/viewer/Presenter.svelte');
+    const loaded = new Set(
+      [...css.matchAll(/@font-face\s*{[^}]*font-family:\s*'([^']+)'/g)].map((m) => m[1]),
+    );
+    const asked = [...css.matchAll(/(?:font(?:-family)?:)[^;{}]*?'([^']+)'/g)].map((m) => m[1]);
+    expect(asked.length).toBeGreaterThan(0);
+    for (const face of asked) expect(loaded, face).toContain(face);
+  });
+});
