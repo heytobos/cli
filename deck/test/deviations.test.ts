@@ -187,6 +187,21 @@ describe('the linter', () => {
     ]);
   });
 
+  it('reads a size written as a string in braces, and an attribute’s entities decoded', async () => {
+    const { problems } = await buildDeck(
+      deck({
+        'scenes/a.svelte': scene(
+          '<p style="font-size: {\'34px\'}">A</p><svg><rect fill="&#35;aabbcc" /></svg><p style="color: &#35;8c3a27">B</p>',
+        ),
+      }),
+    );
+    expect(theme(problems).map((p) => [p.rule, p.message.split(/ \(| differs|: /)[0]])).toEqual([
+      ['theme/colour', '#aabbcc'],
+      ['theme/colour', '#8c3a27'],
+      ['theme/size', '1 type size written by hand here'],
+    ]);
+  });
+
   it('reads a style attribute’s declarations whole, a string in braces as its value', async () => {
     const { problems } = await buildDeck(
       deck({

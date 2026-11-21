@@ -199,6 +199,22 @@ describe('what a deck’s scenes use', () => {
     expect(globbed('media/three/c.svg')).toBe(false);
   });
 
+  it('reads a stylesheet tokens.css imports by url() for what it links, its path decoded', () => {
+    const chained = usedFromScenes(
+      new Map(
+        Object.entries({
+          'master/tokens.css': `@import url('./font%20styles.css#v1');`,
+          'master/font styles.css': `@font-face { src: url(../media/master/fonts/c%C3%A9.woff2?v=2#iefix), url(../media/master/fonts/bad%zz.woff2) }`,
+        }).map(([p, t]) => [p, text(t)]),
+      ),
+    );
+    expect(chained('master/font styles.css')).toBe(true);
+    expect(chained('media/master/fonts/cé.woff2')).toBe(true);
+    // A malformed escape names the file as written; so does any, as the build looks it up.
+    expect(chained('media/master/fonts/bad%zz.woff2')).toBe(true);
+    expect(chained('media/master/fonts/c%C3%A9.woff2')).toBe(true);
+  });
+
   it('leaves out what nothing a scene reaches imports', () => {
     for (const key of ['master/layouts/Old.svelte', 'package:@scope/pkg', 'media/frames/a/1.png'])
       expect(used(key), key).toBe(false);

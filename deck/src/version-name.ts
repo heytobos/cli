@@ -1,8 +1,9 @@
 /**
  * A theme's version as people see it (ADR 0010, D6). A version is its hash (`rev`) to the CLI, MCP
  * and each deck's record; people see the day it was published, in their own time zone. Where the
- * theme published another version that same day, its time is added, in every place that version is
- * named, so one version always has one name. The year shows when it isn't the current one.
+ * theme published another version that same day, its time is added, and its seconds where another
+ * was published that same minute (and their thousandths, that same second), in every place that version is named, so one version always has
+ * one name, and two versions two. The year shows when it isn't the current one.
  *
  * Pure, for the page and the CLI alike. Versions are ordered by their timestamps, never by these
  * names.
@@ -31,9 +32,14 @@ export function versionName(
 ): string {
   const when = new Date(at);
   const day = dayIn(when, timeZone);
-  const sameDay = published
+  const others = published
     .map((p) => new Date(p))
-    .some((p) => p.getTime() !== when.getTime() && dayIn(p, timeZone) === day);
+    .filter((p) => p.getTime() !== when.getTime() && dayIn(p, timeZone) === day);
+  const sameDay = others.length > 0;
+  const minute = (at: Date) => Math.floor(at.getTime() / 60_000);
+  const sameMinute = others.some((p) => minute(p) === minute(when));
+  const second = (at: Date) => Math.floor(at.getTime() / 1000);
+  const sameSecond = others.some((p) => second(p) === second(when));
   const thisYear = dayIn(now, timeZone).slice(0, 4) === day.slice(0, 4);
   const date = new Intl.DateTimeFormat('en-GB', {
     timeZone,
@@ -46,6 +52,8 @@ export function versionName(
     timeZone,
     hour: '2-digit',
     minute: '2-digit',
+    ...(sameMinute ? { second: '2-digit' as const } : {}),
+    ...(sameSecond ? { fractionalSecondDigits: 3 as const } : {}),
     hourCycle: 'h23',
   }).format(when);
   return `${date}, ${time}`;

@@ -799,6 +799,9 @@ function proseOf(ast: ReturnType<typeof parseSvelte>): { start: number; end: num
   return prose;
 }
 
+/** `font-size: {'40px'}`, in a style attribute: a string in braces as the size. */
+const BRACED_SIZES = sizesOf(/font-size\s*:\s*\{\s*["'`]\s*(\d+(?:\.\d+)?)(px|rem)\s*["'`]\s*\}/g);
+
 /** The font sizes code writes in px or rem, in each form SIZES reads, each once. */
 function fontSizesIn(code: string): Size[] {
   const seen = new Set<number>();
@@ -842,7 +845,9 @@ const PRESENTATION = new Set([
  * the source with its prose blanked (codeOnly).
  */
 function readWritten(source: string, code: string, ast: ReturnType<typeof parseSvelte>): Written[] {
-  const written: Written[] = fontSizesIn(code).map((match) => ({
+  // A size written as a string in braces (`font-size: {'40px'}`) too, which the size floor's forms
+  // don't read: counted here only, as the floor refusing it would refuse what decks hold.
+  const written: Written[] = [...fontSizesIn(code), ...BRACED_SIZES(code)].map((match) => ({
     kind: 'size',
     value: `${match.value}${match.unit ?? 'px'}`,
     ...position(source, match.index),
@@ -864,7 +869,8 @@ function readWritten(source: string, code: string, ast: ReturnType<typeof parseS
     Array.isArray(value) ? (value as Node[]) : value && value !== true ? [value as Node] : [];
   const parts = (value: unknown): { text: string; start: number }[] =>
     nodes(value).flatMap((part) => {
-      if (part.type === 'Text') return [{ text: part.raw as string, start: part.start }];
+      // As the browser reads it, its entities decoded (`&#35;123456`), from where its text starts.
+      if (part.type === 'Text') return [{ text: part.data as string, start: part.start }];
       const expression = part.type === 'ExpressionTag' ? (part.expression as Node) : undefined;
       const text = literalText(expression);
       return text === undefined ? [] : [{ text, start: expression!.start + 1 }];
@@ -876,17 +882,19 @@ function readWritten(source: string, code: string, ast: ReturnType<typeof parseS
    */
   const stream = (value: unknown) => {
     let text = '';
-    const at: { from: number; start: number }[] = [];
+    const at: { from: number; start: number; exact: boolean }[] = [];
     for (const part of nodes(value)) {
       const expression = part.type === 'ExpressionTag' ? (part.expression as Node) : undefined;
       const literal = literalText(expression);
       const start = literal === undefined ? part.start : expression!.start + 1;
-      at.push({ from: text.length, start });
-      text += part.type === 'Text' ? (part.raw as string) : (literal ?? 'var(--)');
+      // Text with entities, decoded, is shorter than in the source: a place in it is its start.
+      const exact = part.type !== 'Text' || part.data === part.raw;
+      at.push({ from: text.length, start, exact });
+      text += part.type === 'Text' ? (part.data as string) : (literal ?? 'var(--)');
     }
     const source = (index: number) => {
-      const part = at.findLast((p) => p.from <= index) ?? { from: 0, start: 0 };
-      return part.start + index - part.from;
+      const part = at.findLast((p) => p.from <= index) ?? { from: 0, start: 0, exact: true };
+      return part.start + (part.exact ? index - part.from : 0);
     };
     return { text, source };
   };

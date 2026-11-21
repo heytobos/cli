@@ -194,6 +194,25 @@ export function scenesReaching(files: Map<string, Uint8Array>, changed: string[]
   });
 }
 
+/**
+ * A URL's path as the file the browser's request names: each part percent-decoded
+ * (`font%20styles.css`); a part with a malformed escape, or one that would decode
+ * to a separator (`%2F`), as written.
+ */
+function decodedPath(url: string): string {
+  return url
+    .split('/')
+    .map((part) => {
+      try {
+        const decoded = decodeURIComponent(part);
+        return decoded.includes('/') ? part : decoded;
+      } catch {
+        return part;
+      }
+    })
+    .join('/');
+}
+
 /** Whether what `roots` reach through their imports and links has a key (usedFromScenes). */
 function reachedFrom(files: Map<string, Uint8Array>, roots: string[]): (key: string) => boolean {
   const used = new Set<string>();
@@ -218,8 +237,16 @@ function reachedFrom(files: Map<string, Uint8Array>, roots: string[]): (key: str
     const specifiers = [...text.matchAll(IMPORTS)].map((m) => m[1] ?? m[2] ?? m[3]);
     if (path.endsWith('.css'))
       for (const m of text.matchAll(URLS)) {
-        const at = resolvePath(path, m[1] ?? m[2] ?? m[3]!);
-        if (at) used.add(at);
+        // A file by its path: the browser asks for it without its fragment (`#iefix`) and the
+        // server serves it whatever its query (`?v=2`).
+        const url = (m[1] ?? m[2] ?? m[3]!).replace(/[?#].*$/, '');
+        // As written too: the build looks a stylesheet's media up by its name literally.
+        for (const name of new Set([url, decodedPath(url)])) {
+          const at = resolvePath(path, name);
+          // A stylesheet it links (`@import url(…)`) is read for what it links in turn.
+          if (at && at.endsWith('.css') && files.has(at)) queue.push(at);
+          else if (at) used.add(at);
+        }
       }
     for (const specifier of specifiers) {
       if (!specifier) continue;
