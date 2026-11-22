@@ -1,7 +1,8 @@
 /*
- * The Tobos look as tokens: colour, type and motion. tobos.ai uses them, and the app imports this
- * file (`@tobos/site/tokens.css`) so both read the same values. The faces are in fonts/fonts.css.
- * BRAND.md describes the look.
+ * The Tobos look as tokens: colour, type, space, depth, motion and focus. tobos.ai uses them, and
+ * the app imports this file (`@tobos/site/tokens.css`) so both read the same values; the app's
+ * Tailwind names them too (app.css: `text-ui`, `shadow-float`…). The faces are in fonts/fonts.css.
+ * VOICE.md ("The look") describes the look; brand/system/ shows it.
  */
 :root {
   /* Ink, from text down to hairlines */
@@ -19,7 +20,57 @@
   --sans: 'Hanken Grotesk', system-ui, sans-serif;
   --mono: 'Geist Mono', ui-monospace, monospace;
 
-  /* Things arrive on this curve, and reveals take this long */
+  /* Type: six sizes for the product, and the site's two display sizes */
+  --text-label: 10.5px; /* button and tab labels, captions, tags: always capitals */
+  --text-small: 12px; /* meta, hints, notes, counts */
+  --text-ui: 14px; /* the app's text: rows, menus, forms, dialogs */
+  --text-read: 17px; /* reading: the site's body, a lead under a title */
+  --text-heading: 24px; /* a section, a dialog, an empty state */
+  --text-title: 36px; /* a page */
+  --text-display: clamp(36px, 4.2vw, 62px); /* the site's statements */
+  --text-hero: clamp(46px, 6.2vw, 94px); /* the site's opening line */
+  --track-tight: -0.035em; /* everything 24px and up */
+  --track-mono: 0.08em; /* mono capitals */
+  --track-caps: 0.2em; /* sans capitals: buttons, tabs, nav */
+  --track-wordmark: 0.34em;
+
+  /* Space: 4px steps, and only these */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --s12: 48px;
+  --s16: 64px;
+  --control: 36px; /* a button's or a field's height */
+  --row: 44px; /* a row's height */
+
+  /* Depth: two shadows, both the ink, and the scrim behind what stops you */
+  --shadow-float: 0 12px 32px -12px rgba(var(--sh), 0.3); /* menus, toasts, popovers */
+  --shadow-modal: 0 24px 64px -24px rgba(var(--sh), 0.45); /* dialogs, sheets */
+  --scrim: rgba(var(--sh), 0.3);
+
+  /* Things arrive on this curve; a control answers in --t-ui, a page reveals in --t */
   --ease: cubic-bezier(0.22, 0.61, 0.24, 1);
   --t: 0.9s;
+  --t-ui: 0.3s;
+
+  /* Focus: one ring for every control, on :focus-visible */
+  --focus: 2px solid var(--ink);
+  --focus-offset: 2px;
+}
+
+/* The one dark ground (the presenter): the same names, turned over, so what reads on white reads
+   on ink. A custom property keeps the value it had where it was set, so --focus is set again. */
+.on-ink {
+  --ink: #fff;
+  --ink-2: #a5adbf;
+  --ink-3: #8b93a5;
+  --line: rgba(255, 255, 255, 0.14);
+  --ink-soft: #1d2740;
+  --focus: 2px solid #fff;
+  background: #121a2c;
+  color: #fff;
 }
