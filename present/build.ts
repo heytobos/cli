@@ -18,6 +18,8 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
 import { compile, compileModule } from 'svelte/compiler';
+import { bundledCss } from './build-css.ts';
+import { chromeStylesheet } from './src/viewer/chrome-style.ts';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const tmp = join(root, 'dist/runtime-tmp');
@@ -125,20 +127,12 @@ await esbuild.build({
   logLevel: 'warning',
   legalComments: 'none',
 });
-// Its style: the system's tokens and classes (@tobos/site), one file with them inside it. Its face
-// is the runtime's (fonts/, below), which the page's own @font-face names.
-await esbuild.build({
-  entryPoints: [join(root, 'src/phone/phone.css')],
-  outfile: join(tmp, 'phone.css'),
-  bundle: true,
-  external: ['./fonts/*'],
-  minify: true,
-  absWorkingDir: root,
-  logLevel: 'warning',
-  legalComments: 'none',
-});
 cpSync(join(root, 'src/skeleton.css'), join(tmp, 'skeleton.css'));
 cpSync(join(root, 'src/viewer/viewer.css'), join(tmp, 'viewer.css'));
+// The system's tokens and classes (@tobos/site), the one way (build-css.ts): inside the phone
+// page's own file, and for the chrome around a deck alone, scoped away from it (chrome-style.ts).
+writeFileSync(join(tmp, 'phone.css'), await bundledCss('src/phone/phone.css', true));
+writeFileSync(join(tmp, 'system.css'), chromeStylesheet(await bundledCss('src/viewer/chrome.css')));
 // The presenter's and the phone page's faces, tobos.ai's own (viewer.css and phone.css name them),
 // with their licences; Hanken's accented letters beyond Latin-1 too, for a poll's words on a phone.
 const fonts = dirname(fileURLToPath(import.meta.resolve('@tobos/site/fonts.css')));
@@ -176,7 +170,8 @@ const imports: Record<string, string> = {};
 for (const entry of entries) for (const s of entry.specifiers) imports[s] = `${entry.out}.js`;
 writeFileSync(
   join(out, 'runtime.json.next'),
-  JSON.stringify({ id, imports, styles: ['skeleton.css', 'viewer.css'] }, null, 2) + '\n',
+  JSON.stringify({ id, imports, styles: ['skeleton.css', 'system.css', 'viewer.css'] }, null, 2) +
+    '\n',
 );
 renameSync(join(out, 'runtime.json.next'), join(out, 'runtime.json'));
 if (before !== id)

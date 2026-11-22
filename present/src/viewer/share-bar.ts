@@ -10,8 +10,9 @@ export function shareBar(
   setAnimate: (on: boolean) => void,
   toggleFullscreen: () => void,
 ): () => void {
+  // Chrome on the dark ground (chrome-style.ts): tobos.ai's buttons, turned over.
   const bar = document.createElement('div');
-  bar.className = 'tobos-share-bar';
+  bar.className = 'tobos-share-bar tobos-chrome on-ink';
   if (shared.pdf) {
     const pdf = button('Download PDF', (b) => void download(b, shared.pdf!));
     pdf.prepend(icon(DOWNLOAD));
@@ -24,7 +25,7 @@ export function shareBar(
   if (document.fullscreenEnabled) {
     fullscreen = fullscreenButton(toggleFullscreen);
     const left = document.createElement('div');
-    left.className = 'tobos-share-bar tobos-share-left';
+    left.className = 'tobos-share-bar tobos-share-left tobos-chrome on-ink';
     left.append(fullscreen.element);
     bars.push(left);
   }
@@ -53,6 +54,7 @@ export function shareBar(
 function button(label: string, onClick: (button: HTMLButtonElement) => void): HTMLButtonElement {
   const element = document.createElement('button');
   element.type = 'button';
+  element.className = 'btn btn-quiet';
   element.append(text(label));
   element.addEventListener('click', () => {
     // The arrow keys and space step the deck again, rather than press this.
@@ -108,7 +110,7 @@ function animationToggle(setAnimate: (on: boolean) => void): HTMLButtonElement {
  */
 function fullscreenButton(toggleFullscreen: () => void) {
   const element = button('', () => toggleFullscreen());
-  element.className = 'tobos-fullscreen';
+  element.classList.add('btn-icon', 'tobos-fullscreen');
   const update = () => {
     const on = Boolean(document.fullscreenElement);
     element.replaceChildren(icon(on ? MINIMIZE : MAXIMIZE));
@@ -154,6 +156,7 @@ async function download(button: HTMLButtonElement, url: string) {
   bar?.classList.add('tobos-busy');
   const done = () => {
     words.textContent = label;
+    button.classList.remove('tobos-failed');
     bar?.classList.remove('tobos-busy');
   };
   button.disabled = true;
@@ -176,6 +179,8 @@ async function download(button: HTMLButtonElement, url: string) {
     done();
   } catch (error) {
     words.textContent = (error as Error).message || 'The PDF could not be made.';
+    // What went wrong takes the red mark at the button's edge; the words stay ink.
+    button.classList.add('tobos-failed');
     window.setTimeout(done, 6000);
   } finally {
     button.disabled = false;

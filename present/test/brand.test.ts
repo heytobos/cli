@@ -8,10 +8,14 @@ const value = (css: string, name: string) =>
   new RegExp(`${name}:\\s*([^;]+);`).exec(css)?.[1]?.trim();
 
 describe("the engine's copies of tobos.ai's colours", () => {
-  it("are the brand's: the presenter's ink, grey and red", () => {
+  it("are the brand's: only the presenter's ground and red, round a slide", () => {
     const presenter = read('../src/viewer/Presenter.svelte');
-    for (const name of ['--ink', '--grey', '--pop'])
-      expect(value(presenter, name), name).toBe(value(brand, name));
+    // The presenter takes the tokens from system.css (chrome-style.ts), and keeps no copy of them.
+    for (const name of ['--ink', '--grey', '--line', '--pop'])
+      expect(value(presenter, name), name).toBeUndefined();
+    // Only what is round a slide, where the tokens don't reach, writes the ground and the red out.
+    expect(presenter).toContain(value(brand, '--ink'));
+    expect(presenter).toContain(value(brand, '--pop'));
   });
 
   it("aren't on the phone page, which takes the tokens and classes themselves", () => {
@@ -35,7 +39,10 @@ describe("the phone page's face", () => {
 
 describe("the presenter's faces", () => {
   it('are asked for by the names the viewer loads them under, whatever the master loads', () => {
-    const css = read('../src/viewer/viewer.css') + read('../src/viewer/Presenter.svelte');
+    const css =
+      read('../src/viewer/viewer.css') +
+      read('../src/viewer/chrome.css') +
+      read('../src/viewer/Presenter.svelte');
     const loaded = new Set(
       [...css.matchAll(/@font-face\s*{[^}]*font-family:\s*'([^']+)'/g)].map((m) => m[1]),
     );

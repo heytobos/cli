@@ -1,0 +1,19 @@
+/*
+ * The viewer's chrome: tobos.ai's tokens and classes, which the build puts inside this file
+ * (build-css.ts) and scopes to the chrome (chrome-style.ts), and what it adds to them: the faces
+ * under the names the viewer loads them as (viewer.css), so a deck's master can't clash with
+ * them, and the app's box model, which system.css assumes.
+ */
+@import '@tobos/site/tokens.css';
+@import '@tobos/site/system.css';
+
+:scope {
+  --sans: 'Tobos Sans', system-ui, sans-serif;
+  --mono: 'Tobos Mono', ui-monospace, monospace;
+}
+:scope,
+*,
+::before,
+::after {
+  box-sizing: border-box;
+}

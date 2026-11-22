@@ -192,14 +192,14 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     // without the lock above, the browser takes Esc to leave fullscreen, and only the next one
     // reaches the page.
     const hint = document.createElement('div');
-    hint.className = 'tobos-fullscreen-hint';
+    hint.className = 'tobos-fullscreen-hint tobos-chrome on-ink';
     hint.textContent = 'Click or press F for fullscreen · Esc to end';
     root.append(hint);
   }
   // A browser lets a window make sound once it has had a click or key press. Until then, a
   // sound it refuses waits for one (playback.ts), and this says so.
   const soundHint = document.createElement('div');
-  soundHint.className = 'tobos-sound-hint';
+  soundHint.className = 'tobos-sound-hint tobos-chrome on-ink';
   soundHint.textContent = 'Click for sound';
   soundHint.hidden = true;
   root.append(soundHint);

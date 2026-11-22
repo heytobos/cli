@@ -7,7 +7,8 @@ import type { ViewerConfig } from './config.ts';
  * with its name, and what it is under it: a picture's size in pixels, a video's frame from a tenth
  * in and its length, a sound's length, a font's letters. Each is fitted whole, never cropped, on a
  * grey checkerboard, so a white logo shows as well as a black one. The renderer takes it as one
- * JPEG. It runs no deck code, and is drawn apart from the master's styles, in a shadow root.
+ * JPEG. It runs no deck code, and is drawn apart from the master's styles, in a shadow root, in
+ * tobos.ai's look: its host is chrome (chrome-style.ts), whose tokens the shadow root inherits.
  */
 export function showSheet(root: HTMLElement, config: ViewerConfig): Promise<void> {
   const names = location.hash
@@ -16,6 +17,7 @@ export function showSheet(root: HTMLElement, config: ViewerConfig): Promise<void
     .filter(Boolean)
     .map((name) => decodeURIComponent(name));
   const host = document.createElement('div');
+  host.className = 'tobos-chrome';
   host.style.cssText = 'position: fixed; inset: 0; z-index: 2147483647; background: #fff';
   root.append(host);
   const shadow = host.attachShadow({ mode: 'open' });
@@ -52,26 +54,30 @@ export function showSheet(root: HTMLElement, config: ViewerConfig): Promise<void
       said(`${entry.type}, can’t be shown`);
     });
   });
-  return Promise.all(drawn).then(() => undefined);
+  // Its words in the face they ask for, before the picture is taken; in the fallback if the face
+  // doesn't come in time, as a file that can't be shown doesn't hold the picture up either.
+  const face = within(document.fonts.load("300 14px 'Tobos Sans'"), 5_000).catch(() => undefined);
+  return Promise.all([...drawn, face]).then(() => undefined);
 }
 
 /** The columns of a sheet of so many files, from 1 to 12: as large as they fit, in its shape. */
 const COLUMNS = [1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4];
 
 const STYLE = `
-.grid { position: absolute; inset: 0; display: grid; gap: 12px; padding: 16px;
-  font: 15px/1.3 system-ui, sans-serif; color: #111; background: #fff }
+.grid { position: absolute; inset: 0; display: grid; gap: var(--s3); padding: var(--s4);
+  font: 300 var(--text-ui) / 1.3 var(--sans); color: var(--ink); background: #fff }
 figure { margin: 0; display: flex; flex-direction: column; min-height: 0; min-width: 0 }
 .view { position: relative; flex: 1; min-height: 0; display: grid; place-items: center;
-  overflow: hidden; border-radius: 6px;
+  overflow: hidden;
   background: repeating-conic-gradient(#a8a8a8 0 25%, #c8c8c8 0 50%) 0 0 / 16px 16px }
 .view > img, .view > video { position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: contain; display: block }
-.view > p { margin: 0; padding: 4px 12px; text-align: center; color: #111; font-size: 20px;
-  background: #fff; border-radius: 4px }
-figcaption { padding-top: 4px; display: flex; flex-direction: column; white-space: nowrap; overflow: hidden }
+.view > p { margin: 0; padding: var(--s1) var(--s3); text-align: center; color: var(--ink);
+  font-size: var(--text-read); background: #fff }
+figcaption { padding-top: var(--s1); display: flex; flex-direction: column; white-space: nowrap; overflow: hidden }
 figcaption b, figcaption span { overflow: hidden; text-overflow: ellipsis }
-figcaption span { color: #555; font-size: 13px }
+figcaption b { font-weight: 500 }
+figcaption span { color: var(--ink-2); font-size: var(--text-small) }
 `;
 
 /** A name long enough to be cut, cut in its middle: its start and its extension both say much. */
@@ -150,7 +156,6 @@ async function drawFile(view: HTMLElement, entry: MediaEntry, said: (what: strin
     const sample = note('Aa Bb Cc 0123');
     sample.style.fontFamily = face.family;
     sample.style.fontSize = '36px';
-    sample.style.color = '#111';
     view.append(sample);
     said('font');
   } else {

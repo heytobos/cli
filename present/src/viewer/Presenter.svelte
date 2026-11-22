@@ -6,6 +6,7 @@
   import Play from '@lucide/svelte/icons/play';
   import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
   import Square from '@lucide/svelte/icons/square';
+  import Undo2 from '@lucide/svelte/icons/undo-2';
   import { onMount, tick, untrack } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { letterbox } from '../letterbox.ts';
@@ -650,20 +651,24 @@
   );
 </script>
 
+<!-- The chrome's parts are each marked .tobos-chrome on-ink: tobos.ai's tokens and classes, turned
+     over for the dark ground, reach inside them (chrome-style.ts). None of them holds a slide, so a
+     deck's scenes inherit none of it. -->
 <div
   class="presenter"
   class:dragging-left={dragging === 'left'}
   class:dragging-slide={dragging === 'slide'}
 >
-  <header>
+  <header class="tobos-chrome on-ink">
     <strong>{title}</strong>
-    <span class="mono count">{at} / {total}</span>
+    <span class="mono at">{at} / {total}</span>
     {#if (showing || answered) && config.live && hasActivities}
-      <span class="mono room">{room}</span>
+      <span class="mono">{room}</span>
     {/if}
     <span class="spacer"></span>
     {#if answered && config.live && hasActivities}
-      <button class:confirming disabled={startingSession} onclick={newSession}
+      <!-- Asking again, a button is edged in red: the label says what the next click does. -->
+      <button class="btn" class:armed={confirming} disabled={startingSession} onclick={newSession}
         >{confirming ? 'Click again to start it' : 'New session'}</button
       >
     {/if}
@@ -671,30 +676,32 @@
       <!-- Quiet, and a click asks once more: ending the talk is the one thing here not to hit by
            accident. Esc ends it at once. -->
       <button
-        class="stop"
-        class:confirming={stopping.armed}
+        class="btn btn-quiet stop"
+        class:armed={stopping.armed}
         onclick={(event) => {
           stopping.press(end);
           blurred(event);
         }}
       >
-        <Square size={10} fill="currentColor" aria-hidden="true" />{stopping.armed
+        <Square size={12} strokeWidth={1.5} fill="currentColor" aria-hidden="true" />{stopping.armed
           ? 'Click again to stop'
           : 'Stop presenting'}
       </button>
     {:else}
-      <button class="primary" onclick={present}>
-        <Play size={12} fill="currentColor" aria-hidden="true" />Present
+      <button class="btn btn-primary" onclick={present}>
+        <Play size={12} strokeWidth={1.5} fill="currentColor" aria-hidden="true" />Present
       </button>
     {/if}
   </header>
   <main bind:this={mainEl} bind:clientWidth={mainWidth} bind:clientHeight={mainHeight}>
     <section class="left" style:width="{sized.left}px">
       <div class="pane" style:height="{sized.pane}px">
-        <div class="label now-label" bind:offsetHeight={nowLabel}>
-          Now{#if hiddenHere}&nbsp;·&nbsp;<span class="flag"
-              >hidden<EyeOff size={11} aria-hidden="true" /></span
-            >{/if}
+        <div class="tobos-chrome on-ink now-label" bind:offsetHeight={nowLabel}>
+          <span class="cap"
+            >Now{#if hiddenHere}&nbsp;·&nbsp;<span class="flag"
+                >hidden<EyeOff size={12} strokeWidth={1.5} aria-hidden="true" /></span
+              >{/if}</span
+          >
         </div>
         <!-- Showing a hidden scene, the audience sees what is off the plan: Now is framed in red. -->
         <div class="box now" class:off={hiddenHere} bind:this={currentBox}></div>
@@ -703,7 +710,7 @@
         <!-- A window splitter, as WAI-ARIA has it: a separator that takes the focus and moves. -->
         <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
         <div
-          class="gutter across"
+          class="tobos-chrome on-ink gutter across"
           role="separator"
           aria-orientation="horizontal"
           aria-label="Slide and notes: drag, or ↑ ↓, to resize; double-click to reset"
@@ -714,9 +721,9 @@
           ondblclick={fitAgain}
           onkeydown={(event) => nudge('slide', event)}
         ></div>
-        <div class="notes-col">
+        <div class="tobos-chrome on-ink notes-col">
           <div class="notes-head">
-            <div class="label">Notes</div>
+            <span class="cap">Notes</span>
             <span class="spacer"></span>
             {#if notesBelow}
               <span class="more-cue"
@@ -724,24 +731,24 @@
               >
             {/if}
             <button
-              class="ctl"
+              class="btn btn-quiet btn-icon"
               title="Smaller notes (−)"
               aria-label="Smaller notes"
               disabled={layout.notes <= NOTE_SIZES[0]!}
               onclick={(event) => {
                 ownKey('smaller');
                 blurred(event);
-              }}><AArrowDown size={15} aria-hidden="true" /></button
+              }}><AArrowDown size={16} strokeWidth={1.5} aria-hidden="true" /></button
             >
             <button
-              class="ctl"
+              class="btn btn-quiet btn-icon"
               title="Larger notes (+)"
               aria-label="Larger notes"
               disabled={layout.notes >= NOTE_SIZES.at(-1)!}
               onclick={(event) => {
                 ownKey('larger');
                 blurred(event);
-              }}><AArrowUp size={15} aria-hidden="true" /></button
+              }}><AArrowUp size={16} strokeWidth={1.5} aria-hidden="true" /></button
             >
           </div>
           <!-- The notes of this scene, as written on the deck's page: the speaker's notes. -->
@@ -763,7 +770,7 @@
     </section>
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
     <div
-      class="gutter along"
+      class="tobos-chrome on-ink gutter along"
       role="separator"
       aria-orientation="vertical"
       aria-label="Columns: drag, or ← →, to resize; double-click to reset"
@@ -776,17 +783,18 @@
     ></div>
     <aside>
       <!-- The timer is the one large number; the clock is smaller beside it. -->
-      <div class="time" class:paused={timer.paused}>
+      <div class="tobos-chrome on-ink time" class:paused={timer.paused}>
         <div class="elapsed-block">
-          <div class="label">
+          <div class="cap label">
             {#if resetting.armed}<span class="flag">Click again to reset</span>{:else}Elapsed{/if}
           </div>
-          <div class="row">
+          <div class="time-row">
             <span class="elapsed">{duration(elapsed)}</span>
             <span class="ctls">
+              <!-- Paused, the way on is an ink outline, not a hairline: the one to press. -->
               <button
-                class="ctl"
-                class:on={timer.paused}
+                class="btn btn-icon"
+                class:btn-quiet={!timer.paused}
                 title={timer.paused ? 'Resume the timer (P)' : 'Pause the timer (P)'}
                 aria-label={timer.paused ? 'Resume the timer' : 'Pause the timer'}
                 onclick={(event) => {
@@ -794,14 +802,20 @@
                   blurred(event);
                 }}
                 >{#if timer.paused}<Play
-                    size={12}
+                    size={16}
+                    strokeWidth={1.5}
                     fill="currentColor"
                     aria-hidden="true"
-                  />{:else}<Pause size={12} fill="currentColor" aria-hidden="true" />{/if}</button
+                  />{:else}<Pause
+                    size={16}
+                    strokeWidth={1.5}
+                    fill="currentColor"
+                    aria-hidden="true"
+                  />{/if}</button
               >
               <button
-                class="ctl"
-                class:confirming={resetting.armed}
+                class="btn btn-quiet btn-icon"
+                class:armed={resetting.armed}
                 title={resetting.armed
                   ? 'Click again to reset the timer to 0:00'
                   : 'Reset the timer to 0:00'}
@@ -809,25 +823,29 @@
                 onclick={(event) => {
                   resetting.press(() => (timer = reset(timer, (now = Date.now()))));
                   blurred(event);
-                }}><RotateCcw size={13} aria-hidden="true" /></button
+                }}><RotateCcw size={16} strokeWidth={1.5} aria-hidden="true" /></button
               >
             </span>
-            {#if timer.paused}<span class="paused-word">Paused</span>{/if}
+            {#if timer.paused}<span class="paused-word"
+                ><span class="dot dot-pop" aria-hidden="true"></span>Paused</span
+              >{/if}
           </div>
         </div>
         <div class="clock-block">
-          <div class="label">Clock</div>
+          <div class="cap label">Clock</div>
           <div class="clock">{wall}</div>
         </div>
       </div>
-      <div class="next-head">
-        <div class="label">{atEnd ? 'Next: the end of the deck' : 'Next'}</div>
+      <div class="tobos-chrome on-ink next-head">
+        <span class="cap">{atEnd ? 'Next: the end of the deck' : 'Next'}</span>
         <span class="spacer"></span>
         {#if backTo}
           <button
-            class="back"
+            class="btn"
             title={`Back to ${backTo.scene + 1} · ${scenes[backTo.scene]?.title ?? ''} (Backspace)`}
-            onclick={goBack}>↩ Back to {backTo.scene + 1}</button
+            onclick={goBack}
+            ><Undo2 size={16} strokeWidth={1.5} aria-hidden="true" />Back to {backTo.scene +
+              1}</button
           >
         {/if}
       </div>
@@ -838,6 +856,7 @@
         bind:this={nextBox}
       ></div>
       <nav
+        class="tobos-chrome on-ink"
         aria-label="Scenes"
         class:more={moreScenes}
         bind:this={nav}
@@ -867,10 +886,11 @@
                       jump(index, 0);
                       blurred(event);
                     }}
-                    ><span class="number" style:min-width="{digits}ch">{index + 1}</span><span
-                      class="title">{scene.title}</span
+                    ><span class="count" style:min-width="{digits}ch">{index + 1}</span><span
+                      class="scene-title">{scene.title}</span
                     >{#if scene.hidden}<EyeOff
                         size={12}
+                        strokeWidth={1.5}
                         class="eye"
                         aria-label="hidden"
                       />{/if}</button
@@ -900,9 +920,9 @@
       </nav>
     </aside>
   </main>
-  <footer>
+  <footer class="tobos-chrome on-ink">
     → / Space next · ← previous · ↓ ↑ scene{#if backTo}&nbsp;· <span class="lit"
-        >Backspace ↩ back to {backTo.scene + 1}</span
+        >Backspace back to {backTo.scene + 1}</span
       >{/if} · P pause timer{#if hasNotes}&nbsp;· + / − notes size · Shift ↓ ↑ scroll notes{/if}
     · {#if audience && !fullscreenRefused}F fullscreen · Esc stop{:else if showing}click the
       audience for fullscreen · Esc stop{:else}⌘/Ctrl-Enter present{/if}
@@ -910,13 +930,10 @@
 </div>
 
 <style>
-  /* Dark, so the slides are what you look at: tobos.ai's ink as the ground, its faces, and its
-     one red for where you are. The colours are copies of @tobos/site's tokens.css. */
+  /* Dark, so the slides are what you look at: tobos.ai's look turned over (.on-ink), its faces,
+     and its one red, kept for what needs the speaker. The ground is written out here, as the tokens are set only
+     on the chrome's parts (chrome-style.ts), never round a slide. */
   .presenter {
-    --ink: #121a2c;
-    --grey: #a5abb8;
-    --line: rgba(255, 255, 255, 0.12);
-    --pop: #ef4423;
     position: fixed;
     inset: 0;
     display: grid;
@@ -924,7 +941,7 @@
     gap: 12px;
     padding: 12px 20px;
     box-sizing: border-box;
-    background: var(--ink);
+    background: #121a2c;
     color: #fff;
     font:
       300 14px/1.4 'Tobos Sans',
@@ -945,91 +962,38 @@
   header {
     display: flex;
     align-items: center;
-    gap: 24px;
-    padding-bottom: 12px;
+    gap: var(--s6);
+    padding-bottom: var(--s3);
     border-bottom: 1px solid var(--line);
   }
   header strong {
-    font-weight: 400;
-    font-size: 16px;
-  }
-  .mono,
-  .label,
-  footer {
-    font-family: 'Tobos Mono', ui-monospace, monospace;
-    font-variant-numeric: tabular-nums;
-    color: var(--grey);
+    font: 400 var(--text-read) / 1.4 var(--sans);
   }
   .mono {
-    font-size: 13px;
+    flex: none;
+    color: var(--ink-2);
+    font: 400 var(--text-small) / 1 var(--mono);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
-  .count {
-    color: #fff;
+  .at {
+    color: var(--ink);
   }
   .spacer {
     flex: 1;
   }
-  header button {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 11px 16px;
-    border: 1px solid #fff;
+  /* Asking once more: dark, edged with the 2px red mark, under the pointer too, so it never reads
+     as the filled Present beside it; the label says what the next click does. */
+  .btn.armed,
+  .btn.armed:not(:disabled):hover {
+    border-color: var(--pop);
     background: transparent;
-    color: inherit;
-    font-family: inherit;
-    font-size: 10.5px;
-    font-weight: 500;
-    line-height: 1;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    white-space: nowrap;
-    cursor: pointer;
-    transition:
-      background 0.3s cubic-bezier(0.22, 0.61, 0.24, 1),
-      color 0.3s cubic-bezier(0.22, 0.61, 0.24, 1);
-  }
-  header button:hover,
-  header button.primary {
-    background: #fff;
+    box-shadow: inset 0 0 0 1px var(--pop);
     color: var(--ink);
   }
-  header button.primary:hover {
-    background: var(--grey);
-  }
-  header button:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  header button.confirming {
-    border-color: var(--pop);
-    background: var(--pop);
-    color: #fff;
-  }
   /* Stop: quiet, and as wide as what it says when it asks, so it doesn't jump. */
-  header button.stop {
-    box-sizing: border-box;
+  .stop {
     width: 216px;
-    justify-content: center;
-    border-color: var(--line);
-    color: var(--grey);
-  }
-  header button.stop:hover {
-    border-color: #fff;
-    background: transparent;
-    color: #fff;
-  }
-  header button.stop.confirming {
-    border-color: var(--pop);
-    background: transparent;
-    color: #fff;
-  }
-  header button:focus-visible,
-  .ctl:focus-visible,
-  .back:focus-visible,
-  .gutter:focus-visible {
-    outline: 2px solid #fff;
-    outline-offset: 2px;
   }
   main {
     display: flex;
@@ -1053,30 +1017,27 @@
   .notes-col {
     flex: 1;
   }
-  /* A caption in brackets, as on tobos.ai: [ NOW ] */
+  .now-label,
   .label {
     flex: none;
-    margin-bottom: 8px;
-    font-size: 10.5px;
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    margin-bottom: var(--s2);
     white-space: nowrap;
   }
-  .label::before {
-    content: '[ ';
+  /* A block, so the Now caption's row is as tall as Elapsed's and Clock's beside it. */
+  .now-label .cap {
+    display: block;
   }
-  .label::after {
-    content: ' ]';
+  .cap :global(svg) {
+    vertical-align: -2px;
+    margin-left: var(--s1);
   }
-  .label :global(svg) {
-    vertical-align: -1px;
-    margin-left: 4px;
-  }
+  /* What a caption flags (hidden, asking again) is in ink; the red mark is elsewhere: the frame
+     round a hidden scene, the edge of the button that asks again. */
   .flag {
-    color: var(--pop);
+    color: var(--ink);
   }
-  /* A letterbox: the slides sit on the ground, under their labels, not in black bars. */
+  /* A letterbox: the slides sit on the ground, under their labels, not in black bars. The tokens
+     stop above them, so their values are written out: the ground's line, the red. */
   .box {
     box-sizing: border-box;
     background: transparent;
@@ -1095,7 +1056,7 @@
     box-shadow: inset 0 0 0 calc(1px / var(--tobos-scale, 1)) rgba(255, 255, 255, 0.28);
   }
   .box.now.off :global(.tobos-stage::after) {
-    box-shadow: inset 0 0 0 calc(3px / var(--tobos-scale, 1)) var(--pop);
+    box-shadow: inset 0 0 0 calc(2px / var(--tobos-scale, 1)) #ef4423;
   }
   .box.next {
     flex: none;
@@ -1104,7 +1065,7 @@
   }
   /* The end of the deck: an empty frame where the next slide would be. */
   .box.next.end {
-    border: 1px dashed var(--line);
+    border: 1px dashed rgba(255, 255, 255, 0.14);
   }
   .box.next.end :global(.tobos-stage) {
     visibility: hidden;
@@ -1115,6 +1076,12 @@
     flex: none;
     position: relative;
     z-index: 2;
+    /* Clear, so it never covers the focus ring of a control beside it. */
+    background: none;
+  }
+  .gutter:focus-visible {
+    outline: var(--focus);
+    outline-offset: var(--focus-offset);
   }
   .gutter.along {
     width: 18px;
@@ -1128,7 +1095,7 @@
   .gutter::before {
     content: '';
     position: absolute;
-    transition: background 0.15s;
+    transition: background-color var(--t-ui) var(--ease);
   }
   .gutter::after {
     background: var(--line);
@@ -1146,9 +1113,7 @@
     right: 0;
   }
   .gutter::before {
-    border-radius: 2px;
-    background: var(--grey);
-    opacity: 0.6;
+    background: var(--ink-3);
   }
   .gutter.along::before {
     left: 6px;
@@ -1164,39 +1129,30 @@
   }
   .gutter:hover::after,
   .dragging-left .gutter.along::after,
-  .dragging-slide .gutter.across::after {
-    background: #fff;
-  }
+  .dragging-slide .gutter.across::after,
   .gutter:hover::before,
   .dragging-left .gutter.along::before,
   .dragging-slide .gutter.across::before {
-    background: #fff;
-    opacity: 1;
+    background: var(--ink);
   }
 
   /* Notes */
   .notes-head {
     display: flex;
     align-items: center;
-    gap: 8px;
-  }
-  .notes-head .label {
-    margin: 0;
+    gap: var(--s2);
   }
   .more-cue {
-    margin-right: 12px;
-    font:
-      500 14px 'Tobos Mono',
-      ui-monospace,
-      monospace;
-    color: #fff;
+    margin-right: var(--s3);
+    color: var(--ink);
+    font: 500 var(--text-ui) / 1 var(--mono);
   }
   .notes {
     position: relative;
     flex: 1;
     min-height: 0;
     overflow: auto;
-    margin-top: 8px;
+    margin-top: var(--s2);
     padding-bottom: 1.2em;
     font-weight: 400;
     line-height: 1.5;
@@ -1206,7 +1162,7 @@
     white-space: pre-line;
   }
   .notes p.none {
-    color: var(--grey);
+    color: var(--ink-2);
   }
   /* More below: the last lines fade, so a cut line doesn't read as the end; more above, the first. */
   .notes.more {
@@ -1225,132 +1181,71 @@
     );
   }
 
-  /* Small square controls: the timer's and the notes' size. */
-  .ctl {
-    all: unset;
-    box-sizing: border-box;
-    flex: none;
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    border: 1px solid var(--line);
-    color: var(--grey);
-    cursor: pointer;
-  }
-  .ctl:hover {
-    border-color: #fff;
-    color: #fff;
-  }
-  .ctl:disabled {
-    opacity: 0.35;
-    border-color: var(--line);
-    color: var(--grey);
-    cursor: default;
-  }
-  .ctl.on {
-    border-color: var(--pop);
-    background: var(--pop);
-    color: #fff;
-  }
-  .ctl.confirming {
-    border-color: var(--pop);
-    color: var(--pop);
-  }
-
   /* Time: the digits scale with the column, so they and their buttons fit however narrow it gets. */
   .time {
     flex: none;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 16px;
-    padding-bottom: 14px;
+    gap: var(--s4);
+    padding-bottom: var(--s4);
     container-type: inline-size;
   }
   .elapsed-block {
     min-width: 0;
   }
   .elapsed-block .label {
-    margin-bottom: 6px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .row {
+  .time-row {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: var(--s3);
   }
   .ctls {
     display: flex;
     flex: none;
-    gap: 6px;
+    gap: var(--s2);
   }
   .elapsed {
     min-width: 5ch;
-    font:
-      400 clamp(32px, 12cqi, 52px) / 1 'Tobos Mono',
-      ui-monospace,
-      monospace;
+    font: 400 clamp(32px, 12cqi, 52px) / 1 var(--mono);
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
+    letter-spacing: var(--track-tight);
   }
-  /* Paused: the digits dim and hold still; the red button and the word say why. */
+  /* Paused: the digits dim and hold still; a red dot and the word say why. */
   .time.paused .elapsed {
     opacity: 0.45;
   }
   .paused-word {
-    font:
-      500 16px 'Tobos Mono',
-      ui-monospace,
-      monospace;
-    letter-spacing: 0.08em;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    color: var(--ink);
+    font: 500 var(--text-ui) / 1 var(--mono);
+    letter-spacing: var(--track-mono);
     text-transform: uppercase;
     white-space: nowrap;
-    color: var(--pop);
   }
   .clock-block {
     flex: none;
     text-align: right;
   }
   .clock {
-    font:
-      300 clamp(18px, 7cqi, 34px) / 1 'Tobos Mono',
-      ui-monospace,
-      monospace;
+    color: var(--ink-2);
+    font: 300 clamp(18px, 7cqi, 34px) / 1 var(--mono);
     font-variant-numeric: tabular-nums;
-    color: #c9cdd6;
   }
 
-  /* Next, and the way back after a jump. */
+  /* Next, and the way back after a jump; as tall as the button, so it doesn't jump when it comes. */
   .next-head {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--s3);
     min-width: 0;
-    min-height: 26px;
-    margin-bottom: 4px;
-  }
-  .next-head .label {
-    margin: 0;
-  }
-  .back {
-    all: unset;
-    flex: none;
-    padding: 6px 12px;
-    border: 1px solid var(--pop);
-    color: #fff;
-    font:
-      500 13px 'Tobos Mono',
-      ui-monospace,
-      monospace;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  .back:hover {
-    background: var(--pop);
+    min-height: var(--control);
+    margin-bottom: var(--s1);
   }
 
   /* The scenes */
@@ -1358,7 +1253,7 @@
     position: relative;
     flex: 1;
     min-height: 150px;
-    margin-top: 14px;
+    margin-top: var(--s4);
     padding-bottom: 30%;
     overflow: auto;
   }
@@ -1370,41 +1265,44 @@
     top: 0;
     z-index: 1;
     margin: 0;
-    padding: 12px 0 6px;
-    background: var(--ink);
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--grey);
+    padding: var(--s3) 0 var(--s1);
+    background: rgb(var(--sh));
+    color: var(--ink-3);
+    font: 500 var(--text-small) / 1.4 var(--sans);
   }
   section:first-child h3 {
     padding-top: 0;
   }
   section.here h3 {
-    color: #fff;
+    color: var(--ink);
   }
   ol {
     list-style: none;
     margin: 0;
     padding: 0;
   }
+  /* A row's states, as the app's lists have them: the tint under the pointer, and where you are
+     the tint with a mark at its edge, in ink: the presenter keeps its red for what needs the
+     speaker (paused, hidden, asking again), one at a time. */
   li {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
+    gap: var(--s2);
+    padding: var(--s1) var(--s2);
     border-left: 2px solid transparent;
-    transition: background 0.12s;
+    transition: background-color var(--t-ui) var(--ease);
   }
-  li:hover {
-    background: rgba(255, 255, 255, 0.07);
+  /* The app's half tint is too faint on the dark ground, the whole one the current row's: two
+     thirds. */
+  @media (hover: hover) {
+    li:hover {
+      background: color-mix(in srgb, var(--ink-soft) 65%, transparent);
+    }
   }
   li.current {
-    border-left-color: #fff;
-    background: rgba(255, 255, 255, 0.13);
-  }
-  li.current:hover {
-    background: rgba(255, 255, 255, 0.1);
+    border-left-color: var(--ink);
+    background: var(--ink-soft);
   }
   /* The whole row is the scene's button; its beats sit above it. */
   .scene {
@@ -1412,7 +1310,7 @@
     flex: 0 1 auto;
     display: flex;
     align-items: baseline;
-    gap: 6px;
+    gap: var(--s2);
     min-width: 0;
     cursor: pointer;
   }
@@ -1421,26 +1319,25 @@
     position: absolute;
     inset: 0;
   }
-  .title {
+  .scene-title {
     overflow: hidden;
-    font-size: 15px;
-    font-weight: 400;
+    font: 400 var(--text-ui) / 1.4 var(--sans);
     white-space: nowrap;
     text-overflow: ellipsis;
   }
-  li.current .title {
+  li.current .scene-title {
     white-space: normal;
   }
-  li:hover .title {
-    color: #fff;
+  li:hover .scene-title {
+    color: var(--ink);
   }
-  li.done .title {
-    color: var(--grey);
+  li.done .scene-title {
+    color: var(--ink-2);
   }
   /* Hidden, as the deck's page has it: the number kept, the title faded, a crossed-out eye after
      it; fainter than done, unless it is on stage. */
-  li.hidden .title {
-    color: var(--grey);
+  li.hidden .scene-title {
+    color: var(--ink-2);
   }
   li.hidden:not(.current) {
     opacity: 0.5;
@@ -1448,27 +1345,26 @@
   .scene :global(.eye) {
     flex: none;
     align-self: center;
-    color: var(--grey);
+    color: var(--ink-2);
   }
-  .number {
+  .count {
     display: inline-block;
-    margin-right: 2px;
     text-align: right;
-    font-family: 'Tobos Mono', ui-monospace, monospace;
-    font-size: 12px;
     font-variant-numeric: tabular-nums;
-    color: var(--grey);
   }
-  .scene:focus-visible,
+  .scene:focus-visible {
+    outline: var(--focus);
+    outline-offset: var(--focus-offset);
+  }
   .beat:focus-visible {
-    outline: 2px solid #fff;
+    outline: var(--focus);
     outline-offset: -2px;
   }
-  /* Beats: a larger target than the dot; the one on stage the largest. One beat has none. */
+  /* Beats: dots, a larger target than the dot; the one on stage the largest. One beat has none. */
   .beats {
     position: relative;
     display: flex;
-    margin-left: 4px;
+    margin-left: var(--s1);
   }
   .beats.one {
     visibility: hidden;
@@ -1481,26 +1377,28 @@
     border-radius: 50%;
     box-sizing: border-box;
     background-clip: content-box;
-    background-color: rgba(255, 255, 255, 0.4);
+    background-color: var(--ink-3);
     cursor: pointer;
   }
   li:not(.current) .beat {
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: color-mix(in srgb, var(--ink-3) 50%, transparent);
   }
   .beat.shown {
-    background-color: rgba(255, 255, 255, 0.6);
+    background-color: var(--ink-2);
   }
   .beat:hover {
-    background-color: #fff;
+    background-color: var(--ink);
   }
   .beat.current {
     padding: 3px;
-    background-color: #fff;
+    background-color: var(--ink);
   }
   footer {
-    font-size: 11px;
+    color: var(--ink-3);
+    font: 400 var(--text-small) / 1.4 var(--mono);
+    font-variant-numeric: tabular-nums;
   }
   footer .lit {
-    color: #fff;
+    color: var(--ink);
   }
 </style>
