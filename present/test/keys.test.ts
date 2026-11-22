@@ -47,7 +47,7 @@ describe('the one key map', () => {
         press('ContextMenu'),
         press('r'),
         press('R', { shiftKey: true }),
-      ].map(action),
+      ].map((event) => action(event)),
     ).toEqual([
       'undo',
       'redo',
@@ -64,7 +64,12 @@ describe('the one key map', () => {
       'retitle',
       'retitle',
     ]);
+    // ⇧↓ ⇧↑ select scenes where the page arranges them, and step a scene elsewhere.
     expect(action(press('ArrowDown', { shiftKey: true }))).toBe('next-scene');
+    expect(action(press('ArrowUp', { shiftKey: true }))).toBe('prev-scene');
+    expect(action(press('ArrowDown', { shiftKey: true }), true)).toBe('select-down');
+    expect(action(press('ArrowUp', { shiftKey: true }), true)).toBe('select-up');
+    expect(action(press('ArrowDown'), true)).toBe('next-scene');
     expect(action(press('Enter', { metaKey: true }))).toBe('present');
     expect(action(press('Enter', { ctrlKey: true }))).toBe('present');
     // Other keys with a modifier are the browser's.

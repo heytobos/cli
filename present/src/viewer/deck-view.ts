@@ -153,14 +153,19 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   });
 
   window.addEventListener('keydown', (event) => {
-    const what = action(event);
+    const page = view === 'deck' && embedded && !shared;
+    const what = action(event, page && arranging);
     if (!what) return;
     if (moveOf(what)) event.preventDefault();
-    if (ownerOf(what) === 'slides') return run(what);
+    if (ownerOf(what) === 'slides') {
+      // Esc lets go of the scenes selected on the page around it too, as it does there.
+      if (what === 'end' && page && arranging) window.parent.postMessage(actionMessage(what), '*');
+      return run(what);
+    }
     // Presenting and arranging are the deck page's (TOB-404, D1): in its preview, the key press is
     // the page's too, so it may open the projector. A viewer on its own presents nothing. Enter on
     // a slide's own button presses it.
-    if (!(view === 'deck' && embedded && !shared)) return;
+    if (!page) return;
     // Arranging's keys only while the page arranges (its Scenes tab, for its editors), so they
     // stay the slides' otherwise; and Enter on a slide's own control presses it.
     if (ARRANGING.has(what) && !arranging) return;

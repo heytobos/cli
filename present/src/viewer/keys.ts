@@ -8,6 +8,7 @@
  * The deck page's changes to its scenes, to those on stage or selected: H hides or unhides, ⌘Z
  * and ⇧⌘Z undo and redo, ⌘↑↓ move one place, ⌘⇧↑↓ to the start or end, ⌘⌫ or Delete removes,
  * ↵ or F2 renames, ⇧F10 or the menu key opens their menu. R renames the deck itself (TOB-480).
+ * ⇧↓ ⇧↑ select the scenes they pass, from the one the selection started on.
  */
 const ARRANGE = [
   'hide',
@@ -21,6 +22,8 @@ const ARRANGE = [
   'rename',
   'menu',
   'retitle',
+  'select-down',
+  'select-up',
 ] as const;
 const ACTIONS = [
   'next',
@@ -74,8 +77,12 @@ export function actionIn(data: unknown): Action | null {
 /** A field someone types in, whose keys are its own: on the deck's page as in the slides. */
 const EDITABLE = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
 
-/** What a key press means on stage. Other keys pressed with a modifier are left to the browser. */
-export function action(event: KeyboardEvent): Action | null {
+/**
+ * What a key press means on stage. Other keys pressed with a modifier are left to the browser.
+ * While the deck's page is `arranging` its scenes, ⇧↓ ⇧↑ select them; elsewhere they step a scene,
+ * as ↓ ↑ do.
+ */
+export function action(event: KeyboardEvent, arranging = false): Action | null {
   const target = event.target as Element | null;
   if (target?.closest?.(EDITABLE)) return null;
   const command = event.metaKey || event.ctrlKey;
@@ -88,6 +95,8 @@ export function action(event: KeyboardEvent): Action | null {
   }
   if (event.shiftKey && event.key === 'F10') return 'menu';
   if (command || event.altKey) return null;
+  if (arranging && event.shiftKey && event.key === 'ArrowDown') return 'select-down';
+  if (arranging && event.shiftKey && event.key === 'ArrowUp') return 'select-up';
   switch (event.key) {
     // ← → step a beat, ↓ ↑ a scene, as the outline lists them; a clicker's PageDown and PageUp
     // step beats, so a presenter's goes through every one.
