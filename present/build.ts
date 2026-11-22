@@ -125,13 +125,27 @@ await esbuild.build({
   logLevel: 'warning',
   legalComments: 'none',
 });
+// Its style: the system's tokens and classes (@tobos/site), one file with them inside it. Its face
+// is the runtime's (fonts/, below), which the page's own @font-face names.
+await esbuild.build({
+  entryPoints: [join(root, 'src/phone/phone.css')],
+  outfile: join(tmp, 'phone.css'),
+  bundle: true,
+  external: ['./fonts/*'],
+  minify: true,
+  absWorkingDir: root,
+  logLevel: 'warning',
+  legalComments: 'none',
+});
 cpSync(join(root, 'src/skeleton.css'), join(tmp, 'skeleton.css'));
 cpSync(join(root, 'src/viewer/viewer.css'), join(tmp, 'viewer.css'));
-cpSync(join(root, 'src/phone/phone.css'), join(tmp, 'phone.css'));
-// The presenter's faces, tobos.ai's own (viewer.css names them), with their licences.
+// The presenter's and the phone page's faces, tobos.ai's own (viewer.css and phone.css name them),
+// with their licences; Hanken's accented letters beyond Latin-1 too, for a poll's words on a phone.
 const fonts = dirname(fileURLToPath(import.meta.resolve('@tobos/site/fonts.css')));
 mkdirSync(join(tmp, 'fonts'));
-for (const file of readdirSync(fonts).filter((f) => /-latin\.woff2$|\.txt$/.test(f)))
+for (const file of readdirSync(fonts).filter((f) =>
+  /-latin\.woff2$|^hanken-grotesk-latin-ext\.woff2$|\.txt$/.test(f),
+))
   cpSync(join(fonts, file), join(tmp, 'fonts', file));
 
 // The runtime's ID is the hash of everything in it.

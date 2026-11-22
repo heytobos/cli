@@ -144,14 +144,14 @@ describe('the phone page', () => {
     // The notice holds the first screen until the person starts answering.
     expect(document.body.classList.contains('answering')).toBe(false);
     await answer('Tea');
-    expect(screen()).toBe('Sent ✓');
+    expect(screen()).toBe('Sent');
     const participant = answers[0]!.participant;
     expect(participant).toMatch(UUID);
     expect(kept()).toMatchObject({ show: 'show-1', participant, sent: ['drink'] });
 
     // A reload within the show: still sent, and nothing sent again.
     await open();
-    expect(screen()).toBe('Sent ✓');
+    expect(screen()).toBe('Sent');
     expect(answers).toHaveLength(1);
     // Answered: the notice needn't hold the first screen any more.
     expect(document.body.classList.contains('answering')).toBe(true);
@@ -208,7 +208,7 @@ describe('the phone page', () => {
     expect(answers[2]).toMatchObject({ show: 'show-2', activity: 'food' });
     expect(answers[2]!.participant).toMatch(UUID);
     expect(answers[2]!.participant).not.toBe(first);
-    expect(screen()).toBe('Sent ✓');
+    expect(screen()).toBe('Sent');
     expect(kept()).toMatchObject({
       show: 'show-2',
       participant: answers[2]!.participant,
@@ -263,7 +263,7 @@ describe('the phone page', () => {
     for (let i = 0; i < 2; i++) {
       vi.setSystemTime(Date.now() + 2 * HOUR);
       await open();
-      expect(screen()).toBe('Sent ✓');
+      expect(screen()).toBe('Sent');
     }
 
     // Closed for longer: gone as the page opens, before anything else.
@@ -339,7 +339,7 @@ describe('the phone page', () => {
     await settle();
     // Sent by itself, with the id of the try the server never took, so it counts once.
     expect(answers).toEqual([expect.objectContaining({ show: 'show-1', activity: 'drink' })]);
-    expect(screen()).toBe('Sent ✓');
+    expect(screen()).toBe('Sent');
 
     // Refused by the server back before the presenter (409): sent again the same way.
     streams.at(-1)!.tell(live('show-1', poll('food')));
@@ -353,7 +353,7 @@ describe('the phone page', () => {
       expect.objectContaining({ activity: 'food' }),
       expect.objectContaining({ activity: 'food', id: answers[1]!.id }),
     ]);
-    expect(screen()).toBe('Sent ✓');
+    expect(screen()).toBe('Sent');
   });
 
   it('forgets an answer the restart refused when another session is live once it is back', async () => {

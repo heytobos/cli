@@ -371,9 +371,35 @@ let sendButton: HTMLButtonElement | null = null;
 let errorLine: HTMLElement | null = null;
 let ready: () => boolean = () => false;
 
-function message(text: string) {
-  root.replaceChildren(el('p', { className: 'message' }, text));
+/** A screen of one line; that the answer went, with Lucide's check, as Hanken has no ✓. */
+function message(text: string, sent = false) {
+  root.replaceChildren(
+    sent
+      ? el('p', { className: 'message sent' }, icon('M20 6 9 17l-5-5', 24), text)
+      : el('p', { className: 'message' }, text),
+  );
   sendButton = errorLine = null;
+}
+
+/** A Lucide icon at stroke 1.5, from its path; its words beside it say what it means. */
+function icon(d: string, size: number): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  for (const [name, value] of Object.entries({
+    width: String(size),
+    height: String(size),
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '1.5',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true',
+  }))
+    svg.setAttribute(name, value);
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  svg.append(path);
+  return svg;
 }
 
 function render() {
@@ -395,7 +421,7 @@ function render() {
     else if (screen === 'idle') message('Nothing is live here right now.');
     else if (screen === 'waiting') message('Waiting for the next poll…');
     else if (screen === 'closed') message('This poll has closed.');
-    else if (screen.startsWith('sent:')) message('Sent ✓');
+    else if (screen.startsWith('sent:')) message('Sent', true);
     else if (activity?.kind === 'choice') showChoice(activity);
     else if (activity?.kind === 'text') showText(activity);
   }
@@ -409,19 +435,19 @@ function update() {
     sendButton.setAttribute('aria-busy', String(sending));
     if (sending !== sendButton.classList.contains('sending')) {
       sendButton.classList.toggle('sending', sending);
-      sendButton.replaceChildren(
-        ...(sending
-          ? [el('span', { className: 'spinner', 'aria-hidden': 'true' }), 'Sending…']
-          : ['Send']),
-      );
+      sendButton.replaceChildren(sending ? spinner('Sending…') : 'Send');
     }
   }
   if (errorLine) errorLine.textContent = error;
 }
 
+/** system.css's spinner: Lucide's loader-circle, turning beside its words. */
+const spinner = (label: string) =>
+  el('span', { className: 'spinner' }, icon('M21 12a9 9 0 1 1-6.219-8.56', 16), label);
+
 function actions(onSend: () => void): HTMLElement {
   sendButton = el('button', { type: 'button', className: 'send', onclick: onSend }, 'Send');
-  errorLine = el('p', { className: 'error', role: 'alert' });
+  errorLine = el('p', { className: 'error alert', role: 'alert' });
   return el('div', { className: 'actions' }, sendButton, errorLine);
 }
 
@@ -470,8 +496,8 @@ function showText(activity: Extract<PhoneActivity, { kind: 'text' }>) {
   const saved = draft(activity);
   const inputs = activity.fields.map((field) => {
     const input = field.multiline
-      ? el('textarea', { rows: 4 })
-      : el('input', { type: 'text', autocomplete: 'off' });
+      ? el('textarea', { rows: 4, className: 'input' })
+      : el('input', { type: 'text', autocomplete: 'off', className: 'input' });
     input.maxLength = field.max;
     input.name = field.id;
     input.value = (saved[field.id] ?? '').slice(0, field.max);

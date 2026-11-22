@@ -8,11 +8,28 @@ const value = (css: string, name: string) =>
   new RegExp(`${name}:\\s*([^;]+);`).exec(css)?.[1]?.trim();
 
 describe("the engine's copies of tobos.ai's colours", () => {
-  it("are the brand's: the presenter's ink, grey and red, and the phone page's ink", () => {
+  it("are the brand's: the presenter's ink, grey and red", () => {
     const presenter = read('../src/viewer/Presenter.svelte');
     for (const name of ['--ink', '--grey', '--pop'])
       expect(value(presenter, name), name).toBe(value(brand, name));
-    expect(value(read('../src/phone/phone.css'), '--ink')).toBe(value(brand, '--ink'));
+  });
+
+  it("aren't on the phone page, which takes the tokens and classes themselves", () => {
+    const phone = read('../src/phone/phone.css');
+    expect(phone).toContain("@import '@tobos/site/tokens.css';");
+    expect(phone).toContain("@import '@tobos/site/system.css';");
+    expect(phone).not.toMatch(/^\s*--[\w-]+:/m);
+    expect(phone).not.toMatch(/#(?!fff\b)[0-9a-f]{3,8}\b|rgba?\(/i);
+  });
+});
+
+describe("the phone page's face", () => {
+  it('is the one --sans names, loaded from the runtime’s fonts', () => {
+    const phone = read('../src/phone/phone.css');
+    const sans = /'([^']+)'/.exec(value(brand, '--sans') ?? '')?.[1];
+    const faces = [...phone.matchAll(/@font-face\s*{[^}]*font-family:\s*'([^']+)'[^}]*}/g)];
+    expect(faces.map((m) => m[1])).toEqual([sans, sans]);
+    for (const [face] of faces) expect(face).toMatch(/url\('\.\/fonts\/hanken-grotesk-latin/);
   });
 });
 

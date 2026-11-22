@@ -30,6 +30,7 @@
   --text-display: clamp(36px, 4.2vw, 62px); /* the site's statements */
   --text-hero: clamp(46px, 6.2vw, 94px); /* the site's opening line */
   --track-tight: -0.035em; /* everything 24px and up */
+  --track-hero: -0.045em; /* the site's opening line, so it breaks on a phone as it's written */
   --track-mono: 0.08em; /* mono capitals */
   --track-caps: 0.2em; /* sans capitals: buttons, tabs, nav */
   --track-wordmark: 0.34em;

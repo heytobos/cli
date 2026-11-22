@@ -1,0 +1,604 @@
+/*
+ * The Tobos look as classes: one definition for each component, built only from tokens.css, for
+ * the app (its Tailwind build imports this as components, so a utility still wins), the site, the
+ * presenter and the phone page. VOICE.md ("The look") describes them; brand/system/ shows them.
+ *
+ * A variant is a second class beside the first (`btn btn-primary`), a state is the element's own
+ * (:hover, :disabled, aria-selected, aria-current), so nothing here needs a class of its own to
+ * look pressed, current or broken.
+ */
+
+/* ---- focus: one ring for every control, shown only to the keyboard */
+:focus-visible {
+  outline: var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+/* ---- button: the brand button an ink outline, primary filled, quiet a hairline, icon a square,
+   danger red with an ink label (only on the button that destroys, in the dialog that confirms) */
+.btn,
+.btn-quiet /* alone, as the app wrote it before this file: kept until the surfaces move (PLAN.md 15) */ {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  height: var(--control);
+  padding: 0 var(--s4);
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 500 var(--text-label) / 1 var(--sans);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--t-ui) var(--ease),
+    color var(--t-ui) var(--ease),
+    border-color var(--t-ui) var(--ease);
+}
+@media (hover: hover) {
+  .btn:not(:disabled, [aria-disabled='true']):hover {
+    background: var(--ink);
+    color: #fff;
+  }
+}
+/* Before primary, so a quiet primary (the deck's Present) is primary. */
+.btn-quiet {
+  border-color: var(--line);
+}
+@media (hover: hover) {
+  .btn-quiet:not(:disabled, [aria-disabled='true']):hover {
+    background: transparent;
+    border-color: var(--ink);
+    color: var(--ink);
+  }
+}
+.btn-primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+@media (hover: hover) {
+  .btn-primary:not(:disabled, [aria-disabled='true']):hover {
+    background: var(--ink-2);
+    border-color: var(--ink-2);
+    color: #fff;
+  }
+}
+.btn-danger {
+  background: var(--pop);
+  border-color: var(--pop);
+  color: var(--ink);
+}
+@media (hover: hover) {
+  .btn-danger:not(:disabled, [aria-disabled='true']):hover {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+  }
+}
+.btn-icon {
+  width: var(--control);
+  padding: 0;
+}
+:is(.btn, .btn-quiet):disabled,
+:is(.btn, .btn-quiet)[aria-disabled='true'] {
+  /* Still under the pointer, so a title saying why can show. */
+  opacity: 0.4;
+  cursor: default;
+}
+:is(.btn, .btn-quiet) svg {
+  flex: none;
+}
+/* On a dark ground the ink is white, so what fills with it takes the ink's own dark for its words. */
+.on-ink .btn-primary {
+  color: #121a2c;
+}
+@media (hover: hover) {
+  .on-ink .btn:not(:disabled, [aria-disabled='true']):hover {
+    color: #121a2c;
+  }
+}
+@media (hover: hover) {
+  .on-ink .btn-quiet:not(:disabled, [aria-disabled='true']):hover {
+    color: var(--ink);
+  }
+}
+
+/* ---- link, and a button that reads as one */
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--ink-3);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: text-decoration-color var(--t-ui) var(--ease);
+}
+@media (hover: hover) {
+  .link:hover {
+    text-decoration-color: var(--ink);
+  }
+}
+.link-quiet {
+  color: var(--ink-2);
+}
+
+/* ---- field: its label above, a hint or a problem under it */
+.field {
+  display: grid;
+  gap: 6px;
+}
+.field > span:first-child {
+  font: 300 var(--text-ui) / 1.4 var(--sans);
+  color: var(--ink-2);
+}
+.field > small {
+  font: 300 var(--text-small) / 1.4 var(--sans);
+  color: var(--ink-3);
+}
+.input {
+  width: 100%;
+  height: var(--control);
+  padding: 0 var(--s3);
+  border: 1px solid var(--ink-3);
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  /* What a person types is their own words: 400 (VOICE.md). */
+  font: 400 var(--text-ui) / 1 var(--sans);
+  appearance: none;
+}
+textarea.input {
+  height: auto;
+  min-height: 88px;
+  padding: var(--s2) var(--s3);
+  line-height: 1.5;
+  resize: vertical;
+}
+select.input {
+  padding-right: 32px;
+  background:
+    linear-gradient(45deg, transparent 50%, var(--ink-2) 50%) right 16px center / 5px 5px no-repeat,
+    linear-gradient(-45deg, transparent 50%, var(--ink-2) 50%) right 11px center / 5px 5px no-repeat,
+    #fff;
+}
+/* Under 16px a phone's Safari zooms into the field when it's tapped. */
+@media (pointer: coarse) {
+  .input {
+    font-size: 16px;
+  }
+}
+.input::placeholder {
+  color: var(--ink-3);
+}
+/* Its ring is everyone's (:focus-visible, which a field takes on any focus); its edge turns ink. */
+.input:focus {
+  border-color: var(--ink);
+}
+.input[aria-invalid='true'] {
+  border-color: var(--ink);
+}
+.input:disabled {
+  border-color: var(--line);
+  color: var(--ink-3);
+}
+/* Its box on the first line's middle, so a label of two lines, or one with a note under it, hangs
+   from it as one of a single line does. */
+.check {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  font: 300 var(--text-ui) / 1.4 var(--sans);
+  cursor: pointer;
+}
+.check input {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  /* The label's size and line, so 1lh is its first line (1.4em where lh isn't known). */
+  font: inherit;
+  margin: calc((1.4em - 14px) / 2) 0 0;
+  margin: calc((1lh - 14px) / 2) 0 0;
+  accent-color: var(--ink);
+  cursor: pointer;
+}
+
+/* ---- notice: a problem is ink words beside the red rule; information is the tint */
+.alert {
+  padding: 2px 0 2px var(--s3);
+  border-left: 2px solid var(--pop);
+  color: var(--ink);
+  font: 400 var(--text-ui) / 1.5 var(--sans);
+}
+.note {
+  padding: var(--s3) var(--s4);
+  background: var(--ink-soft);
+  color: var(--ink-2);
+  font: 300 var(--text-ui) / 1.5 var(--sans);
+}
+:is(.alert, .note) b {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* ---- tabs, and every two-way switch: the current one marked red beneath */
+.tabs {
+  display: flex;
+  gap: var(--s6);
+  border-bottom: 1px solid var(--line);
+}
+.tabs > :is(button, a) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control);
+  margin-bottom: -1px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--ink-2);
+  font: 500 var(--text-label) / 1 var(--sans);
+  letter-spacing: var(--track-caps);
+  text-decoration: none;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--t-ui) var(--ease);
+}
+@media (hover: hover) {
+  .tabs > :is(button, a):hover {
+    color: var(--ink);
+  }
+}
+.tabs > :is([aria-selected='true'], [aria-current]:not([aria-current='false'])) {
+  border-bottom-color: var(--pop);
+  color: var(--ink);
+}
+.tabs em {
+  color: var(--ink-3);
+  font: 400 var(--text-small) / 1 var(--mono);
+  font-style: normal;
+  letter-spacing: 0;
+}
+
+/* ---- menu: one popover for every menu; on a touch screen, a sheet from the foot */
+.menu {
+  width: 256px;
+  padding: var(--s1) 0;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
+  font: 300 var(--text-ui) / 1.4 var(--sans);
+}
+.menu-sheet {
+  width: auto;
+  /* 20px, with its items' 12px, puts its words at a phone page's 32px gutter. */
+  padding: var(--s3) var(--s5) max(var(--s4), env(safe-area-inset-bottom));
+  border: 0;
+  border-top: 1px solid var(--line);
+  box-shadow: none;
+}
+.menu-head {
+  margin: 0;
+  padding: var(--s2) var(--s3) var(--s1);
+  color: var(--ink-3);
+  font: 400 var(--text-small) / 1.3 var(--sans);
+}
+.menu :is([role^='menuitem'], [role='option']) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--control);
+  /* A line is 36px; one with a note or a reason under it, a row's 44px. */
+  padding: var(--s1) var(--s3);
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-sheet :is([role^='menuitem'], [role='option']) {
+  min-height: 48px;
+  border-top: 1px solid var(--line);
+}
+/* On a phone the sheet covers the list, so its first line, what it acts on, reads as text. */
+.menu-sheet > .menu-head:first-child {
+  color: var(--ink);
+  font-size: var(--text-ui);
+}
+.menu-sheet .btn {
+  height: 48px;
+}
+/* A finger's target in a dialog, as in the sheet. */
+@media (pointer: coarse) {
+  .dialog-actions .btn {
+    height: 48px;
+  }
+}
+.menu :is([role^='menuitem'], [role='option']):is(:focus-visible, [aria-selected='true']) {
+  background: var(--ink-soft);
+  /* Transparent, so the tint marks it; under forced colours, which drop the tint, it shows. */
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .menu :is([role^='menuitem'], [role='option']):hover {
+    background: var(--ink-soft);
+  }
+}
+.menu :is([role^='menuitem'], [role='option'])[aria-disabled='true'] {
+  color: var(--ink-3);
+  cursor: default;
+}
+/* The arrows still reach it, and its focus shows; only the pointer gets no tint. */
+@media (hover: hover) {
+  .menu :is([role^='menuitem'], [role='option'])[aria-disabled='true']:not(:focus-visible):hover {
+    background: none;
+  }
+}
+/* The label takes the room; a value beside it and a kept place for a picture don't. */
+.menu :is([role^='menuitem'], [role='option']) > span:not(.count, [aria-hidden]) {
+  flex: 1;
+  min-width: 0;
+}
+.menu small {
+  display: block;
+  color: var(--ink-3);
+  font-size: var(--text-small);
+  line-height: 1.4;
+}
+.menu kbd {
+  color: var(--ink-3);
+  font: 400 var(--text-small) / 1 var(--mono);
+}
+.menu hr {
+  margin: var(--s1) 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+/* ---- dialog: over the scrim, at one height, its actions on the right */
+.scrim {
+  background: var(--scrim);
+}
+.dialog {
+  /* On a phone, its words at the page's 32px gutter. */
+  width: min(448px, 100vw - 16px);
+  max-width: none;
+  margin: 18vh auto 0;
+  /* What it says scrolls in it, so its actions stay on a short screen (a phone on its side). */
+  box-sizing: border-box;
+  max-height: calc(100dvh - 18vh - var(--s4));
+  overflow-y: auto;
+  padding: var(--s6);
+  border: 0;
+  background: #fff;
+  box-shadow: var(--shadow-modal);
+  color: var(--ink);
+}
+/* Written out: before Safari 17.4 and Firefox 120 a ::backdrop reads no custom property. */
+.dialog::backdrop {
+  background: rgba(18, 26, 44, 0.3);
+}
+.dialog h2 {
+  margin: 0;
+  font: 200 var(--text-heading) / 1.2 var(--sans);
+  letter-spacing: var(--track-tight);
+}
+.dialog-body > p {
+  margin: var(--s3) 0 0;
+  color: var(--ink-2);
+  font: 300 var(--text-ui) / 1.6 var(--sans);
+}
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s3);
+  margin-top: var(--s6);
+}
+
+/* ---- toast: ink ground, what happened, one way back */
+.toast {
+  /* Ink ground: the ring is white, as on any dark ground. */
+  --focus: 2px solid #fff;
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3) var(--s4);
+  border-left: 2px solid var(--ink);
+  background: var(--ink);
+  box-shadow: var(--shadow-float);
+  color: #fff;
+  font: 300 var(--text-ui) / 1.4 var(--sans);
+}
+.toast-problem {
+  border-left-color: var(--pop);
+}
+.toast small {
+  display: block;
+  color: #a5adbf;
+  font-size: var(--text-small);
+}
+.toast button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: 500 var(--text-label) / 1 var(--sans);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* ---- row: one line of a list, 44px, its states the tint */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--row);
+  padding: 0 var(--s3);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font: 300 var(--text-ui) / 1.4 var(--sans);
+  transition: background-color var(--t-ui) var(--ease);
+}
+@media (hover: hover) {
+  .row:hover {
+    background: color-mix(in srgb, var(--ink-soft) 50%, transparent);
+  }
+}
+.row[aria-selected='true'] {
+  background: var(--ink-soft);
+}
+.row:is([aria-current]:not([aria-current='false'])) {
+  background: var(--ink-soft);
+  box-shadow: inset 2px 0 0 var(--pop);
+}
+
+/* ---- tag, count, dot */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  font: 500 var(--text-label) / 1 var(--mono);
+  letter-spacing: var(--track-mono);
+  text-transform: uppercase;
+}
+.tag-ink {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+.count {
+  color: var(--ink-3);
+  font: 400 var(--text-small) / 1 var(--mono);
+}
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+.dot-pop {
+  background: var(--pop);
+}
+.dot-hollow {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--ink-3);
+}
+
+/* ---- text: a caption in brackets, a page's title, a heading, the app's text, the small print */
+.cap {
+  color: var(--ink-3);
+  font: 500 var(--text-label) / 1.5 var(--mono);
+  letter-spacing: var(--track-mono);
+  text-transform: uppercase;
+}
+.cap::before {
+  content: '[ ';
+}
+.cap::after {
+  content: ' ]';
+}
+.title {
+  margin: 0;
+  font: 200 var(--text-title) / 1.06 var(--sans);
+  letter-spacing: var(--track-tight);
+}
+.heading {
+  margin: 0;
+  font: 200 var(--text-heading) / 1.2 var(--sans);
+  letter-spacing: var(--track-tight);
+}
+.text {
+  margin: 0;
+  color: var(--ink-2);
+  font: 300 var(--text-ui) / 1.6 var(--sans);
+}
+.small {
+  color: var(--ink-3);
+  font: 300 var(--text-small) / 1.5 var(--sans);
+}
+
+/* ---- panel, monogram */
+.panel {
+  padding: var(--s5);
+  border: 1px solid var(--line);
+}
+/* A person: the first letters of their address, square (dots are the only round things). */
+.monogram {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font: 500 9.5px / 1 var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.monogram-you {
+  background: var(--ink);
+  color: #fff;
+}
+.monogram-invited {
+  border-style: dashed;
+  border-color: var(--ink-3);
+  background: #fff;
+  color: var(--ink-3);
+}
+
+/* ---- loading: a skeleton's slow pulse in the tint, a spinner; the only things that loop, and
+   still under reduced motion */
+.skeleton {
+  display: block;
+  height: 12px;
+  background: var(--ink-soft);
+  animation: skeleton-pulse 1.6s var(--ease) infinite alternate;
+}
+@keyframes skeleton-pulse {
+  to {
+    opacity: 0.45;
+  }
+}
+.spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--ink-2);
+  font: 300 var(--text-ui) / 1 var(--sans);
+}
+.spinner svg {
+  flex: none;
+  animation: spinner-turn 1s linear infinite;
+}
+@keyframes spinner-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .spinner svg {
+    animation: none;
+  }
+}
