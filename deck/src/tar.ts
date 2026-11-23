@@ -1,7 +1,7 @@
 /**
- * A deck's files as one `.tar.gz` (ADR 0005): the export a person downloads, and what `tobos pull`
- * reads. Plain ustar, with a PAX header for a path too long for ustar's fields, so every desktop
- * opens it; written and read here alone, so the server and the CLI agree.
+ * A deck's files as one `.tar.gz`: the export a person downloads, and what `tobos pull` reads.
+ * Plain ustar, with a PAX header for a path too long for ustar's fields, so every desktop opens it;
+ * written and read here alone, so the server and the CLI agree.
  */
 import { promisify } from 'node:util';
 import { gunzipSync, gzip } from 'node:zlib';

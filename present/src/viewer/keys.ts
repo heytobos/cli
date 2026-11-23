@@ -1,14 +1,14 @@
 /**
- * The one key map (TOB-404, D2): a key means the same wherever it lands, on the deck's page or in
- * its preview, and its action goes to whichever of the two owns it (ownerOf), in one message
- * (actionIn). Arranging the deck's scenes is the deck page's (ARRANGING), so its keys work while
- * the preview has the focus too.
+ * The one key map: a key means the same wherever it lands, on the deck's page or in its preview,
+ * and its action goes to whichever of the two owns it (ownerOf), in one message (actionIn).
+ * Arranging the deck's scenes is the deck page's (ARRANGING), so its keys work while the preview
+ * has the focus too.
  */
 /**
- * The deck page's changes to its scenes, to those on stage or selected: H hides or unhides, ⌘Z
- * and ⇧⌘Z undo and redo, ⌘↑↓ move one place, ⌘⇧↑↓ to the start or end, ⌘⌫ or Delete removes,
- * ↵ or F2 renames, ⇧F10 or the menu key opens their menu. R renames the deck itself (TOB-480).
- * ⇧↓ ⇧↑ select the scenes they pass, from the one the selection started on.
+ * The deck page's changes to its scenes, to those on stage or selected: H hides or unhides, ⌘Z and
+ * ⇧⌘Z undo and redo, ⌘↑↓ move one place, ⌘⇧↑↓ to the start or end, ⌘⌫ or Delete removes, ↵ or F2
+ * renames, ⇧F10 or the menu key opens their menu. R renames the deck itself. ⇧↓ ⇧↑ select the
+ * scenes they pass, from the one the selection started on.
  */
 const ARRANGE = [
   'hide',

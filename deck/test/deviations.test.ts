@@ -9,8 +9,8 @@ import {
 } from '../src/index.ts';
 
 /**
- * The linter of ADR 0010, D10: on a deck that follows a theme, what its own files write by hand
- * where the theme has a token is a warning, and never anything more.
+ * The linter of a deck's deviations from its theme: on a deck that follows a theme, what its own
+ * files write by hand where the theme has a token is a warning, and never anything more.
  */
 const TOKENS = `:root {
   --stage-paper: #ffffff;

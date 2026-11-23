@@ -1,8 +1,8 @@
 /**
- * A deck's outline, held by Tobos, joined with a build, which the deck's code makes (ADR 0006):
- * the outline says which scenes show, in what order, under which titles; the build what each is.
- * Joined when a manifest is read, never when the deck is compiled, so a change to the outline
- * reaches the viewer without a build.
+ * A deck's outline, held by Tobos, joined with a build, which the deck's code makes: the outline
+ * says which scenes show, in what order, under which titles; the build what each is. Joined when a
+ * manifest is read, never when the deck is compiled, so a change to the outline reaches the viewer
+ * without a build.
  */
 import { chaptersOf } from './deck-json.ts';
 import type {
@@ -19,8 +19,8 @@ const isLegacy = (build: { scenes?: unknown; chapters?: unknown }): build is Leg
   !('scenes' in build) && Array.isArray(build.chapters);
 
 /**
- * A build's scenes by id: every scene file's, or for one stored before ADR 0006, those deck.json
- * listed, which were the only ones it compiled as scenes.
+ * A build's scenes by id: every scene file's, or for one stored before the outline left deck.json,
+ * those deck.json listed, which were the only ones it compiled as scenes.
  */
 export function buildScenes(
   build: { scenes: Record<string, BuildScene> } | { chapters: ManifestChapter[] },
@@ -34,9 +34,9 @@ export function buildScenes(
 }
 
 /**
- * A build as one stored from now on has it: one stored before ADR 0006 without its title and
- * chapters, its scenes by id. What a version that keeps the build before it stores, so nothing
- * takes the outline it had for the deck's (refillOutlines, in the app).
+ * A build as one stored from now on has it: one stored before the outline left deck.json without
+ * its title and chapters, its scenes by id. What a version that keeps the build before it stores,
+ * so nothing takes the outline it had for the deck's (refillOutlines, in the app).
  */
 export function currentBuild(build: StoredBuild): Build {
   if (!isLegacy(build)) return build;
@@ -44,7 +44,10 @@ export function currentBuild(build: StoredBuild): Build {
   return { ...rest, scenes: buildScenes(build) };
 }
 
-/** The outline a build stored before ADR 0006 had, from deck.json: where the deck's came from. */
+/**
+ * The outline of a build stored before the outline left deck.json, from deck.json: where the
+ * deck's came from.
+ */
 export function legacyOutline(build: LegacyBuild): Outline {
   return {
     title: build.title,

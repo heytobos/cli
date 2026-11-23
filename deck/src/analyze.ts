@@ -1221,8 +1221,8 @@ function readExports(program: Node | null | undefined, exports: Exports) {
 
 /**
  * Whether a .svelte file exports `beats` from its module script: a top-level file of scenes/ that
- * does is a scene, placed in the outline or not (ADR 0006). One that can't be read is taken by what
- * it says, so the compiler's error is a scene's.
+ * does is a scene, placed in the outline or not. One that can't be read is taken by what it says,
+ * so the compiler's error is a scene's.
  */
 export function exportsBeats(source: string): boolean {
   if (!/\bbeats\b/.test(source)) return false;

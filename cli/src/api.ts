@@ -51,7 +51,7 @@ export async function api<T = Record<string, unknown>>(
  * A plan's limit (402) or a View only deck (423) exits with 5, and says whose decision it is.
  */
 export function failure(response: Response, data: unknown, prefix = ''): CliError {
-  // `{ error, message }` (ADR 0005): `error` is the code, `message` what to do.
+  // `{ error, message }`: `error` is the code, `message` what to do.
   const { error, message, ...extra } = data as { error?: string; message?: string };
   const said = prefix + (message ?? error ?? `${response.status} ${response.statusText}`);
   const limit = response.status === 402 || response.status === 423;

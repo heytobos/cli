@@ -1,10 +1,10 @@
 /**
- * A working copy of a deck (ADR 0005): every file in its folder but `.tobos/`, `.git/`,
- * `node_modules/`, `sources/` (the originals scripts read) and any `.DS_Store`, with the bytes of each file its media.json names in media/. `.tobos/base.json`
- * says which deck and server it is of, the version it is in step with, and each file's SHA-256
- * there. `pull` brings it into step with the deck's latest version, merging what both changed;
- * `push` writes what changed since its base as one change, then takes the version it made. No
- * git: the server keeps the versions.
+ * A working copy of a deck: every file in its folder but `.tobos/`, `.git/`, `node_modules/`,
+ * `sources/` (the originals scripts read) and any `.DS_Store`, with the bytes of each file its
+ * media.json names in media/. `.tobos/base.json` says which deck and server it is of, the version
+ * it is in step with, and each file's SHA-256 there. `pull` brings it into step with the deck's
+ * latest version, merging what both changed; `push` writes what changed since its base as one
+ * change, then takes the version it made. No git: the server keeps the versions.
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -37,8 +37,8 @@ export interface Base {
   /** Each file's SHA-256 at that version, media's included, by path. */
   files: Record<string, string>;
   /**
-   * The version of the deck's outline, which Tobos holds apart from its files (ADR 0006), that
-   * the copy last heard of: what changed in it since, a pull says.
+   * The version of the deck's outline, which Tobos holds apart from its files, that the copy last
+   * heard of: what changed in it since, a pull says.
    */
   outline?: number;
 }
@@ -345,19 +345,19 @@ export interface Written {
   rev: string;
   changed: boolean;
   problems: { severity: string; file?: string; message: string }[];
-  /** The version a theme's write published (ADR 0010, D5). */
+  /** The version a theme's write published. */
   published?: Published;
-  /** A deck's follow of a theme (ADR 0010, D9). */
+  /** A deck's follow of a theme. */
   followed?: Followed;
-  /** A newer version of the deck's theme its owner is offered (ADR 0010, D8). */
+  /** A newer version of the deck's theme its owner is offered. */
   update?: { theme: string; version: string; publishedAt: string; notes: string[]; url: string };
 }
 
-/** What a follow asks (ADR 0010, D9): a theme, by its name or id, and a version of it. */
+/** What a follow asks: a theme, by its name or id, and a version of it. */
 export interface FollowAsked {
   theme: string;
   version?: string;
-  /** The outline's version compared: accepting refuses if it moved on (D9). */
+  /** The outline's version compared: accepting refuses if it moved on. */
   outline?: number;
 }
 
@@ -385,7 +385,7 @@ export interface Published {
   rev: string;
   note: string;
   publishedAt: string;
-  /** When each version of the theme was published, which names this one (D6). */
+  /** When each version of the theme was published, which names this one. */
   publishes?: string[];
 }
 
@@ -404,7 +404,7 @@ export async function writeCopy(
   }: {
     dry?: boolean;
     note: (m: string) => void;
-    /** More of the changeset: `publish`, a theme's note (ADR 0010, D5). */
+    /** More of the changeset: `publish`, a theme's note. */
     with?: Record<string, unknown>;
   },
 ): Promise<Written & { sent: string[]; uploaded: string[] }> {
@@ -469,7 +469,7 @@ export async function writeCopy(
       }
       continue;
     }
-    // A theme's version published already (ADR 0010, D5): nothing to merge.
+    // A theme's version published already: nothing to merge.
     if (data.error === 'conflict' && 'published' in data)
       throw new CliError(
         (data as { message?: string }).message ?? 'Published already.',

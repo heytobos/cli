@@ -1,9 +1,8 @@
 /**
- * The chrome's stylesheet (TOB-535): tobos.ai's tokens and classes (@tobos/site's tokens.css and
- * system.css, which chrome.css imports and build-css.ts bundles in, before its own rules) for what
- * the viewer draws around a deck, the presenter's view, a share link's bar, the hints and the
- * media sheet, and for nothing of the deck's own. build.ts writes it into the runtime as
- * system.css.
+ * The chrome's stylesheet: tobos.ai's tokens and classes (@tobos/site's tokens.css and system.css,
+ * which chrome.css imports and build-css.ts bundles in, before its own rules) for what the viewer
+ * draws around a deck, the presenter's view, a share link's bar, the hints and the media sheet, and
+ * for nothing of the deck's own. build.ts writes it into the runtime as system.css.
  *
  * Every rule is under `@scope (.tobos-chrome) to (.tobos-stage)`: it matches only inside an
  * element marked as chrome, and never in a slide. The tokens are set on those elements, and none

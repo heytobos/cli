@@ -51,9 +51,9 @@ interface DeckInfo {
   rev: string | null;
   url: string;
   scenes: { id: string; beats: string[] }[];
-  /** Its outline, which Tobos holds apart from its files (ADR 0006). */
+  /** Its outline, which Tobos holds apart from its files. */
   outline?: Outline;
-  /** A theme (ADR 0010): decks follow it; it isn't presented. */
+  /** A theme: decks follow it; it isn't presented. */
   theme?: boolean;
   /** What `new` warns of, such as --from going. */
   warning?: string;
@@ -92,11 +92,11 @@ interface DeviceStart {
 }
 
 /**
- * Connect this machine to the person's account (TOB-402, D1): they approve it in a browser, at the
- * address this prints, where they log in at /login with their address and the code mailed to it
- * (a first code signs them up). The first `tobos login` prints the address, and opens it where
- * this machine has a browser; then it, or the next `tobos login`, waits a while for their answer,
- * on the same code, so an agent whose commands time out keeps one address to give the person.
+ * Connect this machine to the person's account: they approve it in a browser, at the address this
+ * prints, where they log in at /login with their address and the code mailed to it (a first code
+ * signs them up). The first `tobos login` prints the address, and opens it where this machine has a
+ * browser; then it, or the next `tobos login`, waits a while for their answer, on the same code, so
+ * an agent whose commands time out keeps one address to give the person.
  * `--ref`: where their visit to tobos.ai came from, from the line they copied there
  * (product/start.md), which the server keeps as the source of the account the login makes, if it
  * makes one.
@@ -220,12 +220,12 @@ export async function logout(out: Output) {
   );
 }
 
-/** An app's name, as `tobos whoami` says it (TOB-499). */
+/** An app's name, as `tobos whoami` says it. */
 const APP_NAMES: Record<string, string> = { present: 'Tobos Present', mail: 'Tobos Mail' };
 
 /**
  * Who this machine is logged in as, and the apps its grant reaches, which the person chooses at
- * /connections (TOB-499); a server from before names none.
+ * /connections; a server from before names none.
  */
 export async function whoami(out: Output) {
   const me = await api<{ email: string; apps?: string[] }>('/api/me');
@@ -295,7 +295,7 @@ export async function ls(out: Output, args: Args) {
       decks.length === 0
         ? 'No decks yet. `tobos new "Title"` starts one.'
         : decks.map(line).join('\n'),
-      // Themes apart, as the person's home lists them (ADR 0010, D1).
+      // Themes apart, as the person's home lists them.
       themes.length
         ? `\nThemes (\`tobos new "Title" --theme <name>\` starts a deck that follows one)\n${themes.map((d) => `${d.id}  ${d.title}${aboutDeck({ ...d, theme: true })}`).join('\n')}`
         : '',
@@ -431,7 +431,7 @@ async function pageChanges(
     const answer = await api<
       DeckInfo & {
         pushes: { message: string | null; author: string | null; door: string | null }[];
-        /** Missing from a server from before ADR 0006. */
+        /** Missing from a server from before Tobos held the outline. */
         outlineChanges?: { message: string; author: string | null; door: string | null }[];
       }
     >(`/api/decks/${deck}?${range}`, { server });
@@ -547,8 +547,8 @@ function noteSizes(out: Output, root: string, paths: string[]) {
 }
 
 /**
- * `tobos check`: what the server's check says of the working copy's changes, written dry (ADR
- * 0005): nothing lands. With `--types`, TypeScript's too, here.
+ * `tobos check`: what the server's check says of the working copy's changes, written dry: nothing
+ * lands. With `--types`, TypeScript's too, here.
  */
 export async function check(out: Output, args: Args) {
   const copy = requireCopy(args.positionals[0]);
@@ -581,7 +581,7 @@ export async function check(out: Output, args: Args) {
   const { errors, warnings } = problemSummary(problems);
   const ms = Math.round(performance.now() - started);
   const followed = written.followed;
-  // What was compared, which `push --follow` accepts: its version and the outline's (D9).
+  // What was compared, which `push --follow` accepts: its version and the outline's.
   if (follow && followed) remember(copy.root, follow.theme, followed, copy.base.rev);
   out.result(
     {
@@ -702,7 +702,7 @@ export async function push(out: Output, args: Args) {
       result.pushed ? formatProblems(result.problems as Problem[]) : '',
       published ? `✓ Published ${saidPublished(published)}` : '',
       followed ? saidFollowed(followed) : '',
-      // Once, after the task: the person decides, having seen the comparison (ADR 0010, D8).
+      // Once, after the task: the person decides, having seen the comparison.
       update
         ? `${update.theme}, this deck's theme, has a newer version (${update.version.slice(0, 7)}): ${update.notes.join('; ')}. Tell the person once, after this task, with ${update.url}, where they compare it and update; \`tobos check --follow "${update.theme}"\` makes the comparison here.`
         : '',
@@ -766,7 +766,7 @@ function compared(
   return { ...follow, version: kept.version, outline: kept.outline };
 }
 
-/** What `--follow` and `--version` ask of a write (ADR 0010, D9), if anything. */
+/** What `--follow` and `--version` ask of a write, if anything. */
 function followAsked(args: Args): FollowAsked | undefined {
   const { follow, version } = args.values;
   if (follow === undefined) {
@@ -805,9 +805,9 @@ function saidFollowed(followed: Followed, preview?: string): string {
 }
 
 /**
- * A theme's version as the CLI names it (ADR 0010, D6): by its hash, and as people see it, where
- * this machine is: "Synthesion c41e9a0 · 28 November", with its time where the theme published
- * another that day, its year when it isn't this one.
+ * A theme's version as the CLI names it: by its hash, and as people see it, where this machine is:
+ * "Synthesion c41e9a0 · 28 November", with its time where the theme published another that day,
+ * its year when it isn't this one.
  */
 function saidPublished(published: Published): string {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -833,7 +833,7 @@ async function pushIfChanged(out: Output, id: string, message?: string) {
 
 // ─── The outline ────────────────────────────────────────────────────────────
 
-/** An operation on the outline, as `write` takes it (ADR 0006). */
+/** An operation on the outline, as `write` takes it. */
 type Op = Record<string, unknown> & { op: string };
 
 /**
@@ -942,9 +942,9 @@ function opsFrom(args: Args): Op[] {
 }
 
 /**
- * `tobos outline`: the deck's outline, which Tobos holds, not a file of the copy (ADR 0006): its
- * chapters and scenes in order, and the scene files it doesn't place. With an operation, it is
- * changed first, at once, with no build: `write` with `outline`, as every door changes it.
+ * `tobos outline`: the deck's outline, which Tobos holds, not a file of the copy: its chapters and
+ * scenes in order, and the scene files it doesn't place. With an operation, it is changed first,
+ * at once, with no build: `write` with `outline`, as every door changes it.
  */
 export async function outline(out: Output, args: Args) {
   const id = await deckId(args);
@@ -990,7 +990,7 @@ export async function outline(out: Output, args: Args) {
 
 /**
  * What `tobos render` draws from: a renderer's link to the deck's latest push, the only link the
- * API makes (TOB-404), its revision and its scenes.
+ * API makes, its revision and its scenes.
  */
 async function renderView(id: string, rev?: string) {
   return api<{
@@ -1041,7 +1041,7 @@ export async function render(out: Output, args: Args) {
   const deck = copy?.base ? { id: copy.base.deck, root: copy.root } : undefined;
   const id = typeof args.values.deck === 'string' ? parseId(args.values.deck) : deck?.id;
   if (!id) throw new CliError('Run this inside a deck you pulled, or pass --deck <id>.');
-  // A version named, such as a follow's preview (ADR 0010, D9): drawn as it is, nothing pushed.
+  // A version named, such as a follow's preview: drawn as it is, nothing pushed.
   const asked = typeof args.values.rev === 'string' ? args.values.rev.trim() : undefined;
   if (asked === '') throw new CliError('--rev takes a version: `tobos render --rev <rev>`.');
   const { pushed, uploaded, problems } = asked

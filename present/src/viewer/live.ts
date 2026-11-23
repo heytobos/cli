@@ -7,10 +7,10 @@ import { listen } from './events.ts';
 
 /**
  * Follow pushes: the server sends an event per new revision, and per change to the deck's outline,
- * with its version (ADR 0006); changed scenes swap in at the current position, an outline changed
- * reorders, hides and renames them in place, anything else reloads the page (which keeps the
- * position in its hash). Back from a lost connection, as after a release restarts the server, the
- * latest manifest says whether a push was missed meanwhile.
+ * with its version; changed scenes swap in at the current position, an outline changed reorders,
+ * hides and renames them in place, anything else reloads the page (which keeps the position in its
+ * hash). Back from a lost connection, as after a release restarts the server, the latest manifest
+ * says whether a push was missed meanwhile.
  */
 export function follow(
   config: ViewerConfig,
@@ -38,7 +38,7 @@ export function follow(
       for (const player of players()) {
         const result = await player.update(next, new URL(manifestUrl, document.baseURI).href);
         if (result === 'reload') {
-          // At the same link, which opens as often as it likes (TOB-404, D3).
+          // At the same link, which opens as often as it likes.
           location.reload();
           return;
         }

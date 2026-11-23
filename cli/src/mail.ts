@@ -1,9 +1,9 @@
 /**
- * `tobos mail` (TOB-423): the agent's door onto the person's inboxes, as Mail's MCP server is a
- * chat's. Each command is one of Mail's tools, which Mail's API answers at its own origin
+ * `tobos mail`: the agent's door onto the person's inboxes, as Mail's MCP server is a chat's. Each
+ * command is one of Mail's tools, which Mail's API answers at its own origin
  * (`mail.tobos.ai/api/<tool>`): the server this machine is logged in to says where that is, and
- * only says it to an account Mail is open to. Connecting an inbox, disconnecting it and sending
- * are the person's, on Mail's pages; `send` only asks.
+ * only says it to an account Mail is open to. Connecting an inbox, disconnecting it and sending are
+ * the person's, on Mail's pages; `send` only asks.
  */
 import { readFileSync } from 'node:fs';
 import { api } from './api.ts';

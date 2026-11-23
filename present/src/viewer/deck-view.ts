@@ -162,9 +162,9 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
       if (what === 'end' && page && arranging) window.parent.postMessage(actionMessage(what), '*');
       return run(what);
     }
-    // Presenting and arranging are the deck page's (TOB-404, D1): in its preview, the key press is
-    // the page's too, so it may open the projector. A viewer on its own presents nothing. Enter on
-    // a slide's own button presses it.
+    // Presenting and arranging are the deck page's: in its preview, the key press is the page's
+    // too, so it may open the projector. A viewer on its own presents nothing. Enter on a slide's
+    // own button presses it.
     if (!page) return;
     // Arranging's keys only while the page arranges (its Scenes tab, for its editors), so they
     // stay the slides' otherwise; and Enter on a slide's own control presses it.

@@ -1,8 +1,8 @@
 /**
  * A text file changed on two sides since a version both started from, merged line by line, three
- * ways (ADR 0005): what only one side changed is that side's, a change both made alike is made
- * once, and lines both changed differently, or lines both added at one place differently, are a
- * conflict. The one merge: the server's `write`, and the CLI's `pull`.
+ * ways: what only one side changed is that side's, a change both made alike is made once, and lines
+ * both changed differently, or lines both added at one place differently, are a conflict. The one
+ * merge: the server's `write`, and the CLI's `pull`.
  */
 
 /** What a side made of the base's lines `[from, to)`: the lines in their place. */

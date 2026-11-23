@@ -1,8 +1,8 @@
 /**
  * The Tobos skills in the person's harnesses: `tobos-present` for decks, `tobos-mail` for
- * `tobos mail` (TOB-500). Between them, two user-level folders reach every harness that reads
- * SKILL.md: Claude Code reads only its own, Codex only the shared one. Copies, not symlinks, so
- * Windows needs no special rights.
+ * `tobos mail`. Between them, two user-level folders reach every harness that reads SKILL.md:
+ * Claude Code reads only its own, Codex only the shared one. Copies, not symlinks, so Windows needs
+ * no special rights.
  *
  * A skill's folder is the CLI's once it wrote it: each holds the skill and a VERSION file, and a
  * newer CLI replaces the whole folder, so a change to a skill reaches everyone who updates the CLI.

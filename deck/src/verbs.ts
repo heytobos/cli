@@ -1,8 +1,8 @@
 /**
- * The five verbs every door has (ADR 0005), said once: what each does, what it takes, and how the
- * CLI spells it. MCP's tools take their descriptions and schemas from here (mcp-tools.ts), and the
- * chat guide its list of them; the CLI its help (main.ts) and the copy's guide its list of
- * commands (format.ts). Each door's appendix is `verbsAppendix`.
+ * The five verbs every door has, said once: what each does, what it takes, and how the CLI spells
+ * it. MCP's tools take their descriptions and schemas from here (mcp-tools.ts), and the chat guide
+ * its list of them; the CLI its help (main.ts) and the copy's guide its list of commands
+ * (format.ts). Each door's appendix is `verbsAppendix`.
  */
 
 /** A field, as JSON Schema says it. */
@@ -23,8 +23,8 @@ const FOLDER_PATH = 'A folder’s path from the root, such as `/Courses/AI 101`;
 const REV = { type: 'string', description: 'A version of the deck; its latest if left out.' };
 
 /**
- * A changeset (ADR 0005), what `write` takes, as JSON Schema: what MCP's `write` takes besides its
- * deck. The server reads one by the same rules (`readChangeset` in write.ts).
+ * A changeset, what `write` takes, as JSON Schema: what MCP's `write` takes besides its deck. The
+ * server reads one by the same rules (`readChangeset` in write.ts).
  */
 const CHANGESET_SCHEMA = {
   type: 'object',

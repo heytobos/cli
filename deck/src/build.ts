@@ -508,11 +508,10 @@ const sizeText = (bytes: number) =>
 
 /**
  * The files media.json lists that no slide shows (mediaInUse): imported neither by a scene, placed
- * or not, or by what it imports, nor by the master, nor linked by tokens.css. One uploaded
- * for the deck, or that a slide of an earlier version showed, the server keeps, and counts toward
- * fair use, until the deck is deleted (TOB-406); any other it may not have, so a later save that
- * shows one may need it again. The master's own files, under media/master/, come and go with it,
- * so are in use.
+ * or not, or by what it imports, nor by the master, nor linked by tokens.css. One uploaded for the
+ * deck, or that a slide of an earlier version showed, the server keeps, and counts toward fair use,
+ * until the deck is deleted; any other it may not have, so a later save that shows one may need it
+ * again. The master's own files, under media/master/, come and go with it, so are in use.
  */
 function unusedMedia(
   manifest: Pick<Build, 'format' | 'scenes' | 'media' | 'uses'>,
@@ -550,9 +549,9 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
   problems.push(...masterProblems);
   if (!deck) return { problems, modules };
 
-  // A top-level file of scenes/ that exports beats is a scene, its id its name (ADR 0006): the
-  // outline places it, or it waits on the deck's page to be placed. One that doesn't is a
-  // component, which belongs in lib/.
+  // A top-level file of scenes/ that exports beats is a scene, its id its name: the outline places
+  // it, or it waits on the deck's page to be placed. One that doesn't is a component, which belongs
+  // in lib/.
   const files = new Set(tree.files());
   const sceneFiles = new Set<string>();
   for (const file of files) {
@@ -587,8 +586,8 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
   problems.push(...graph.problems);
 
   // A scene deck.json's chapters didn't list was compiled as a component until the outline left
-  // deck.json (ADR 0006): while they are still there, what only a scene is refused for is said as
-  // a warning, and the file is no scene until it is fixed. Once Tobos took them out, it is refused.
+  // deck.json: while they are still there, what only a scene is refused for is said as a warning,
+  // and the file is no scene until it is fixed. Once Tobos took them out, it is refused.
   if (listed)
     for (const file of sceneFiles) {
       const id = file.slice('scenes/'.length, -'.svelte'.length);

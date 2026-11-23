@@ -2,13 +2,13 @@ import type { MediaEntry } from '@tobos/deck';
 import type { ViewerConfig } from './config.ts';
 
 /**
- * A contact sheet of a deck's media, for a chat to see what the person dropped on the deck's page
- * (TOB-343): the files the address's hash names (`#a.jpg/team%2Fada.png`), each whole in a tile,
- * with its name, and what it is under it: a picture's size in pixels, a video's frame from a tenth
- * in and its length, a sound's length, a font's letters. Each is fitted whole, never cropped, on a
- * grey checkerboard, so a white logo shows as well as a black one. The renderer takes it as one
- * JPEG. It runs no deck code, and is drawn apart from the master's styles, in a shadow root, in
- * tobos.ai's look: its host is chrome (chrome-style.ts), whose tokens the shadow root inherits.
+ * A contact sheet of a deck's media, for a chat to see what the person dropped on the deck's page:
+ * the files the address's hash names (`#a.jpg/team%2Fada.png`), each whole in a tile, with its
+ * name, and what it is under it: a picture's size in pixels, a video's frame from a tenth in and
+ * its length, a sound's length, a font's letters. Each is fitted whole, never cropped, on a grey
+ * checkerboard, so a white logo shows as well as a black one. The renderer takes it as one JPEG. It
+ * runs no deck code, and is drawn apart from the master's styles, in a shadow root, in tobos.ai's
+ * look: its host is chrome (chrome-style.ts), whose tokens the shadow root inherits.
  */
 export function showSheet(root: HTMLElement, config: ViewerConfig): Promise<void> {
   const names = location.hash

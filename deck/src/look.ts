@@ -1,10 +1,10 @@
 /**
- * Where a deck's look came from (ADR 0010, D2): `theme.json`, which Tobos writes, as it writes
- * media.json, and no write may set. It names the deck or theme the design was taken from, that
- * one's version and its name then, and the hash of each design file taken: a `master/` file by the
- * sha256 of its bytes, a file in `media/master/` by its hash in media.json, a package the master
- * imports by its version. The hashes tell the deck's own changes from what it took, without the
- * theme, so the record means the same after the theme is gone.
+ * Where a deck's look came from: `theme.json`, which Tobos writes, as it writes media.json, and no
+ * write may set. It names the deck or theme the design was taken from, that one's version and its
+ * name then, and the hash of each design file taken: a `master/` file by the sha256 of its bytes, a
+ * file in `media/master/` by its hash in media.json, a package the master imports by its version.
+ * The hashes tell the deck's own changes from what it took, without the theme, so the record means
+ * the same after the theme is gone.
  */
 import { sha256 } from './hash.ts';
 import type { Master } from './master.ts';

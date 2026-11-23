@@ -111,7 +111,7 @@ export function parseDeckJson(text: string | undefined): {
   }
 
   if (problems.length > 0) return { problems };
-  // The outline, from before it moved to Tobos (ADR 0006): read by nothing, and taken out by Tobos.
+  // The outline, from before it moved to Tobos: read by nothing, and taken out by Tobos.
   let listed: Set<string> | undefined;
   if (raw.title !== undefined || raw.chapters !== undefined) {
     problems.push({ ...problem(OUTLINE_MOVED), severity: 'warning' });
@@ -140,7 +140,10 @@ export const OUTLINE_MOVED =
 export const OUTLINE_IN_DECK_JSON =
   'deck.json has no outline any more: it moved to Tobos, and a "title" or "chapters" there would be read by nothing. `tobos outline` shows and changes it (`write`’s `outline` in a chat), and .tobos/FORMAT.md explains it.';
 
-/** Whether deck.json's text has an outline in it, as it had before ADR 0006, and what it is. */
+/**
+ * Whether deck.json's text has an outline in it, as it had before the outline moved to Tobos, and
+ * what it is.
+ */
 export function outlineInDeckJson(text: string | undefined): string | undefined {
   try {
     const raw: unknown = JSON.parse(text ?? '');
@@ -152,9 +155,9 @@ export function outlineInDeckJson(text: string | undefined): string | undefined 
 }
 
 /**
- * An outline as Tobos's own decks keep it in the codebase, `outline.json` (ADR 0006): its title,
- * its chapters and their scenes, or for a deck with none its scenes, by the rules every change to
- * an outline keeps. Returns it only if it is valid.
+ * An outline as Tobos's own decks keep it in the codebase, `outline.json`: its title, its chapters
+ * and their scenes, or for a deck with none its scenes, by the rules every change to an outline
+ * keeps. Returns it only if it is valid.
  */
 export function parseOutline(
   text: string | undefined,

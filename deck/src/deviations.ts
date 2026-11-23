@@ -1,10 +1,10 @@
 /**
- * The check's linter for a deck that follows a theme (ADR 0010, D10): where the deck's own code
- * writes by hand a value of a kind its theme names in tokens, a colour, a font family, a type size
- * or a spacing, it says so, and never refuses it. Deviating is allowed: a colour or a font is named
- * where it is written, as it changes how the deck looks next to the theme; sizes and spacings,
- * which scenes write by the hundred, are counted once a file. The tokens are the deck's own
- * master/tokens.css, the custom properties of its `:root`.
+ * The check's linter for a deck that follows a theme: where the deck's own code writes by hand a
+ * value of a kind its theme names in tokens, a colour, a font family, a type size or a spacing, it
+ * says so, and never refuses it. Deviating is allowed: a colour or a font is named where it is
+ * written, as it changes how the deck looks next to the theme; sizes and spacings, which scenes
+ * write by the hundred, are counted once a file. The tokens are the deck's own master/tokens.css,
+ * the custom properties of its `:root`.
  *
  * What the deck took from its theme and kept as it was, a master/ file whose bytes theme.json
  * records, is the theme's, and its values are the theme's choice; everything else is the deck's

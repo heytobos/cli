@@ -25,16 +25,16 @@ export interface OutlineChapter {
 }
 
 /**
- * A deck's outline: its title, and its scenes in order (ADR 0006). A deck has no chapters, or
- * every scene is in one, never a mix: with chapters, `chapters` and their scenes; with none, its
- * `scenes`. Data, held by Tobos, never a file of the deck; Tobos's own decks keep theirs in
- * `outline.json` in the codebase, in this shape.
+ * A deck's outline: its title, and its scenes in order. A deck has no chapters, or every scene is
+ * in one, never a mix: with chapters, `chapters` and their scenes; with none, its `scenes`. Data,
+ * held by Tobos, never a file of the deck; Tobos's own decks keep theirs in `outline.json` in the
+ * codebase, in this shape.
  */
 export type Outline =
   | { title: string; chapters: OutlineChapter[]; scenes?: never }
   | { title: string; scenes: OutlineScene[]; chapters?: never };
 
-/** deck.json: what the deck's code needs, its packages. The outline isn't in it (ADR 0006). */
+/** deck.json: what the deck's code needs, its packages. The outline isn't in it. */
 export interface DeckJson {
   dependencies?: Record<string, string>;
 }
@@ -128,21 +128,24 @@ export interface Build {
    */
   styles?: string[];
   /**
-   * What the deck's code uses of the deck, so a share gets only what the scenes it shows reach,
-   * and only what is on a slide must be on the server (share.ts). A manifest pushed before the build recorded it
-   * had it written in afterwards, as its build then would have (TOB-397).
+   * What the deck's code uses of the deck, so a share gets only what the scenes it shows reach, and
+   * only what is on a slide must be on the server (share.ts). A manifest pushed before the build
+   * recorded it had it written in afterwards, as its build then would have.
    */
   uses: Uses;
 }
 
 /**
- * A build stored before the outline left deck.json (ADR 0006): the scenes deck.json listed, in
- * its chapters, and its title, instead of `scenes`. Read as a build (buildScenes), its outline
- * being the deck's now.
+ * A build stored before the outline left deck.json: the scenes deck.json listed, in its chapters,
+ * and its title, instead of `scenes`. Read as a build (buildScenes), its outline being the deck's
+ * now.
  */
 export type LegacyBuild = Omit<Build, 'scenes'> & { title: string; chapters: ManifestChapter[] };
 
-/** A build as the server may have stored it: from now on, or from before ADR 0006. */
+/**
+ * A build as the server may have stored it: from now on, or from before the outline left
+ * deck.json.
+ */
 export type StoredBuild = Build | LegacyBuild;
 
 /**

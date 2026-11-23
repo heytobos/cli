@@ -21,7 +21,7 @@ function row(usage: string, does: string): string {
     .join('\n');
 }
 
-/** The five verbs (ADR 0005), as verbs.ts says them for every door. */
+/** The five verbs, as verbs.ts says them for every door. */
 const VERB_ROWS = Object.values(VERBS as Record<VerbName, Verb>)
   .flatMap((verb) => verb.cli.map((c) => row(c.usage, c.does)))
   .join('\n');
@@ -170,7 +170,7 @@ const TABLE: Record<string, { run: Handler; options?: ParseArgsConfig['options']
       unread: { type: 'boolean' },
       star: { type: 'boolean' },
       restore: { type: 'boolean' },
-      // Sort's before `trash` (TOB-345): refused, naming it.
+      // Sort's before `trash`: refused, naming it.
       trash: { type: 'boolean' },
       untrash: { type: 'boolean' },
       to: { type: 'string', multiple: true },

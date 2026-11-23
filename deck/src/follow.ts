@@ -1,9 +1,9 @@
 /**
- * Following a theme (ADR 0010, D9): a deck's design merged with a version of a theme, file by file,
- * by the record of where the deck's design came from (theme.json, look.ts). Each design file is a
- * key: `master/…` by the sha256 of its bytes, `media/master/…` by its hash in media.json, and a
- * package by its version in deck.json. The deck's own changes always win, a theme file it deleted
- * included, which stays deleted:
+ * Following a theme: a deck's design merged with a version of a theme, file by file, by the record
+ * of where the deck's design came from (theme.json, look.ts). Each design file is a key: `master/…`
+ * by the sha256 of its bytes, `media/master/…` by its hash in media.json, and a package by its
+ * version in deck.json. The deck's own changes always win, a theme file it deleted included, which
+ * stays deleted:
  *
  * | The file                                                    | On follow                         |
  * | ----------------------------------------------------------- | --------------------------------- |
@@ -134,7 +134,7 @@ export function planFollow(
       plan.added.push(key);
       put(key, true);
     } else if (r !== undefined && t === undefined) {
-      // Deleted by the deck, and gone from the theme: its record keeps it deleted (D9).
+      // Deleted by the deck, and gone from the theme: its record keeps it deleted.
       if (key.startsWith(PACKAGE)) next.packages[key.slice(PACKAGE.length)] = r;
       else next.files[key] = r;
     }
@@ -174,9 +174,9 @@ export function usedFromScenes(files: Map<string, Uint8Array>): (key: string) =>
 }
 
 /**
- * The scenes of a deck whose look a change of these design files may change, by id (ADR 0010,
- * D7): each that reaches one of `changed` (keys as FollowPlan has them), and every one when the
- * stylesheet every page links, tokens.css, or a file it imports or links changes. Read as usedFromScenes reads.
+ * The scenes of a deck whose look a change of these design files may change, by id: each that
+ * reaches one of `changed` (keys as FollowPlan has them), and every one when the stylesheet every
+ * page links, tokens.css, or a file it imports or links changes. Read as usedFromScenes reads.
  */
 export function scenesReaching(files: Map<string, Uint8Array>, changed: string[]): string[] {
   const scenes = [...files.keys()].flatMap(
