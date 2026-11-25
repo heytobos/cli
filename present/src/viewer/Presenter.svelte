@@ -579,11 +579,10 @@
       },
       onRefused: () => (fullscreenRefused = true),
       animating: () => animate,
-      onState: (ref, start) => {
-        // A hidden scene too: the deck's page, or the audience, went to it.
-        const hash = `#${ref.scene}/${ref.beat}`;
-        const to = parseHash(current.outline, hash);
-        if (to) show(start ? current.startOf(hash) : to, false);
+      onState: (ref) => {
+        // A hidden scene too: the audience went to it.
+        const to = parseHash(current.outline, `#${ref.scene}/${ref.beat}`);
+        if (to) show(to, false);
       },
     });
     // An audience already open, reloaded with this view, plays the animations as this one says.

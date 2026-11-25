@@ -4,7 +4,7 @@
  * heard only while a step forward plays it.
  */
 import { gsap } from 'gsap';
-import { addSpan, playingAloud, playingForward } from './timeline.ts';
+import { addSpan, playingForward } from './timeline.ts';
 
 interface ClipOptions {
   /** Where the clip starts in the video or sound, in seconds. Default 0. */
@@ -172,7 +172,7 @@ function addClips(
         if (!Number.isFinite(end)) return progress;
         const time = from + (end - from) * value;
         const playing = value < 1 && end > from && playingForward(tween);
-        const heard = sound && playing && playingAloud(tween);
+        const heard = sound && playing;
         if (isVideo(element)) follow(element, time, playing, heard, rate);
         else followSound(element, time, heard, rate);
         return progress;

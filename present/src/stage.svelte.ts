@@ -89,7 +89,7 @@ export class Stage {
 
     const animate = cue.animate && !this.options.still;
     if (animate && entering && cue.beat === 0) layer.timeline.hold();
-    layer.timeline.show(cue.beat, animate, cue.aloud !== false);
+    layer.timeline.show(cue.beat, animate);
 
     this.prune(cue.scene);
     const after = this.options.after(cue.scene);

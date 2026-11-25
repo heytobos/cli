@@ -329,14 +329,6 @@ describe('playAudio', () => {
     expect(sound.state.paused).toBe(true);
   });
 
-  it('plays the step silent in a window that follows another', () => {
-    const scene = new SceneTimeline(root, sounds);
-    scene.show(0, false);
-    scene.show(1, true, false);
-    for (const progress of [0.1, 0.5, 1]) playTo(scene, progress);
-    expect(plays(sound.log)).toEqual([]);
-  });
-
   it('waits for a click where the browser refuses it sound, and says so', async () => {
     sound.state.refuseSound = true;
     let refusals = 0;
@@ -451,13 +443,11 @@ describe('playAudio until a later beat', () => {
     expect(sound.take()).toEqual(['seek 0', 'play at 0 ×1 aloud']);
   });
 
-  it('is silent landing in its range, and in a window that follows another', () => {
+  it('is silent landing in its range', () => {
     const scene = new SceneTimeline(root, ranged());
     scene.show(2, false);
     scene.show(1, false);
     scene.show(0, false);
-    scene.show(1, true, false);
-    scene.show(2, true, false);
     expect(plays(sound.log)).toEqual([]);
   });
 
@@ -525,7 +515,7 @@ describe('playVideo with sound', () => {
     { id: 'talk', enter: (tl, q) => playVideo(tl, q('video'), { sound: true }) },
   ];
 
-  it('is heard on a step forward, and muted in a window that follows another', () => {
+  it('is heard on a step forward', () => {
     const scene = new SceneTimeline(root, talking);
     expect(fake.video.muted).toBe(false);
     scene.show(0, false);
@@ -533,11 +523,6 @@ describe('playVideo with sound', () => {
     scene.show(1, true);
     playTo(scene, 0.1);
     expect(plays(fake.take())).toEqual(['play at 0 ×1 aloud']);
-    scene.show(0, false);
-    fake.take();
-    scene.show(1, true, false);
-    playTo(scene, 0.1);
-    expect(plays(fake.take())).toEqual([expect.stringMatching(/^play at 0(\.2)? ×1$/)]);
   });
 
   it('plays on muted where the browser refuses it sound, until a click', async () => {

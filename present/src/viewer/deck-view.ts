@@ -21,9 +21,10 @@ import { shareBar } from './share-bar.ts';
 import { onSwipe, onTap } from './taps.ts';
 
 /**
- * The deck on one stage: the plain view, the audience window, and the view render uses. A share
- * link's page is the plain view on its own: it shares no beat with other windows and presents
- * nothing, but still goes fullscreen.
+ * The deck on one stage: the plain view, the audience window, and the view render uses. Only the
+ * audience shares its beat, with the presenter's view (windows.ts): the plain view, the deck page's
+ * preview or a share link's page, keeps its own, so two of them open on one deck don't move
+ * together, nor steer a show. A share link's page presents nothing, but still goes fullscreen.
  */
 export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   const { stage } = letterbox(root);
@@ -88,30 +89,25 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   }
 
   const shared = Boolean(config.shared);
-  if (!shared)
+  if (view === 'audience') {
     sync = joinWindows(config.deck, view, {
       current: () => (player.position ? refOf() : null),
-      onState: (at, start) => {
+      onState: (at) => {
         // go() reports the move synchronously, before the scene has loaded. Only that report is
         // the other window's: a click here while the scene still loads is this window's own.
-        // Of the windows that follow, only the audience is heard: the room has one sound.
         applyingRemote = true;
         try {
-          const hash = `#${at.scene}/${at.beat}`;
-          const to = start ? player.startOf(hash) : player.positionOf(hash);
-          void player.go(to, undefined, view === 'audience');
+          void player.go(player.positionOf(`#${at.scene}/${at.beat}`));
         } finally {
           applyingRemote = false;
         }
       },
-      onEnd: () => {
-        if (view === 'audience') window.close();
-      },
-      onPresenter: view === 'audience' ? introduceAudience : undefined,
-      // The presenter's switch is the audience's alone: the deck page's preview has its own.
-      onAnimate: view === 'audience' ? (on) => player.stage.animate(on) : undefined,
+      onEnd: () => window.close(),
+      onPresenter: introduceAudience,
+      onAnimate: (on) => player.stage.animate(on),
     });
-  if (view === 'audience') introduceAudience();
+    introduceAudience();
+  }
 
   window.addEventListener('hashchange', () => {
     const position = parseHash(player.outline, location.hash);

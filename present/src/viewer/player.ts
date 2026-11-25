@@ -90,14 +90,12 @@ export class Player {
   }
 
   /**
-   * Go to a position. Only a single step forward animates, unless told otherwise; `aloud: false`
-   * plays it without its sound.
+   * Go to a position. Only a single step forward animates, unless told otherwise.
    */
-  go(to: Position, animate?: boolean, aloud = true): Promise<void> {
+  go(to: Position, animate?: boolean): Promise<void> {
     if (same(this.position, to) && animate === undefined) return Promise.resolve();
     const cue = cueFor(this.outline, this.position, to);
     if (animate !== undefined) cue.animate = animate;
-    cue.aloud = aloud;
     this.position = to;
     this.options.onMove?.(to, cue);
     const shown = this.stage.show(cue);
@@ -120,8 +118,8 @@ export class Player {
     void settled(this.host, 3000).then(() => unveil(ghost));
   }
 
-  goHash(hash: string, animate?: boolean, aloud?: boolean): Promise<void> {
-    return this.go(this.positionOf(hash), animate, aloud);
+  goHash(hash: string, animate?: boolean): Promise<void> {
+    return this.go(this.positionOf(hash), animate);
   }
 
   /** Where `hash` is, hidden scene or not; a hash that names nothing is the first that shows. */

@@ -17,18 +17,6 @@ export function playingForward(animation: gsap.core.Animation): boolean {
 }
 
 /**
- * Whether the scene timeline that holds this animation is playing a step forward that may be
- * heard: one this window was moved to itself, not one it follows from another window.
- */
-export function playingAloud(animation: gsap.core.Animation): boolean {
-  for (let parent = animation.parent; parent; parent = parent.parent) {
-    const scene = scenes.get(parent);
-    if (scene) return scene.playing && scene.aloud;
-  }
-  return false;
-}
-
-/**
  * A sound that plays on through a range of a scene's beats, from the one that starts it up to,
  * not including, the one it stops at (playAudio's `until`).
  */
@@ -73,8 +61,6 @@ export class SceneTimeline {
   readonly timeline: gsap.core.Timeline;
   private labels: string[] = [];
   private tween: gsap.core.Tween | null = null;
-  /** Whether the step playing may be heard. */
-  aloud = true;
   private ids: string[];
   /** The beat whose `enter` is running, while the timeline is built. */
   private building = -1;
@@ -214,15 +200,11 @@ export class SceneTimeline {
       else range.inside(beat, stepped);
   }
 
-  /**
-   * Show a beat: play the animation into it, or land on its end state. `aloud`: whether its
-   * sound plays, or the step plays silent.
-   */
-  show(beat: number, animate: boolean, aloud = true) {
+  /** Show a beat: play the animation into it, or land on its end state. */
+  show(beat: number, animate: boolean) {
     const label = this.labels[Math.max(0, Math.min(beat, this.labels.length - 1))]!;
     this.finish();
-    this.aloud = aloud;
-    this.move(beat, animate && aloud);
+    this.move(beat, animate);
     if (!animate) {
       this.timeline.seek(label, false);
       return;

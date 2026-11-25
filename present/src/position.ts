@@ -12,13 +12,9 @@ export interface Position {
   beat: number;
 }
 
-/**
- * What to show: a position, and whether to play its animation or land on its end state, and
- * whether that animation's sound plays (unless said, it does).
- */
+/** What to show: a position, and whether to play its animation or land on its end state. */
 export interface Cue extends Position {
   animate: boolean;
-  aloud?: boolean;
 }
 
 export const START: Position = { scene: 0, beat: 0 };

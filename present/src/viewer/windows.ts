@@ -1,7 +1,8 @@
 import type { View } from './config.ts';
 
 /**
- * Windows showing the same deck (presenter and audience) stay on the same beat.
+ * The presenter's view and the audience of one deck stay on the same beat. No other window joins:
+ * a deck's page, open twice, or beside a show, keeps its own.
  * Either can drive; a window that opens or reloads mid-talk adopts the current beat.
  * Every message names its window's view, so a presenter opened after the audience knows the deck
  * is being presented. The audience plays the animations as the presenter's view says, which a
@@ -16,8 +17,7 @@ type Message = { from: string; view: View } & (
   | { kind: 'hello' }
   /** The answer to a hello from a window that has no beat yet. */
   | { kind: 'here' }
-  /** `answer`: to a hello, the beat a window that opens takes up. */
-  | { kind: 'state'; at: BeatRef; time: number; answer?: true }
+  | { kind: 'state'; at: BeatRef; time: number }
   | { kind: 'end' }
   /** The audience refused fullscreen to a key press elsewhere: it needs a click of its own. */
   | { kind: 'refused' }
@@ -40,11 +40,8 @@ export function joinWindows(
   deck: string,
   view: View,
   handlers: {
-    /**
-     * Another window's beat. `start`: the deck's page's, to a window that opens, which presenting
-     * begins from; a hidden scene's beat is then the next scene that shows (Player.startOf).
-     */
-    onState: (at: BeatRef, start: boolean) => void;
+    /** Another window's beat, a hidden scene's too. */
+    onState: (at: BeatRef) => void;
     onEnd?: () => void;
     /** Whether an audience window is open, as it changes. */
     onAudience?: (open: boolean) => void;
@@ -81,12 +78,12 @@ export function joinWindows(
       const on = handlers.animating?.();
       if (on !== undefined) send({ kind: 'animate', from: me, view, on });
       const at = handlers.current();
-      if (at) send({ kind: 'state', from: me, view, at, time: lastTime, answer: true });
+      if (at) send({ kind: 'state', from: me, view, at, time: lastTime });
       else send({ kind: 'here', from: me, view });
     } else if (message.kind === 'state') {
       if (message.time < lastTime) return;
       lastTime = message.time;
-      handlers.onState(message.at, message.view === 'deck' && message.answer === true);
+      handlers.onState(message.at);
     } else if (message.kind === 'end') handlers.onEnd?.();
     else if (message.kind === 'refused' && message.view === 'audience') handlers.onRefused?.();
     else if (message.kind === 'animate' && message.view === 'presenter')
