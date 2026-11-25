@@ -173,13 +173,17 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   });
   if (view === 'audience') {
     // Esc stops presenting. On release, so the same press doesn't also leave fullscreen elsewhere.
+    // Opened in the deck page's own tab, on a phone or in a narrow window (`back`, which that page
+    // adds), it goes back to that page: closing would take the person's tab with it, where a
+    // script opened it, or do nothing.
     (navigator as unknown as { keyboard?: { lock?: (keys: string[]) => Promise<void> } }).keyboard
       ?.lock?.(['Escape'])
       .catch(() => undefined);
     window.addEventListener('keyup', (event) => {
       if (event.key === 'Escape') {
         sync?.end();
-        window.close();
+        if (new URLSearchParams(location.search).has('back')) history.back();
+        else window.close();
       }
     });
   }
