@@ -10,6 +10,7 @@
     "./viewer": "./src/viewer/index.ts",
     "./screens": "./src/viewer/screens.ts",
     "./keys": "./src/viewer/keys.ts",
+    "./SparklesOff.svelte": "./src/viewer/SparklesOff.svelte",
     "./stream": "./src/viewer/stream.ts",
     "./activities": "./src/activities.ts",
     "./runtime": "./src/runtime.ts",

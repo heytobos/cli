@@ -5,6 +5,7 @@
   import Pause from '@lucide/svelte/icons/pause';
   import Play from '@lucide/svelte/icons/play';
   import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
+  import Sparkles from '@lucide/svelte/icons/sparkles';
   import Square from '@lucide/svelte/icons/square';
   import Undo2 from '@lucide/svelte/icons/undo-2';
   import { onMount, tick, untrack } from 'svelte';
@@ -39,9 +40,11 @@
     dragLeft,
     dragSlide,
     GUTTER,
+    loadAnimate,
     loadLayout,
     noteSize,
     NOTE_SIZES,
+    saveAnimate,
     saveLayout,
     type Layout,
   } from './layout.ts';
@@ -49,6 +52,7 @@
   import { listen } from './events.ts';
   import { Player } from './player.ts';
   import { audienceIn, openAudience } from './screens.ts';
+  import SparklesOff from './SparklesOff.svelte';
   import { joinWindows, type BeatRef } from './windows.ts';
 
   let { config }: { config: ViewerConfig } = $props();
@@ -135,6 +139,17 @@
   let nowLabel = $state(0);
   let dragging = $state<'left' | 'slide' | null>(null);
   let mainEl: HTMLElement;
+  /**
+   * Whether the audience plays the animations, or lands each step on its end state; this browser
+   * remembers it, as it does the layout. This view's own slides never animate either way.
+   */
+  let animate = $state(loadAnimate(storage()));
+  function toggleAnimate() {
+    animate = !animate;
+    sync.animate(animate);
+    saveAnimate(storage(), animate);
+  }
+
   /** Notes come from the server, with a live deck: without, the slide takes the column. */
   const hasNotes = $derived(!!(config.live && config.events));
   const sized = $derived(
@@ -481,6 +496,7 @@
       relayout({ notes: noteSize(layout.notes, what === 'larger' ? 1 : -1) });
     else if (what === 'notes-down' || what === 'notes-up')
       scrollNotes(what === 'notes-down' ? 1 : -1);
+    else if (what === 'animations') toggleAnimate();
     else goBack();
   }
 
@@ -562,6 +578,7 @@
         if (open) timer = started(timer, (now = Date.now()));
       },
       onRefused: () => (fullscreenRefused = true),
+      animating: () => animate,
       onState: (ref, start) => {
         // A hidden scene too: the deck's page, or the audience, went to it.
         const hash = `#${ref.scene}/${ref.beat}`;
@@ -569,6 +586,8 @@
         if (to) show(start ? current.startOf(hash) : to, false);
       },
     });
+    // An audience already open, reloaded with this view, plays the animations as this one says.
+    sync.animate(animate);
     // From the deck's page, which may be on a hidden scene: presenting begins at the next one that
     // shows. A window reloaded mid-way hears where the other one is (windows.ts).
     show(current.startOf(location.hash), false);
@@ -700,7 +719,27 @@
           <span class="cap"
             >Now{#if hiddenHere}&nbsp;·&nbsp;<span class="flag"
                 >hidden<EyeOff size={12} strokeWidth={1.5} aria-hidden="true" /></span
+              >{/if}{#if !animate}&nbsp;·&nbsp;<span class="flag"
+                >no animations<SparklesOff size={12} strokeWidth={1.5} aria-hidden="true" /></span
               >{/if}</span
+          >
+          <!-- The audience's animations: at the right of the caption over what the audience sees,
+               as the notes' sizes are over the notes. Off, the caption says so. -->
+          <span class="spacer"></span>
+          <button
+            class="btn btn-quiet btn-icon"
+            aria-pressed={animate}
+            aria-label="Animations"
+            title={`Turn the audience's animations ${animate ? 'off' : 'on'} (A)`}
+            onclick={(event) => {
+              toggleAnimate();
+              blurred(event);
+            }}
+            >{#if animate}<Sparkles
+                size={16}
+                strokeWidth={1.5}
+                aria-hidden="true"
+              />{:else}<SparklesOff size={16} strokeWidth={1.5} aria-hidden="true" />{/if}</button
           >
         </div>
         <!-- Showing a hidden scene, the audience sees what is off the plan: Now is framed in red. -->
@@ -921,11 +960,16 @@
     </aside>
   </main>
   <footer class="tobos-chrome on-ink">
-    → / Space next · ← previous · ↓ ↑ scene{#if backTo}&nbsp;· <span class="lit"
+    <!-- Each hint whole on its line: a narrow window breaks the list only between them. -->
+    <span>→ / Space next</span> · <span>← previous</span> ·
+    <span>↓ ↑ scene</span>{#if backTo}&nbsp;· <span class="lit"
         >Backspace back to {backTo.scene + 1}</span
-      >{/if} · P pause timer{#if hasNotes}&nbsp;· + / − notes size · Shift ↓ ↑ scroll notes{/if}
-    · {#if audience && !fullscreenRefused}F fullscreen · Esc stop{:else if showing}click the
-      audience for fullscreen · Esc stop{:else}⌘/Ctrl-Enter present{/if}
+      >{/if} ·
+    <span>P pause timer</span> · <span>A animations</span>{#if hasNotes}&nbsp;·
+      <span>+ / − notes size</span> · <span>Shift ↓ ↑ scroll notes</span>{/if}
+    · {#if audience && !fullscreenRefused}<span>F fullscreen</span> ·
+      <span>Esc stop</span>{:else if showing}<span>click the audience for fullscreen</span> ·
+      <span>Esc stop</span>{:else}<span>⌘/Ctrl-Enter present</span>{/if}
   </footer>
 </div>
 
@@ -1023,9 +1067,13 @@
     margin-bottom: var(--s2);
     white-space: nowrap;
   }
-  /* A block, so the Now caption's row is as tall as Elapsed's and Clock's beside it. */
+  /* A block, so the Now caption's row is as tall as Elapsed's and Clock's beside it; in a narrow
+     column, cut short rather than run under the switch. */
   .now-label .cap {
     display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .cap :global(svg) {
     vertical-align: -2px;
@@ -1137,10 +1185,16 @@
   }
 
   /* Notes */
+  .now-label,
   .notes-head {
     display: flex;
     align-items: center;
     gap: var(--s2);
+  }
+  /* The Now caption stays level with Elapsed's and Clock's: the switch (36px) at its right makes
+     the row taller below it. */
+  .now-label {
+    align-items: flex-start;
   }
   .more-cue {
     margin-right: var(--s3);
@@ -1392,6 +1446,9 @@
   .beat.current {
     padding: 3px;
     background-color: var(--ink);
+  }
+  footer span {
+    white-space: nowrap;
   }
   footer {
     color: var(--ink-3);

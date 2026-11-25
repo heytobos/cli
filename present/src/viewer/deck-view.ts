@@ -108,6 +108,8 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
         if (view === 'audience') window.close();
       },
       onPresenter: view === 'audience' ? introduceAudience : undefined,
+      // The presenter's switch is the audience's alone: the deck page's preview has its own.
+      onAnimate: view === 'audience' ? (on) => player.stage.animate(on) : undefined,
     });
   if (view === 'audience') introduceAudience();
 

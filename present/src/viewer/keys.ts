@@ -139,11 +139,12 @@ export function action(event: KeyboardEvent, arranging = false): Action | null {
 
 /**
  * The presenter's view's own keys, beside the stage's: P pauses the timer, + and − size the notes,
- * ⇧↓ and ⇧↑ scroll them by a paragraph without moving the stage, ⌫ goes back after a jump. The
- * view takes the notes' keys only when it has notes, and ⌫ only after a jump; otherwise they are
- * the stage's, as before.
+ * ⇧↓ and ⇧↑ scroll them by a paragraph without moving the stage, ⌫ goes back after a jump, A turns
+ * the audience's animations on or off. The view takes the notes' keys only when it has notes, and ⌫
+ * only after a jump; otherwise they are the stage's, as before.
  */
-export type PresenterKey = 'pause' | 'larger' | 'smaller' | 'notes-down' | 'notes-up' | 'back';
+export type PresenterKey =
+  'pause' | 'larger' | 'smaller' | 'notes-down' | 'notes-up' | 'back' | 'animations';
 
 export function presenterKey(event: KeyboardEvent): PresenterKey | null {
   const target = event.target as Element | null;
@@ -162,6 +163,9 @@ export function presenterKey(event: KeyboardEvent): PresenterKey | null {
       return 'smaller';
     case 'Backspace':
       return 'back';
+    case 'a':
+    case 'A':
+      return 'animations';
     default:
       return null;
   }

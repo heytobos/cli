@@ -4,6 +4,7 @@ import {
   DEFAULT_LAYOUT,
   dragLeft,
   dragSlide,
+  loadAnimate,
   loadLayout,
   noteSize,
   NOTES_ROOM,
@@ -85,5 +86,17 @@ describe("the presenter's view's layout", () => {
     expect(loadLayout(stored('{"left":7,"notes":23}'))).toEqual(DEFAULT_LAYOUT);
     expect(loadLayout(stored('not json'))).toEqual(DEFAULT_LAYOUT);
     expect(loadLayout(undefined)).toEqual(DEFAULT_LAYOUT);
+  });
+
+  it("reads the audience's animations as on, unless turned off", () => {
+    const stored = (value: string | null) => ({ getItem: () => value });
+    expect([null, 'true', 'false'].map((v) => loadAnimate(stored(v)))).toEqual([true, true, false]);
+    expect(loadAnimate(undefined)).toBe(true);
+    const refused = {
+      getItem: () => {
+        throw new Error('blocked');
+      },
+    };
+    expect(loadAnimate(refused)).toBe(true);
   });
 });

@@ -139,14 +139,18 @@ describe('the one key map', () => {
 });
 
 describe("the presenter's view's own keys", () => {
-  it('pauses the timer, sizes and scrolls the notes, and goes back after a jump', () => {
-    expect(['p', 'P', '+', '=', '-', 'Backspace'].map((k) => presenterKey(press(k)))).toEqual([
+  it("pauses the timer, sizes and scrolls the notes, goes back after a jump, and turns the audience's animations", () => {
+    expect(
+      ['p', 'P', '+', '=', '-', 'Backspace', 'a', 'A'].map((k) => presenterKey(press(k))),
+    ).toEqual([
       'pause',
       'pause',
       'larger',
       'larger',
       'smaller',
       'back',
+      'animations',
+      'animations',
     ]);
     expect([
       presenterKey(press('ArrowDown', { shiftKey: true })),

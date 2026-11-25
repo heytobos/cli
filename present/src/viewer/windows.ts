@@ -4,7 +4,8 @@ import type { View } from './config.ts';
  * Windows showing the same deck (presenter and audience) stay on the same beat.
  * Either can drive; a window that opens or reloads mid-talk adopts the current beat.
  * Every message names its window's view, so a presenter opened after the audience knows the deck
- * is being presented.
+ * is being presented. The audience plays the animations as the presenter's view says, which a
+ * window that opens hears with the beat.
  */
 export interface BeatRef {
   scene: string;
@@ -20,6 +21,8 @@ type Message = { from: string; view: View } & (
   | { kind: 'end' }
   /** The audience refused fullscreen to a key press elsewhere: it needs a click of its own. */
   | { kind: 'refused' }
+  /** The presenter's switch: whether the audience plays the animations. */
+  | { kind: 'animate'; on: boolean }
   | { kind: 'bye' }
 );
 
@@ -28,6 +31,8 @@ export interface WindowSync {
   end(): void;
   /** Fullscreen, asked for from another window, was refused here. */
   refused(): void;
+  /** The presenter's view: whether the audience plays the animations. */
+  animate(on: boolean): void;
   close(): void;
 }
 
@@ -47,10 +52,15 @@ export function joinWindows(
     onRefused?: () => void;
     /** A presenter's view opened, or reloaded. */
     onPresenter?: () => void;
+    /** The presenter's view turned the audience's animations on or off. */
+    onAnimate?: (on: boolean) => void;
+    /** The presenter's view: its switch, which a window that opens hears with the beat. */
+    animating?: () => boolean;
     current: () => BeatRef | null;
   },
 ): WindowSync {
-  if (!('BroadcastChannel' in window)) return { publish() {}, end() {}, refused() {}, close() {} };
+  if (!('BroadcastChannel' in window))
+    return { publish() {}, end() {}, refused() {}, animate() {}, close() {} };
   const me = Math.random().toString(36).slice(2);
   const channel = new BroadcastChannel(`tobos:${deck}`);
   let lastTime = 0;
@@ -67,6 +77,9 @@ export function joinWindows(
     }
     if (message.kind === 'hello') {
       if (message.view === 'presenter') handlers.onPresenter?.();
+      // The animations before the beat, so the window that opens moves to it as they say.
+      const on = handlers.animating?.();
+      if (on !== undefined) send({ kind: 'animate', from: me, view, on });
       const at = handlers.current();
       if (at) send({ kind: 'state', from: me, view, at, time: lastTime, answer: true });
       else send({ kind: 'here', from: me, view });
@@ -76,6 +89,8 @@ export function joinWindows(
       handlers.onState(message.at, message.view === 'deck' && message.answer === true);
     } else if (message.kind === 'end') handlers.onEnd?.();
     else if (message.kind === 'refused' && message.view === 'audience') handlers.onRefused?.();
+    else if (message.kind === 'animate' && message.view === 'presenter')
+      handlers.onAnimate?.(message.on);
   };
   const hello = () => send({ kind: 'hello', from: me, view });
   const bye = () => send({ kind: 'bye', from: me, view });
@@ -92,6 +107,9 @@ export function joinWindows(
     },
     refused() {
       send({ kind: 'refused', from: me, view });
+    },
+    animate(on) {
+      send({ kind: 'animate', from: me, view, on });
     },
     close() {
       bye();

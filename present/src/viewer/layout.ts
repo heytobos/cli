@@ -58,6 +58,28 @@ export function saveLayout(storage: Pick<Storage, 'setItem'> | undefined, layout
   }
 }
 
+const ANIMATE_KEY = 'tobos:presenter-animate';
+
+/**
+ * Whether the audience plays the animations, as the presenter's view last set it in this browser,
+ * for every deck: on unless turned off, as presenting always had them.
+ */
+export function loadAnimate(storage: Pick<Storage, 'getItem'> | undefined): boolean {
+  try {
+    return storage?.getItem(ANIMATE_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+export function saveAnimate(storage: Pick<Storage, 'setItem'> | undefined, on: boolean) {
+  try {
+    storage?.setItem(ANIMATE_KEY, String(on));
+  } catch {
+    // As the layout: the choice holds until the page goes.
+  }
+}
+
 /** The notes' size a step larger or smaller, within NOTE_SIZES. */
 export function noteSize(size: number, by: 1 | -1): number {
   return NOTE_SIZES[clamp(NOTE_SIZES.indexOf(size) + by, 0, NOTE_SIZES.length - 1)]!;
