@@ -188,15 +188,28 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     });
   }
 
-  if (view === 'audience') {
+  // A phone's Safari has no fullscreen for a page: no hint there, its click steps.
+  if (view === 'audience' && document.fullscreenEnabled) {
     // Opened by a key press elsewhere, the audience can't go fullscreen by itself: its first
     // click does that, rather than step. Shown again once out of fullscreen: outside Chromium, or
     // without the lock above, the browser takes Esc to leave fullscreen, and only the next one
-    // reaches the page.
+    // reaches the page. It fades a few seconds after it shows or the pointer last moved, as the
+    // share bar does, so a projector left in a window shows the slide whole.
     const hint = document.createElement('div');
     hint.className = 'tobos-fullscreen-hint tobos-chrome on-ink';
     hint.textContent = 'Click or press F for fullscreen · Esc to end';
     root.append(hint);
+    let timer = 0;
+    const show = () => {
+      hint.classList.add('tobos-shown');
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => hint.classList.remove('tobos-shown'), 4000);
+    };
+    show();
+    root.addEventListener('pointermove', show);
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) show();
+    });
   }
   // A browser lets a window make sound once it has had a click or key press. Until then, a
   // sound it refuses waits for one (playback.ts), and this says so.

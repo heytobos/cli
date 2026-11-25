@@ -82,6 +82,11 @@ html.tobos-no-cursor:fullscreen * {
 }
 .tobos-fullscreen-hint {
   bottom: 24px;
+  opacity: 0;
+  transition: opacity var(--t-ui) var(--ease);
+}
+.tobos-fullscreen-hint.tobos-shown {
+  opacity: 1;
 }
 html:fullscreen .tobos-fullscreen-hint {
   display: none;
@@ -188,6 +193,7 @@ html.tobos-print .tobos-page {
   cursor: progress;
 }
 @media (prefers-reduced-motion: reduce) {
+  .tobos-fullscreen-hint,
   .tobos-share-bar,
   .tobos-share-bar .btn {
     transition: none;
