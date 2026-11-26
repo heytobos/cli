@@ -117,6 +117,12 @@ export interface Build {
    * The server adds the package specifiers once it has bundled them (`d3` → `p/<bundle>/d3.js`).
    */
   imports: Record<string, string>;
+  /**
+   * The deck's modules import each other by address, not by specifier, so a module's address is
+   * new whenever its code, a file it reaches, or a file of media/ it imports is (emitModules). Not
+   * in a build from before, or of a deck whose files import each other in a cycle.
+   */
+  linked?: true;
   media: MediaJson;
   /** deck.json's dependencies: package → exact version. */
   dependencies: Record<string, string>;

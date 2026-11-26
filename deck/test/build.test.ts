@@ -103,12 +103,15 @@ describe('the sample deck', () => {
     ]);
   });
 
-  it('rewrites deck imports to import-map specifiers and strips types', async () => {
+  it("rewrites deck imports to the imported files' addresses and strips types", async () => {
     const { manifest, modules } = await buildDeck(sample);
+    expect(manifest!.linked).toBe(true);
+    const at = (specifier: string) => `./${manifest!.imports[specifier]!.slice('m/'.length)}`;
     const tokens = modules.get(manifest!.imports['@deck/scenes/tokens.svelte']!)!;
-    expect(tokens).toContain("from '@deck/data/tokens.json'");
-    expect(tokens).toContain("from '@deck/lib/Pill.svelte'");
+    expect(tokens).toContain(`from '${at('@deck/data/tokens.json')}'`);
+    expect(tokens).toContain(`from '${at('@deck/lib/Pill.svelte')}'`);
     expect(tokens).not.toContain('../lib');
+    expect(tokens).not.toContain('@deck/');
     const format = modules.get(manifest!.imports['@deck/lib/format.ts']!)!;
     expect(format).not.toContain(': string');
   });
@@ -120,13 +123,38 @@ describe('the sample deck', () => {
     expect([...b.modules.keys()]).toEqual([...a.modules.keys()]);
   });
 
-  it('changes only the hash of the file that changed', async () => {
+  it('changes only the hash of the file that changed, when nothing imports it', async () => {
     const a = (await buildDeck(sample)).manifest!;
     const changed = sample.read('scenes/title.svelte')!;
     const text = new TextDecoder().decode(changed).replace('Lecture 1', 'Lecture 2');
     const b = (await buildDeck(variant({ 'scenes/title.svelte': text }))).manifest!;
     const differing = Object.keys(a.imports).filter((k) => a.imports[k] !== b.imports[k]);
     expect(differing).toEqual(['@deck/scenes/title.svelte']);
+  });
+
+  it('changes the hash of a changed file and of every file that reaches it, and no other', async () => {
+    const a = (await buildDeck(sample)).manifest!;
+    const format = text(sample.read('lib/format.ts')).replace("'·'", "'•'");
+    const b = (await buildDeck(variant({ 'lib/format.ts': format }))).manifest!;
+    const differing = Object.keys(a.imports).filter((k) => a.imports[k] !== b.imports[k]);
+    expect(differing).toEqual(['@deck/lib/format.ts', '@deck/scenes/tokens.svelte']);
+    expect(b.linked).toBe(true);
+  });
+
+  it('imports by specifier, not linked, when its files import each other in a cycle', async () => {
+    const { manifest, modules } = await buildDeck(
+      variant({
+        'lib/format.ts': `import Pill from './Pill.svelte';\nexport const pill = () => Pill;\n${text(sample.read('lib/format.ts'))}`,
+        'lib/Pill.svelte': text(sample.read('lib/Pill.svelte')).replace(
+          '<script lang="ts">',
+          '<script lang="ts">\n  import { visible } from \'./format.ts\';',
+        ),
+      }),
+    );
+    expect(manifest!).not.toHaveProperty('linked');
+    const tokens = modules.get(manifest!.imports['@deck/scenes/tokens.svelte']!)!;
+    expect(tokens).toContain("from '@deck/lib/Pill.svelte'");
+    expect(tokens).toContain("from '@deck/data/tokens.json'");
   });
 });
 
@@ -648,7 +676,7 @@ describe('imports', () => {
     const tree = importing("const load = () => import('../lib/format.ts');");
     const { manifest, modules } = await buildDeck(tree);
     const code = modules.get(manifest!.imports['@deck/scenes/title.svelte']!)!;
-    expect(code).toContain('import("@deck/lib/format.ts")');
+    expect(code).toContain(`import("./${manifest!.imports['@deck/lib/format.ts']!.slice(2)}")`);
   });
 
   it("reject a name the deck's file doesn't export, which stops the browser loading the scene", async () => {
@@ -874,16 +902,21 @@ describe('media', () => {
     ]);
   });
 
-  it('are compiled into lookups of the media map, so a file changing changes no module', async () => {
+  it("are compiled into lookups of the media map: a file changing changes its importers' addresses, not their code", async () => {
     const { manifest, modules } = await buildDeck(sample);
     const question = modules.get(manifest!.imports['@deck/scenes/question.svelte']!)!;
     expect(question).not.toContain('$media/');
     expect(question).toContain("from '@tobos/present/media'");
-    expect(question).toContain('__tobos_media("scan.png")');
+    expect(question).toContain('__tobos_media("scan.png", import.meta.url)');
     const media = JSON.parse(text(sample.read('media.json')));
     media['scan.png'].hash = 'f'.repeat(64);
-    const changed = (await buildDeck(variant({ 'media.json': JSON.stringify(media) }))).manifest!;
-    expect(changed.imports).toEqual(manifest!.imports);
+    const rebuilt = await buildDeck(variant({ 'media.json': JSON.stringify(media) }));
+    const changed = rebuilt.manifest!;
+    const differing = Object.keys(changed.imports).filter(
+      (k) => changed.imports[k] !== manifest!.imports[k],
+    );
+    expect(differing).toEqual(['@deck/scenes/question.svelte']);
+    expect(rebuilt.modules.get(changed.imports['@deck/scenes/question.svelte']!)).toBe(question);
     expect(changed.format).toBe(2);
   });
 
@@ -1419,8 +1452,27 @@ describe('media globs', () => {
       patterns: ['**/*.webm', 'sc*.png'],
     });
     const title = modules.get(manifest!.imports['@deck/scenes/title.svelte']!)!;
-    expect(title).toContain('__tobos_glob(["sc*.png","**/*.webm"])');
+    expect(title).toContain('__tobos_glob(["sc*.png","**/*.webm"], import.meta.url)');
     expect(title).toContain("import { mediaGlob as __tobos_glob } from '@tobos/present/media'");
+  });
+
+  it("give a file that matches a new address when it changes, and one that doesn't none", async () => {
+    const tree = (media: Record<string, { hash: string }>) => {
+      const files: Record<string, string> = { 'media.json': JSON.stringify(media) };
+      for (const path of ['scenes/title.svelte', 'deck.json'])
+        files[path] = text(titled("const scans = import.meta.glob('$media/sc*.png');").read(path));
+      return variant(files);
+    };
+    const media = JSON.parse(text(sample.read('media.json')));
+    const address = async (changed: string) => {
+      const next = structuredClone(media);
+      next[changed].hash = 'f'.repeat(64);
+      return (await buildDeck(tree(next))).manifest!.imports['@deck/scenes/title.svelte'];
+    };
+    const before = (await buildDeck(tree(media))).manifest!.imports['@deck/scenes/title.svelte'];
+    expect(await address('scan.png')).not.toBe(before);
+    const other = Object.keys(media).find((name) => !name.startsWith('sc'))!;
+    expect(await address(other)).toBe(before);
   });
 
   it('fail when none does', async () => {

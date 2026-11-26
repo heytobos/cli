@@ -13,7 +13,7 @@ import {
   type Action,
 } from './keys.ts';
 import { follow } from './live.ts';
-import { Player } from './player.ts';
+import { Player } from './player.svelte.ts';
 import { settled } from './ready.ts';
 import { introduceAudience } from './screens.ts';
 import { joinWindows, type BeatRef } from './windows.ts';

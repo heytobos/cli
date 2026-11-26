@@ -77,7 +77,9 @@ export function compileMedia(code: string): string {
       continue;
     edits.push({ start: node.start, end: node.end, text: '' });
     const local = (only.local as Node).name as string;
-    lookups.push(`const ${local} = __tobos_media(${JSON.stringify(name.slice(MEDIA.length))});`);
+    lookups.push(
+      `const ${local} = __tobos_media(${JSON.stringify(name.slice(MEDIA.length))}, import.meta.url);`,
+    );
   }
   let globs = false;
   walk(program, null, {
@@ -87,7 +89,7 @@ export function compileMedia(code: string): string {
         edits.push({
           start: node.start,
           end: node.end,
-          text: `__tobos_glob(${JSON.stringify(patterns)})`,
+          text: `__tobos_glob(${JSON.stringify(patterns)}, import.meta.url)`,
         });
         globs = true;
       }

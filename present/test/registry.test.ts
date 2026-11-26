@@ -12,6 +12,20 @@ describe('media', () => {
     warn.mockRestore();
   });
 
+  it('gives a module the media of the revision its address is in, whichever is set now', () => {
+    const at = (file: string) => `https://abc.tobosusercontent.com/v/cap/m/${file}`;
+    setMedia({ 'cow.jpg': { hash: 'old' } }, { '@deck/scenes/a.svelte': 'm/a1.js' });
+    // A push replaced cow.jpg: scene a's address is another.
+    setMedia({ 'cow.jpg': { hash: 'new' } }, { '@deck/scenes/a.svelte': 'm/a2.js' });
+    // The old address, run only now (it was loading, or an undo comes back to it): the old file.
+    expect(mediaUrl('cow.jpg', at('a1.js'))).toBe('media/old');
+    expect(mediaGlob(['cow.*'], at('a1.js'))).toEqual({ '$media/cow.jpg': 'media/old' });
+    expect(mediaUrl('cow.jpg', at('a2.js'))).toBe('media/new');
+    // A module no revision listed, or compiled before modules passed their URL: the map now.
+    expect(mediaUrl('cow.jpg', at('elsewhere.js'))).toBe('media/new');
+    expect(mediaUrl('cow.jpg')).toBe('media/new');
+  });
+
   it("says on a share that a file isn't there, not that media.json lacks it", () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     setMedia(JSON.parse('{"cow.jpg": {"hash": "abc"}}'));

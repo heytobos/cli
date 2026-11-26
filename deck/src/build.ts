@@ -15,7 +15,7 @@ import { globMatcher } from './media-pattern.ts';
 import { mediaInUse } from './share.ts';
 import { stripTypes } from './strip-types.ts';
 import { position, readText, resolvePath } from './tree.ts';
-import type { Build, BuildScene, DeckJson, DeckTree, Problem, Uses } from './types.ts';
+import type { Build, BuildScene, DeckJson, DeckTree, MediaJson, Problem, Uses } from './types.ts';
 
 const DECK_PREFIX = '@deck/';
 const SOURCE = /\.(svelte|ts|js|mjs|json)$/;
@@ -444,36 +444,80 @@ function notExported(spec: string, target: string, name: string, exported: strin
     .trim();
 }
 
+const isRelative = (spec: string | undefined): spec is string =>
+  !!spec && (spec.startsWith('./') || spec.startsWith('../'));
+
 /**
- * Rewrite relative imports to import-map specifiers (`@deck/<path>`), then address each
- * module by its content: `m/<hash>.js`.
+ * Address each module by its content, `m/<hash>.js`, its imports of the deck's other files
+ * rewritten to their addresses (`./<hash>.js`, beside it). So a module's address is new exactly
+ * when its code, a file it reaches, or a file of media/ it imports is: a viewer following a push
+ * keeps a scene whose address is the same, as nothing it shows changed (the engine's player.ts).
+ * A deck whose files import each other in a cycle can't be addressed so: its imports become
+ * import-map specifiers (`@deck/<path>`), as every deck's did before, and it isn't `linked`.
  */
-function emitModules(compiled: Map<string, CompiledFile>): {
-  modules: Map<string, string>;
-  imports: Record<string, string>;
-} {
+function emitModules(
+  compiled: Map<string, CompiledFile>,
+  media: MediaJson,
+): { modules: Map<string, string>; imports: Record<string, string>; linked: boolean } {
+  const targets = (path: string, file: CompiledFile) =>
+    file.imports.flatMap(({ specifier }) =>
+      isRelative(specifier) ? [resolvePath(path, specifier)!] : [],
+    );
+
+  // Each file after those it imports.
+  const order: string[] = [];
+  const visiting = new Set<string>();
+  const done = new Set<string>();
+  let linked = true;
+  const visit = (path: string) => {
+    if (done.has(path)) return;
+    if (visiting.has(path)) {
+      linked = false;
+      return;
+    }
+    visiting.add(path);
+    for (const target of targets(path, compiled.get(path)!))
+      if (compiled.has(target)) visit(target);
+    visiting.delete(path);
+    done.add(path);
+    order.push(path);
+  };
+  for (const path of [...compiled.keys()].sort()) visit(path);
+
+  const names = Object.keys(media);
   const modules = new Map<string, string>();
   const imports: Record<string, string> = {};
-  for (const [path, file] of compiled) {
+  for (const path of order) {
+    const file = compiled.get(path)!;
     let code = '';
     let last = 0;
     for (const entry of file.imports) {
-      const spec = entry.specifier!;
-      if (!spec.startsWith('./') && !spec.startsWith('../')) continue;
-      const replacement = DECK_PREFIX + resolvePath(path, spec)!;
+      if (!isRelative(entry.specifier)) continue;
+      const target = DECK_PREFIX + resolvePath(path, entry.specifier)!;
+      const replacement = linked ? `./${imports[target]!.slice('m/'.length)}` : target;
       const quoted = entry.dynamic && /^['"`]/.test(file.code.slice(entry.start, entry.start + 1));
       code +=
         file.code.slice(last, entry.start) + (quoted ? JSON.stringify(replacement) : replacement);
       last = entry.end;
     }
     code += file.code.slice(last);
-    const name = `m/${sha256(code).slice(0, 20)}.js`;
+    // The media it imports, by their content: the module looks their addresses up when it runs.
+    const shown = new Set<string>();
+    for (const ref of file.analysis.media)
+      if (!ref.pattern) shown.add(ref.name);
+      else for (const name of names.filter(globMatcher(ref.name))) shown.add(name);
+    const content = [...shown]
+      .sort()
+      .map((name) => `\0${name}\0${media[name]?.hash ?? ''}`)
+      .join('');
+    const name = `m/${sha256(code + content).slice(0, 20)}.js`;
     modules.set(name, code);
     imports[DECK_PREFIX + path] = name;
   }
   return {
     modules,
     imports: Object.fromEntries(Object.entries(imports).sort(([a], [b]) => a.localeCompare(b))),
+    linked,
   };
 }
 
@@ -671,7 +715,7 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
   const stylesheet = masterStylesheet(tree, media, mediaProblems.length ? [] : problems);
   if (problems.some((p) => p.severity === 'error')) return { problems, modules, deck };
 
-  const emitted = emitModules(graph.compiled);
+  const emitted = emitModules(graph.compiled, media);
   if (stylesheet) emitted.modules.set(stylesheet.name, stylesheet.code);
   const uses: Uses = {
     modules: modulesUses(graph.compiled),
@@ -700,6 +744,7 @@ export async function buildDeck(tree: DeckTree, options: BuildOptions = {}): Pro
       format: 2,
       scenes,
       imports: emitted.imports,
+      ...(emitted.linked ? { linked: true as const } : {}),
       media,
       dependencies,
       packages: packageImports(graph.compiled, dependencies),

@@ -1,14 +1,34 @@
 /** State the viewer sets up before any scene loads, and the scene API reads. */
 import { globMatcher } from '@tobos/deck/media-pattern';
 
-let files: Record<string, { hash: string }> = {};
+type Media = Record<string, { hash: string }>;
 
-export function setMedia(media: Record<string, { hash: string }>) {
+let files: Media = {};
+/**
+ * Each compiled module's media, by its file's name (`<hash>.js`): the map of the first revision
+ * that listed it. Its address covers the files it imports (the deck's build.ts, emitModules), so
+ * any revision that lists it maps their names to the same files, whichever is the viewer's now
+ * when the module first runs: one a push left loading, or an undo comes back to.
+ */
+const byModule = new Map<string, Media>();
+const fileOf = (url: string) => url.slice(url.lastIndexOf('/') + 1);
+
+/** The revision's media, and its import map's modules (`m/<hash>.js`), which look theirs up. */
+export function setMedia(media: Media, modules: Record<string, string> = {}) {
   files = media;
+  for (const path of Object.values(modules))
+    if (!byModule.has(fileOf(path))) byModule.set(fileOf(path), media);
 }
 
-/** The URL of a file in media/, what `import cow from '$media/cow.jpg'` gives. */
-export function mediaUrl(name: string): string {
+/** The media a module looks up, by its URL: those of a module compiled before, the viewer's now. */
+const mediaOf = (module: string | undefined) => (module && byModule.get(fileOf(module))) || files;
+
+/**
+ * The URL of a file in media/, what `import cow from '$media/cow.jpg'` gives, for the module at
+ * `module`, its `import.meta.url`.
+ */
+export function mediaUrl(name: string, module?: string): string {
+  const files = mediaOf(module);
   // Only its own names: `constructor` is a file like any other, not Object's.
   const entry = Object.hasOwn(files, name) ? files[name] : undefined;
   if (!entry) {
@@ -28,7 +48,8 @@ export function mediaUrl(name: string): string {
  * What `import.meta.glob('$media/cow/*.png')` gives: each file of media/ a pattern matches, by its
  * specifier (`$media/cow/a.png`), in order, with its URL. On a share, only those it has.
  */
-export function mediaGlob(patterns: string[]): Record<string, string> {
+export function mediaGlob(patterns: string[], module?: string): Record<string, string> {
+  const files = mediaOf(module);
   const matchers = patterns.map(globMatcher);
   const names = Object.keys(files)
     .filter((name) => matchers.some((matches) => matches(name)))

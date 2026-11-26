@@ -2,14 +2,15 @@ import type { SharedManifest } from '@tobos/deck';
 import { setMedia } from '../registry.ts';
 import { setActivities } from '../responses.svelte.ts';
 import type { ViewerConfig } from './config.ts';
-import type { Player } from './player.ts';
+import type { Player } from './player.svelte.ts';
 import { listen } from './events.ts';
 
 /**
  * Follow pushes: the server sends an event per new revision, and per change to the deck's outline,
- * with its version; changed scenes swap in at the current position, an outline changed reorders,
- * hides and renames them in place, anything else reloads the page (which keeps the position in its
- * hash). Back from a lost connection, as after a release restarts the server, the latest manifest
+ * with its version. The scene on screen stays as it is unless what it shows changed, which swaps
+ * it in at the same beat; an outline changed reorders, hides and renames around it; what only a
+ * fresh page can take reloads the page (which keeps the position in its hash; Player.update says
+ * which). Back from a lost connection, as after a release restarts the server, the latest manifest
  * says whether a push was missed meanwhile.
  */
 export function follow(
@@ -33,7 +34,7 @@ export function follow(
       if (!next.rev || current(next)) return;
       rev = next.rev;
       outline = next.outline;
-      setMedia(next.media);
+      setMedia(next.media, next.imports);
       setActivities(next);
       for (const player of players()) {
         const result = await player.update(next, new URL(manifestUrl, document.baseURI).href);

@@ -46,14 +46,18 @@ export interface PlayerOptions {
   onMove?: (position: Position, cue: Cue) => void;
 }
 
+/** The deck's scenes, in order. */
+const scenesOf = (manifest: SharedManifest) => manifest.chapters.flatMap((c) => c.scenes);
+
 /** A deck on a stage: the position, and moving it. */
 export class Player {
-  manifest: SharedManifest;
+  /** The deck as the server last had it: its scenes read their place in it from here. */
+  manifest: SharedManifest = $state.raw() as unknown as SharedManifest;
   outline: Outline;
   position: Position | null = null;
   readonly stage: Stage;
-  /** Scene modules swapped in by live follow: specifier → URL. */
-  private overrides = new Map<string, string>();
+  /** What the manifest's addresses are relative to, once a push gave it; until then the page. */
+  private base: string | undefined;
 
   private options: PlayerOptions;
   private host: HTMLElement;
@@ -67,22 +71,59 @@ export class Player {
     this.manifest = manifest;
     this.outline = outlineOf(manifest, options.presenting);
     this.stage = new Stage(host, {
+      key: (index) => this.key(index),
+      known: (key) => scenesOf(this.manifest).some((_, index) => this.key(index) === key),
       load: (index) => this.load(index),
       after: (index) => nextScene(this.outline, index, 1),
-      context: (index) => contextFor(this.manifest, index, options.presenting),
+      context: (index) => this.context(index),
       mountAhead: options.mountAhead,
       still: options.still,
     });
   }
 
-  private specifier(index: number): string {
-    return this.manifest.chapters.flatMap((c) => c.scenes)[index]!.module;
+  /**
+   * Scene `index` as the stage keeps it: its id and its module's address, which a build makes new
+   * whenever what the scene shows changes (the deck's build.ts, emitModules).
+   */
+  private key(index: number): string {
+    const scene = scenesOf(this.manifest)[index]!;
+    return `${scene.id} ${this.manifest.imports[scene.module]}`;
   }
 
   load(index: number): Promise<SceneModule> {
-    const specifier = this.specifier(index);
-    const url = this.overrides.get(specifier) ?? specifier;
+    const specifier = scenesOf(this.manifest)[index]!.module;
+    // After a push, at its address: the page's import map has the addresses it was opened with.
+    const url = this.base ? new URL(this.manifest.imports[specifier]!, this.base).href : specifier;
     return import(/* @vite-ignore */ url) as Promise<SceneModule>;
+  }
+
+  /**
+   * Where scene `index` sits in the deck, for as long as it is mounted: read from the manifest
+   * each time, so a push that renames or moves it shows on the slide at once, without mounting it
+   * again. A scene a push took out keeps its last place until it goes.
+   */
+  private context(index: number): DeckContext {
+    const id = scenesOf(this.manifest)[index]!.id;
+    let last = contextFor(this.manifest, index, this.options.presenting);
+    const now = () => {
+      const at = scenesOf(this.manifest).findIndex((s) => s.id === id);
+      if (at !== -1) last = contextFor(this.manifest, at, this.options.presenting);
+      return last;
+    };
+    return {
+      get title() {
+        return now().title;
+      },
+      get chapters() {
+        return now().chapters;
+      },
+      get chapter() {
+        return now().chapter;
+      },
+      get scene() {
+        return now().scene;
+      },
+    };
   }
 
   get hash(): string {
@@ -149,43 +190,32 @@ export class Player {
   }
 
   /**
-   * Follow a push. Changed scene files swap in place; anything else (a shared component,
-   * data, the master's styles, media) needs a fresh page, which the caller does. Media too: a
-   * module looks up its `$media` imports' URLs once, when it first runs (deck/src/media-imports.ts),
-   * and the browser runs a module it has once, so only a fresh page sees a file's new address.
+   * Follow a push. The scene on screen stays as it is unless what it shows changed: its address
+   * says so (key). One that did is shown anew at the same beat, the old one on screen until the
+   * new one is mounted; the scenes around it follow the outline as it is now. What scenes import
+   * through the page's import map, fixed at the addresses the page opened with, needs a fresh page,
+   * which the caller loads: a package's module, and in a build that isn't linked (from before, or
+   * with a cycle) the deck's own modules that aren't scenes. So do the master's styles; and in a
+   * build that isn't linked its media, which its addresses don't follow, while a module looks up
+   * its `$media` imports' URLs once, when it first runs (deck/src/media-imports.ts).
    */
   async update(next: SharedManifest, base: string): Promise<'same' | 'swapped' | 'reload'> {
     const before = this.manifest;
-    const changed = Object.keys(next.imports).filter(
-      (key) => before.imports[key] !== next.imports[key],
-    );
-    const removed = Object.keys(before.imports).filter((key) => !(key in next.imports));
-    const scenesOf = (m: SharedManifest) =>
-      new Set(m.chapters.flatMap((c) => c.scenes.map((s) => s.module)));
-    const sceneModules = scenesOf(next);
-    const beforeScenes = scenesOf(before);
-    const structure = (m: SharedManifest) => JSON.stringify(m.chapters);
+    const differ = (a: unknown, b: unknown) => JSON.stringify(a) !== JSON.stringify(b);
+    const fixed = (key: string, m: SharedManifest) =>
+      !(next.linked && key.startsWith('@deck/')) && !scenesOf(m).some((s) => s.module === key);
+    const keys = new Set([...Object.keys(before.imports), ...Object.keys(next.imports)]);
     if (
-      changed.length === 0 &&
-      removed.length === 0 &&
-      structure(before) === structure(next) &&
-      JSON.stringify(before.media) === JSON.stringify(next.media) &&
-      JSON.stringify(before.styles) === JSON.stringify(next.styles)
-    ) {
-      // Nothing on stage changes, but what is said about the deck may: its title.
-      this.manifest = next;
-      return 'same';
-    }
-    if (
-      removed.some((key) => !beforeScenes.has(key)) ||
-      changed.some((key) => !sceneModules.has(key)) ||
-      JSON.stringify(before.dependencies) !== JSON.stringify(next.dependencies) ||
-      JSON.stringify(before.styles) !== JSON.stringify(next.styles) ||
-      JSON.stringify(before.media) !== JSON.stringify(next.media)
+      [...keys].some(
+        (key) =>
+          before.imports[key] !== next.imports[key] &&
+          (key in next.imports ? fixed(key, next) : fixed(key, before)),
+      ) ||
+      differ(before.styles, next.styles) ||
+      (!next.linked && differ(before.media, next.media))
     )
       return 'reload';
 
-    for (const key of changed) this.overrides.set(key, new URL(next.imports[key]!, base).href);
     const outline = outlineOf(next, this.options.presenting);
     // A scene just hidden while it's on stays on: the next step goes on from it. One gone is
     // carried by beat count, which may land in a hidden scene: then at the next that shows.
@@ -196,9 +226,21 @@ export class Player {
       : outline.scenes.some((s) => s.id === id)
         ? carried
         : shownFrom(outline, carried);
+    const was = this.position && { key: this.key(this.position.scene), beat: this.position.beat };
+    this.base = base;
     this.manifest = next;
     this.outline = outline;
-    this.stage.reset();
+    // Not while it is still on its way to the screen: shown again, it takes the same load.
+    if (
+      was &&
+      !this.stage.busy &&
+      was.key === this.key(position.scene) &&
+      was.beat === position.beat
+    ) {
+      this.position = position;
+      this.stage.moved(position.scene);
+      return 'same';
+    }
     this.position = null;
     await this.go(position, false);
     return 'swapped';

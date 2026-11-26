@@ -50,7 +50,7 @@
   } from './layout.ts';
   import { follow } from './live.ts';
   import { listen } from './events.ts';
-  import { Player } from './player.ts';
+  import { Player } from './player.svelte.ts';
   import { audienceIn, openAudience } from './screens.ts';
   import SparklesOff from './SparklesOff.svelte';
   import { joinWindows, type BeatRef } from './windows.ts';

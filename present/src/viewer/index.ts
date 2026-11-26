@@ -11,7 +11,7 @@ export type { ViewerConfig, View } from './config.ts';
 
 /** Start the viewer page: one of the deck views, the presenter, print, or a sheet of its media. */
 export function start(config: ViewerConfig) {
-  setMedia(config.manifest.media);
+  setMedia(config.manifest.media, config.manifest.imports);
   setActivities(config.manifest);
   setJoin(config.join);
   setShared(Boolean(config.shared));
