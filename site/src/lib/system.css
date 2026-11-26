@@ -16,8 +16,7 @@
 
 /* ---- button: the brand button an ink outline, primary filled, quiet a hairline, icon a square,
    danger red with an ink label (only on the button that destroys, in the dialog that confirms) */
-.btn,
-.btn-quiet /* alone, as the app wrote it before this file: kept until the surfaces move (PLAN.md 15) */ {
+.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -84,22 +83,22 @@
   width: var(--control);
   padding: 0;
 }
-:is(.btn, .btn-quiet):disabled,
-:is(.btn, .btn-quiet)[aria-disabled='true'] {
+.btn:disabled,
+.btn[aria-disabled='true'] {
   /* Still under the pointer, so a title saying why can show. */
   opacity: 0.4;
   cursor: default;
 }
-:is(.btn, .btn-quiet) svg {
+.btn svg {
   flex: none;
 }
-/* On a dark ground the ink is white, so what fills with it takes the ink's own dark for its words. */
+/* On a dark ground the ink is white, so what fills with it takes the ground's dark for its words. */
 .on-ink .btn-primary {
-  color: #121a2c;
+  color: var(--ground);
 }
 @media (hover: hover) {
   .on-ink .btn:not(:disabled, [aria-disabled='true']):hover {
-    color: #121a2c;
+    color: var(--ground);
   }
 }
 @media (hover: hover) {

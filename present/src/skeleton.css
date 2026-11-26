@@ -20,32 +20,19 @@
 .tobos-skeleton i {
   position: absolute;
   left: 5.83%;
-  overflow: hidden;
   border-radius: 0.35cqw;
   background: color-mix(in srgb, var(--stage-ink, #121a2c) 7%, var(--stage-paper, #fff));
-}
-/* A sheen across each, unless the visitor asks for less motion. */
-.tobos-skeleton i::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--stage-paper, #fff) 70%, transparent),
-    transparent
-  );
-  transform: translateX(-100%);
-  animation: tobos-sheen 1.6s cubic-bezier(0.22, 0.61, 0.24, 1) infinite;
+  /* The system's skeleton pulse (system.css's .skeleton), still under reduced motion. */
+  animation: tobos-pulse 1.6s cubic-bezier(0.22, 0.61, 0.24, 1) infinite alternate;
 }
 @media (prefers-reduced-motion: reduce) {
-  .tobos-skeleton i::after {
-    display: none;
+  .tobos-skeleton i {
+    animation: none;
   }
 }
-@keyframes tobos-sheen {
+@keyframes tobos-pulse {
   to {
-    transform: translateX(100%);
+    opacity: 0.45;
   }
 }
 .tobos-skeleton i:nth-child(1) {
