@@ -1,13 +1,13 @@
 ---
 name: tobos-present
-description: Build presentations as code with Tobos Present. Use when the user wants a talk, lecture, pitch or slide deck made, changed, rendered, presented or exported as a PDF, or mentions Tobos Present or a Tobos deck.
+description: Make presentations with Tobos Present, which checks, hosts and presents them. Use when the user wants a talk, lecture, pitch or slide deck made, changed, rendered, presented or exported as a PDF, or mentions Tobos Present or a Tobos deck.
 ---
 
 <!-- Installed by the `tobos` CLI and overwritten when it updates, so changes made here don't last. -->
 
 # Tobos Present
 
-Tobos Present hosts presentations written as code: a deck is a folder of files, one Svelte 5 file per scene, advancing one beat per click. You build it with the `tobos` command, which needs no git; Tobos checks every push, keeps every version, hosts the deck and puts it on stage. `tobos --help` lists every command, and each takes `--json`.
+Tobos Present hosts the presentations you make for the person: a deck is a folder of files, one Svelte 5 file per scene, advancing one beat per click. You build it with the `tobos` command, which needs no git; Tobos checks every push, keeps every version, hosts the deck and puts it on stage. `tobos --help` lists every command, and each takes `--json`.
 
 ## Get to the deck
 
