@@ -3,10 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "tobos.ai's tokens, classes and typefaces, which the engine and Tobos standard use. The site itself is not in this repository.",
+  "description": "tobos.ai's tokens, classes and typefaces, which the engine and Tobos standard use, and the motion and step dots a share link's player shares with the app (grow.ts, BeatStrip.svelte). The site itself is not in this repository.",
   "exports": {
     "./tokens.css": "./src/lib/tokens.css",
     "./system.css": "./src/lib/system.css",
-    "./fonts.css": "./src/lib/fonts/fonts.css"
+    "./fonts.css": "./src/lib/fonts/fonts.css",
+    "./grow": "./src/lib/grow.ts",
+    "./BeatStrip.svelte": "./src/lib/BeatStrip.svelte"
+  },
+  "devDependencies": {
+    "svelte": "^5.57.2"
   }
 }

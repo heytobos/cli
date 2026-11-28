@@ -32,6 +32,8 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   if (view === 'audience' || render) document.documentElement.classList.add('tobos-no-cursor');
 
   let sync: ReturnType<typeof joinWindows> | null = null;
+  /** A share link's bar, which hears each move to mark the scene on stage. */
+  let bar: ReturnType<typeof shareBar> | undefined;
   let currentRev = config.rev;
   const embedded = window.parent !== window;
   // On someone else's page (a deck's preview on the app's) the stage has no black bars:
@@ -44,6 +46,7 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
     // A render lands on end states anyway; as a still view, it keeps loops at their start too.
     still: render,
     onMove: (position) => {
+      bar?.moved();
       const hash = formatHash(player.outline, position);
       showHash(hash);
       if (!applyingRemote) sync?.publish(refOf());
@@ -230,12 +233,20 @@ export function showDeck(root: HTMLElement, config: ViewerConfig, view: View) {
   // fullscreen, or sound, wants.
   onSwipe(root, (delta) => player.step(delta));
   if (config.shared)
-    shareBar(root, config.shared, (on) => player.stage.animate(on), toggleFullscreen);
+    bar = shareBar(root, config.shared, (on) => player.stage.animate(on), toggleFullscreen, {
+      manifest: () => player.manifest,
+      scene: () => player.position?.scene,
+      beat: () => player.position?.beat,
+      go: (scene) => void player.go({ scene, beat: 0 }),
+      goTo: (scene, beat) => void player.go({ scene, beat }),
+      load: (scene) => player.load(scene),
+    });
   follow(
     config,
     () => [player],
     (rev) => {
       currentRev = rev;
+      bar?.moved();
       if (embedded)
         window.parent.postMessage({ type: 'tobos:position', hash: player.hash, rev }, '*');
     },

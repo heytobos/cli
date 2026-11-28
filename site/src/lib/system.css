@@ -268,7 +268,7 @@ select.input {
   letter-spacing: 0;
 }
 
-/* ---- menu: one popover for every menu; on a touch screen, a sheet from the foot */
+/* ---- menu: one popover for every menu; in a narrow window, a sheet from the foot */
 .menu {
   width: 256px;
   padding: var(--s1) 0;
@@ -310,6 +310,12 @@ select.input {
 .menu-sheet :is([role^='menuitem'], [role='option']) {
   min-height: 48px;
   border-top: 1px solid var(--line);
+}
+/* A finger's target in a popover too, as on a tablet, where the window is wide enough for one. */
+@media (pointer: coarse) {
+  .menu :is([role^='menuitem'], [role='option']) {
+    min-height: 48px;
+  }
 }
 /* On a phone the sheet covers the list, so its first line, what it acts on, reads as text. */
 .menu-sheet > .menu-head:first-child {

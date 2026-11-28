@@ -151,6 +151,7 @@ html.tobos-print .tobos-page {
   left: max(16px, env(safe-area-inset-left));
 }
 .tobos-share-bar.tobos-shown,
+.tobos-share-bar.tobos-keyed,
 .tobos-share-bar.tobos-busy,
 .tobos-share-bar:focus-within,
 .tobos-share-bar:hover {
@@ -192,10 +193,327 @@ html.tobos-print .tobos-page {
   opacity: 1;
   cursor: progress;
 }
+/* The bar stays while the contents it opened are open. */
+.tobos-share-bar.tobos-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.tobos-contents-count {
+  text-align: center;
+  font: 400 var(--text-small) / 1 var(--mono);
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A share link's contents (contents.ts): its chapters and scenes on the chrome's dark ground, grown
+   out of the count button as the app's menus grow out of theirs, or in a narrow window the house's
+   sheet from the foot (system.css's .menu-sheet), over the ink's scrim. */
+.tobos-contents.on-ink {
+  position: fixed;
+  z-index: 4;
+  width: min(360px, calc(100vw - 32px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  background: var(--ground);
+  box-shadow: var(--shadow-float);
+  font: 400 var(--text-ui) / 1.4 var(--sans);
+  user-select: none;
+  -webkit-user-select: none;
+  /* A dark list scrolls with a dark, thin bar, not the page's light one (a white stripe where a Mac
+     always shows its scrollbars). */
+  color-scheme: dark;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+.tobos-contents::-webkit-scrollbar {
+  width: 8px;
+  background: transparent;
+}
+.tobos-contents::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.tobos-contents::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tobos-contents[hidden],
+.tobos-contents-scrim[hidden],
+.tobos-preview[hidden],
+.tobos-jump[hidden] {
+  display: none;
+}
+/* The sheet: the window's width, up to 90% of its height, its foot on the phone's edge. */
+.tobos-contents.on-ink.tobos-sheet {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  max-height: 90dvh;
+  border: 0;
+  border-top: 1px solid var(--line);
+  box-shadow: var(--shadow-modal);
+}
+.tobos-contents-scrim {
+  position: fixed;
+  z-index: 3;
+  inset: 0;
+  background: var(--scrim);
+}
+/* As the house's sheet ends in Cancel: Close, a finger's 48px across, on a foot of the sheet's own
+   ground that stays as the list scrolls above it, on a hairline (a shadow darkened the last row). */
+.tobos-contents-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: var(--s4) var(--s5) max(var(--s4), env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--ground);
+}
+.tobos-contents-close.btn {
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+}
+/* A deck's master styles the page's elements as it likes (a section, a list): none of it here. */
+.tobos-contents :is(section, h3, ol, li) {
+  all: unset;
+  display: block;
+}
+.tobos-contents-chapters {
+  padding: var(--s2) 0;
+}
+.tobos-sheet .tobos-contents-chapters {
+  padding-bottom: var(--s4);
+}
+.tobos-contents section + section {
+  margin-top: var(--s2);
+}
+/* Each chapter's heading stays at the top while its scenes scroll, its words in the middle of its
+   band, with no line or fade under it: the rows pass under the list's own ground. The chapter on
+   stage's is white. A click goes to its first scene. */
+.tobos-contents h3 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--s2) var(--s5);
+  background: var(--ground);
+  color: var(--ink-3);
+  font: 500 var(--text-small) / 1.4 var(--sans);
+  cursor: pointer;
+}
+.tobos-contents section.tobos-here h3 {
+  color: var(--ink);
+}
+.tobos-contents ol {
+  list-style: none;
+}
+.tobos-contents li.tobos-contents-row {
+  display: flex;
+  align-items: flex-start;
+  min-height: var(--control);
+  box-sizing: border-box;
+  padding: var(--s2) var(--s5) var(--s2) calc(var(--s5) - 2px);
+  border-left: 2px solid transparent;
+  color: var(--ink);
+  cursor: pointer;
+  /* Kept in sight below its chapter's heading. */
+  scroll-margin-top: var(--s12);
+}
+/* A finger's row. */
+@media (pointer: coarse) {
+  .tobos-contents li.tobos-contents-row {
+    min-height: var(--row);
+    align-items: center;
+  }
+}
+.tobos-contents-row > button {
+  all: unset;
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: var(--s2);
+  min-width: 0;
+}
+/* Its title over two lines, never cut short with an ellipsis; other rows' a little muted. */
+.tobos-contents .tobos-title {
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: color-mix(in srgb, var(--ink) 70%, transparent);
+  font-weight: 300;
+  line-height: 1.35;
+  transition: color 0.1s var(--ease);
+}
+.tobos-contents .tobos-count {
+  flex: none;
+  text-align: right;
+  color: var(--ink-3);
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+.tobos-contents-row:is(.tobos-here, .tobos-pointed, :has(:focus-visible)) .tobos-title {
+  color: var(--ink);
+}
+.tobos-contents-row.tobos-here .tobos-title {
+  font-weight: 400;
+}
+.tobos-contents-row.tobos-here .tobos-count {
+  color: var(--ink);
+}
+@media (hover: hover) {
+  .tobos-contents:not(.tobos-scrolling) .tobos-contents-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .tobos-contents:not(.tobos-scrolling) .tobos-contents-row:hover .tobos-title {
+    color: var(--ink);
+  }
+}
+.tobos-contents-row.tobos-pointed {
+  background: rgba(255, 255, 255, 0.04);
+}
+/* Where you are: the red rule at its edge, on the tint. */
+.tobos-contents li.tobos-contents-row.tobos-here {
+  border-left-color: var(--pop);
+  background: var(--ink-soft);
+}
+.tobos-contents-row:has(> button:focus-visible) {
+  outline: var(--focus);
+  outline-offset: -2px;
+}
+/* Its steps, the deck page's dots (BeatStrip), on the row where you are and the one pointed at. */
+.tobos-contents-steps {
+  display: flex;
+  flex: none;
+  align-self: stretch;
+  align-items: center;
+  margin: calc(-1 * var(--s2)) 0;
+  padding-left: var(--s3);
+}
+.tobos-contents-row:not(.tobos-here, .tobos-pointed, :has(:focus-visible)) .tobos-contents-steps {
+  display: none;
+}
+/* The list's foot fades while there is more below, so a row cut at the edge isn't read as the end. */
+.tobos-contents-chapters::after {
+  content: '';
+  display: block;
+  position: sticky;
+  bottom: 0;
+  height: var(--s8);
+  margin-top: calc(-1 * var(--s8));
+  background: linear-gradient(rgba(var(--sh), 0), var(--ground));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s var(--ease);
+}
+.tobos-sheet .tobos-contents-chapters::after {
+  bottom: calc(var(--s4) + 48px + max(var(--s4), env(safe-area-inset-bottom)) + 1px);
+}
+.tobos-more .tobos-contents-chapters::after {
+  opacity: 1;
+}
+/* While the list is open, the gap to it is the button's, so a pointer crossing it isn't leaving. */
+.tobos-contents-button[aria-expanded='true'] {
+  position: relative;
+}
+.tobos-contents-button[aria-expanded='true']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: var(--s3);
+}
+
+/* A row's slide beside the list, as print.ts draws a page: the 1920×1080 stage scaled into it, on
+   a hairline of the list's ground and the float's shadow, so a white slide reads on a white one.
+   Outside the chrome, as the stage is, so the slide takes none of its tokens: written out. */
+.tobos-preview {
+  position: fixed;
+  z-index: 5;
+  border: 1px solid #121a2c;
+  box-shadow: 0 12px 32px -12px rgba(18, 26, 44, 0.3);
+  cursor: pointer;
+}
+.tobos-preview-slide {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #fff;
+  pointer-events: none;
+}
+
+/* A number typed, then Enter (jump.ts): over the bar's left half. */
+.tobos-jump.on-ink:not([hidden]) {
+  position: fixed;
+  z-index: 5;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + var(--control) + var(--s2));
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--ink);
+  font: 300 var(--text-ui) / 1 var(--sans);
+}
+.tobos-jump b {
+  font: 400 var(--text-ui) / 1 var(--mono);
+}
+.tobos-jump-hint {
+  color: var(--ink-3);
+  font: 400 var(--text-small) / 1 var(--mono);
+}
+/* Bars side by side on a narrow or a short screen: the right one's buttons as their icons alone,
+   their names kept for a screen reader; the PDF's says it is being made, or what went wrong, for
+   which the left one makes way on a phone. */
+@media (max-width: 960px), (max-height: 500px) {
+  .tobos-share-bar:not(.tobos-share-left) .btn:not(:disabled, .tobos-failed) {
+    width: var(--control);
+    padding: 0;
+    justify-content: center;
+  }
+  .tobos-share-bar:not(.tobos-share-left) .btn:not(:disabled, .tobos-failed) span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+@media (max-width: 960px), (max-height: 500px) {
+  .tobos-letterbox:has(.tobos-share-bar.tobos-busy) .tobos-share-left {
+    visibility: hidden;
+  }
+  .tobos-share-bar.tobos-busy {
+    left: max(16px, env(safe-area-inset-left));
+    justify-content: flex-end;
+  }
+  .tobos-share-bar.tobos-busy .btn {
+    min-width: 0;
+  }
+  .tobos-share-bar.tobos-busy .btn.tobos-failed {
+    height: auto;
+    min-height: var(--control);
+    padding-block: var(--s2);
+    white-space: normal;
+    text-align: left;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tobos-fullscreen-hint,
   .tobos-share-bar,
   .tobos-share-bar .btn {
+    transition: none;
+  }
+  .tobos-contents .tobos-title,
+  .tobos-contents-chapters::after {
     transition: none;
   }
 }

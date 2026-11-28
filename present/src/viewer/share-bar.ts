@@ -1,15 +1,20 @@
+import { contents as contentsOf, type ContentsDeck } from './contents.ts';
+import { icon } from './icon.ts';
+
 /**
  * A share link's own controls, over the stage's corners: the PDF to download and the animations on
- * or off on the right, fullscreen on the left (F does that too). They show while the pointer moves
- * or the stage is tapped, and fade a moment after; they are buttons, so a click on them never
- * steps the deck (taps.ts).
+ * or off on the right, the contents (contents.ts) and fullscreen on the left (F does that too).
+ * They show while the pointer moves or the stage is tapped, and fade a moment after, but stay
+ * while the contents are open; they are buttons, so a click on them never steps the deck
+ * (taps.ts). `moved` is for each move of the deck, and each push.
  */
 export function shareBar(
   root: HTMLElement,
   shared: { pdf?: string },
   setAnimate: (on: boolean) => void,
   toggleFullscreen: () => void,
-): () => void {
+  deck: ContentsDeck,
+): { moved: () => void; dispose: () => void } {
   // Chrome on the dark ground (chrome-style.ts): tobos.ai's buttons, turned over.
   const bar = document.createElement('div');
   bar.className = 'tobos-share-bar tobos-chrome on-ink';
@@ -19,15 +24,17 @@ export function shareBar(
     bar.append(pdf);
   }
   bar.append(animationToggle(setAnimate));
-  const bars = [bar];
+  const left = document.createElement('div');
+  left.className = 'tobos-share-bar tobos-share-left tobos-chrome on-ink';
+  // Left first: the keys go through the bar as it reads, the contents to the animations.
+  const bars = [left, bar];
+  const contents = contentsOf(deck, (open) => left.classList.toggle('tobos-open', open));
+  left.append(contents.button);
   // A phone's Safari has no fullscreen for a page: no button there.
   let fullscreen: ReturnType<typeof fullscreenButton> | null = null;
   if (document.fullscreenEnabled) {
     fullscreen = fullscreenButton(toggleFullscreen);
-    const left = document.createElement('div');
-    left.className = 'tobos-share-bar tobos-share-left tobos-chrome on-ink';
     left.append(fullscreen.element);
-    bars.push(left);
   }
   root.append(...bars);
 
@@ -42,12 +49,47 @@ export function shareBar(
   show();
   root.addEventListener('pointermove', show);
   root.addEventListener('pointerdown', show);
-  return () => {
-    window.clearTimeout(timer);
-    root.removeEventListener('pointermove', show);
-    root.removeEventListener('pointerdown', show);
-    fullscreen?.dispose();
-    for (const b of bars) b.remove();
+  // The keys in either half show the whole bar, as a video player's controls do, while the focus is
+  // in it; a click's focus leaves it to fade as before.
+  const focusIn = (e: FocusEvent) => {
+    if ((e.target as Element).matches(':focus-visible'))
+      for (const b of bars) b.classList.add('tobos-keyed');
+  };
+  const focusOut = (e: FocusEvent) => {
+    if (!bars.some((b) => b.contains(e.relatedTarget as Node)))
+      for (const b of bars) b.classList.remove('tobos-keyed');
+  };
+  // Out of the bar by the keys: Esc, or a key that moves the deck (which still moves it), gives the
+  // focus back to the page, and the bar fades as it does after the pointer.
+  const leave = (e: KeyboardEvent) => {
+    // Space or Enter on a button presses it, as from the keys anywhere, not the deck's next beat.
+    if ((e.key === ' ' || e.key === 'Enter') && (e.target as Element).closest('button')) {
+      e.stopPropagation();
+      return;
+    }
+    if (
+      !['Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(
+        e.key,
+      )
+    )
+      return;
+    (document.activeElement as HTMLElement | null)?.blur();
+  };
+  for (const b of bars) {
+    b.addEventListener('focusin', focusIn);
+    b.addEventListener('focusout', focusOut);
+    b.addEventListener('keydown', leave);
+  }
+  return {
+    moved: contents.moved,
+    dispose: () => {
+      window.clearTimeout(timer);
+      root.removeEventListener('pointermove', show);
+      root.removeEventListener('pointerdown', show);
+      fullscreen?.dispose();
+      contents.dispose();
+      for (const b of bars) b.remove();
+    },
   };
 }
 
@@ -56,9 +98,10 @@ function button(label: string, onClick: (button: HTMLButtonElement) => void): HT
   element.type = 'button';
   element.className = 'btn btn-quiet';
   element.append(text(label));
-  element.addEventListener('click', () => {
-    // The arrow keys and space step the deck again, rather than press this.
-    element.blur();
+  element.addEventListener('click', (event) => {
+    // Clicked, the arrow keys and space step the deck again, rather than press this. Pressed from
+    // the keys (no click count), the focus stays, for the next Tab: Esc or an arrow leaves the bar.
+    if (event.detail !== 0) element.blur();
     onClick(element);
   });
   return element;
@@ -133,14 +176,6 @@ const MAXIMIZE =
   '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>';
 const MINIMIZE =
   '<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>';
-
-function icon(paths: string): SVGSVGElement {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.innerHTML = paths;
-  return svg;
-}
 
 /**
  * The PDF is made on its first download, which can take a while for a long deck: the button says
